@@ -8,6 +8,13 @@ import type { SourceContext } from '../src/core/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const reckoFixture = readFileSync(join(__dirname, 'fixtures/zajezdy/recko.html'), 'utf-8');
+const allInclusiveFixture = readFileSync(join(__dirname, 'fixtures/zajezdy/all-inclusive.html'), 'utf-8');
+
+// Fixed reference time for all parseZajezdy calls in this suite: date-inference (year
+// rollover) and the crawl-window gating both depend on `now`, so a fixed value keeps
+// assertions (e.g. hardcoded '2026-07-15' departure dates) stable regardless of the real
+// clock — without this, the suite would start failing once the real month passes July.
+const FIXED_NOW = new Date('2026-07-04T09:00:00Z');
 
 function makeCtx(http: SourceContext['http']): SourceContext {
   return {
@@ -18,7 +25,7 @@ function makeCtx(http: SourceContext['http']): SourceContext {
 }
 
 describe('parseZajezdy', () => {
-  const offers = parseZajezdy(reckoFixture);
+  const offers = parseZajezdy(reckoFixture, FIXED_NOW);
 
   it('expands 10 tourResults x 3 departures into 30 offers (offer = hotel + term)', () => {
     // Verified against the live fixture: 10 tourResults, each carrying exactly 3 departures.
@@ -91,7 +98,25 @@ describe('parseZajezdy', () => {
   });
 
   it('returns an empty array for HTML without window.searchData', () => {
-    expect(parseZajezdy('<html><body>no data here</body></html>')).toEqual([]);
+    expect(parseZajezdy('<html><body>no data here</body></html>', FIXED_NOW)).toEqual([]);
+  });
+});
+
+describe('parseZajezdy: generic-slug fixture (all-inclusive)', () => {
+  // Live fixture captured from the generic /all-inclusive/ slug (not a single-country slug
+  // like /recko/), so tour.countryName varies per tourResult. Guards against `country`
+  // regressing to a locality/city string for generic-slug pages.
+  const offers = parseZajezdy(allInclusiveFixture, FIXED_NOW);
+  const EXPECTED_COUNTRIES = new Set(['Řecko', 'Turecko']);
+
+  it('parses a non-empty offer list', () => {
+    expect(offers.length).toBeGreaterThan(0);
+  });
+
+  it('normalizes every offer country to null or a canonical country name', () => {
+    for (const o of offers) {
+      expect(o.country === null || EXPECTED_COUNTRIES.has(o.country as string)).toBe(true);
+    }
   });
 });
 

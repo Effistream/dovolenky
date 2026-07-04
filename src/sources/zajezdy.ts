@@ -56,8 +56,9 @@ interface RawSearchData {
  * Extracts the `window.searchData = {...};` JSON blob embedded in Zajezdy.cz's SSR listing
  * pages. Uses a balanced-brace scan (tracking string literals so braces inside JSON string
  * values, e.g. HTML fragments in `icons`/`transportSymbol`, don't throw off the depth count)
- * rather than a DOTALL regex, because the payload is large (~150KB) and can itself contain
- * `};` sequences inside string values before its true end.
+ * rather than a DOTALL regex: a naive `};`-terminated regex could truncate early on payloads
+ * where a string value itself contains the literal sequence `};`, so we track string state
+ * explicitly instead of relying on that terminator.
  */
 function extractSearchData(html: string): RawSearchData | null {
   const idx = html.indexOf(SEARCH_DATA_MARKER);
@@ -189,7 +190,8 @@ function buildOffer(tourResult: RawTourResult, departure: RawDeparture, now: Dat
   const transport = departure.letiste ? 'flight' : 'unknown';
 
   const tourId = extractTourId(url) ?? extractTourId(tour.baseUrl);
-  const sourceOfferKey = offerKeyHash([tourId ?? title, departureDate, nights]);
+  const board = normalizeBoard(departure.strava);
+  const sourceOfferKey = offerKeyHash([tourId ?? title, departureDate, nights, board]);
 
   return {
     source: 'zajezdy',
@@ -198,7 +200,7 @@ function buildOffer(tourResult: RawTourResult, departure: RawDeparture, now: Dat
     country: normalizeCountry(tour.countryName ?? null),
     locality: tour.dest?.trim() || null,
     stars: typeof tour.classification === 'number' && tour.classification > 0 ? tour.classification : null,
-    board: normalizeBoard(departure.strava),
+    board,
     transport,
     departureAirport: departure.letiste?.trim() || null,
     departureDate,
