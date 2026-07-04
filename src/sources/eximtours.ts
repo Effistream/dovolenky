@@ -44,9 +44,17 @@ const TARGET_DESTINATIONS = ['Řecko', 'Egypt', 'Turecko'];
  *   across both fixtures with zero mismatches: `originalPrice - discount === total` exactly every
  *   time (e.g. 51100 - 23920 = 27180 = 2 * adult0's 13590). This mirrors eTravel/Fischer's DER
  *   platform convention (see der.ts's computeClaimedPrice comment) even though Exim's own
- *   per-adult breakdown (`adult0`/`adult1`) is visible in the same card.
- *   claimedDiscountPct = round(discount / originalPrice * 100), guarded to (0, 100) exclusive;
- *   guard also requires originalPrice > total, else both claimed fields are null.
+ *   per-adult breakdown (`adult0`/`adult1`) is visible in the same card. Unlike der.ts (which
+ *   never sees a raw total-based original price and must reconstruct one from adultPrice +
+ *   discountPerPerson), Exim exposes the TOTAL original price directly, so it's converted to
+ *   per-person to stay consistent with every sibling adapter's `claimedOriginalPrice` contract:
+ *   `adults = Math.max(1, Math.round(priceTotal / pricePerPerson))` (same derivation as der.ts's
+ *   computeClaimedPrice), then `claimedOriginalPrice = Math.round(originalPrice / adults)` (e.g.
+ *   51100 / 2 = 25550 for the fixture's first card, alongside adult0's 13590 per-person price).
+ *   claimedDiscountPct = round(discount / originalPrice * 100) stays ratio-based (unaffected by
+ *   the per-person conversion), guarded to (0, 100) exclusive; guard also requires
+ *   originalPrice > total and both priceTotal/pricePerPerson > 0 (needed to derive `adults`),
+ *   else both claimed fields are null.
  * - Stars: `.js-stars` text is a run of literal `*` characters (e.g. "*****"); its length is the
  *   star count. Board: free-text search for the known Czech/English board strings in the card's
  *   full text (e.g. "All inclusive", "Polopenze", "Bez stravování") via normalizeBoard.
@@ -151,14 +159,25 @@ function parseCard($: cheerio.CheerioAPI, card: ReturnType<cheerio.CheerioAPI>):
   const discount = parseCzk(card.find('.js-totalDiscount--amount').first().text());
 
   // Empirical finding (see module doc comment): originalPrice/discount are TOTAL-based, not
-  // per-person. Guard requires a real positive originalPrice/discount and originalPrice strictly
-  // greater than the total, else both claimed fields fall back to null rather than guessing.
+  // per-person, so originalPrice is converted to per-person (mirroring der.ts's
+  // computeClaimedPrice) to stay consistent with every sibling adapter's claimedOriginalPrice
+  // contract. Guard requires a real positive originalPrice/discount/priceTotal/pricePerPerson and
+  // originalPrice strictly greater than the total, else both claimed fields fall back to null
+  // rather than guessing.
   let claimedOriginalPrice: number | null = null;
   let claimedDiscountPct: number | null = null;
-  if (originalPrice !== null && discount !== null && priceTotal !== null && originalPrice > priceTotal) {
+  if (
+    originalPrice !== null &&
+    discount !== null &&
+    priceTotal !== null &&
+    priceTotal > 0 &&
+    pricePerPerson > 0 &&
+    originalPrice > priceTotal
+  ) {
     const pct = round((discount / originalPrice) * 100);
     if (pct > 0 && pct < 100) {
-      claimedOriginalPrice = originalPrice;
+      const adults = Math.max(1, round(priceTotal / pricePerPerson));
+      claimedOriginalPrice = round(originalPrice / adults);
       claimedDiscountPct = pct;
     }
   }

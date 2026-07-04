@@ -49,7 +49,7 @@ describe('parseEximSearch (fixture)', () => {
     expect(first.board).toBe('AI');
     expect(first.pricePerPerson).toBe(13590);
     expect(first.priceTotal).toBe(27180);
-    expect(first.claimedOriginalPrice).toBe(51100);
+    expect(first.claimedOriginalPrice).toBe(25550); // round(51100/2), adults=round(27180/13590)=2
     expect(first.claimedDiscountPct).toBe(47); // round(23920/51100*100)
     expect(first.departureDate).toBe('2026-07-09');
     expect(first.nights).toBe(7);
@@ -57,15 +57,17 @@ describe('parseEximSearch (fixture)', () => {
     expect(first.url.startsWith('https://www.eximtours.cz/egypt/hurghada/hurghadahawaii-paradise')).toBe(true);
   });
 
-  it('computes claimedDiscountPct from TOTAL-based originalPrice/discount, not per-person', () => {
+  it('derives a per-person claimedOriginalPrice from the TOTAL-based originalPrice/discount', () => {
     // Empirical finding (verified against all 20 cards in both the Egypt and Řecko fixtures,
     // zero mismatches): js-roomPrice-originalPrice minus js-totalDiscount--amount always equals
     // js-roomPrice-total exactly (e.g. 51100 - 23920 = 27180 = 2 * adult0's 13590). So
     // originalPrice/discount are TOTAL-based figures (like eTravel/DER — see der.ts), NOT
-    // per-person, even though adult0 alone is per-person.
+    // per-person, even though adult0 alone is per-person. claimedOriginalPrice is converted to
+    // per-person (dividing by the derived adult count) to match every sibling adapter's
+    // claimedOriginalPrice contract, so it must exceed pricePerPerson, not priceTotal.
     for (const offer of offers) {
-      if (offer.claimedOriginalPrice !== null && offer.priceTotal !== null) {
-        expect(offer.claimedOriginalPrice).toBeGreaterThan(offer.priceTotal);
+      if (offer.claimedOriginalPrice !== null && offer.pricePerPerson !== null) {
+        expect(offer.claimedOriginalPrice).toBeGreaterThan(offer.pricePerPerson);
       }
     }
   });
