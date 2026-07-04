@@ -1,8 +1,7 @@
 import type { Profile } from './config.js';
+import { dayDiff, pragueDayString } from './dates.js';
 import { normalizeCountry } from './normalize.js';
 import type { NormalizedOffer } from './types.js';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 function matchesCountry(offer: NormalizedOffer, profile: Profile): boolean {
   if (profile.countries.length === 0) return true;
@@ -32,10 +31,8 @@ function matchesDepartureMonth(offer: NormalizedOffer, profile: Profile): boolea
 function matchesDepartureWithinDays(offer: NormalizedOffer, profile: Profile, now: Date): boolean {
   if (profile.departureWithinDays === null) return true;
   if (!offer.departureDate) return false;
-  const departure = new Date(`${offer.departureDate}T00:00:00.000Z`).getTime();
-  const nowMs = now.getTime();
-  const maxMs = nowMs + profile.departureWithinDays * DAY_MS;
-  return departure >= nowMs && departure <= maxMs;
+  const diff = dayDiff(pragueDayString(now), offer.departureDate);
+  return diff >= 0 && diff <= profile.departureWithinDays;
 }
 
 function matchesMaxPrice(offer: NormalizedOffer, profile: Profile): boolean {

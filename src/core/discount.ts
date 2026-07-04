@@ -1,3 +1,5 @@
+import { pragueDayString } from './dates.js';
+
 export interface DiscountResult {
   realPct: number | null;
   reference: 'own' | 'omnibus' | 'market' | null;
@@ -29,22 +31,16 @@ export function median(xs: number[]): number {
   return (sorted[mid - 1]! + sorted[mid]!) / 2;
 }
 
-const PRAGUE_DAY_FORMATTER = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Prague' });
-
-function pragueDay(date: Date): string {
-  return PRAGUE_DAY_FORMATTER.format(date);
-}
-
 function ownBaseline(ownSnapshots: { price: number; at: string }[], now: Date): number | null {
   const nowMs = now.getTime();
-  const todayPragueDay = pragueDay(now);
+  const todayPragueDay = pragueDayString(now);
   const windowStartMs = nowMs - OWN_WINDOW_DAYS * DAY_MS;
 
   const qualifying = ownSnapshots.filter((s) => {
     const t = new Date(s.at).getTime();
     if (!Number.isFinite(t)) return false;
     // exclude today (Europe/Prague calendar day)
-    if (pragueDay(new Date(t)) === todayPragueDay) return false;
+    if (pragueDayString(new Date(t)) === todayPragueDay) return false;
     // last 30 days (excluding today)
     return t >= windowStartMs && t < nowMs;
   });

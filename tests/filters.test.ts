@@ -141,4 +141,65 @@ describe('matchProfiles', () => {
     // last-minute has departureWithinDays set -> must not match
     expect(matches.map((m) => m.name)).not.toContain('last-minute');
   });
+
+  describe('departureWithinDays Prague calendar-day boundaries', () => {
+    // now = 2026-07-04T05:00:00Z = 2026-07-04 07:00 Prague (CEST, UTC+2)
+    const now = new Date('2026-07-04T05:00:00.000Z');
+
+    it('8. departureDate today (2026-07-04) matches last-minute', () => {
+      const profiles = loadProfiles();
+      const offer = mkOffer({ departureDate: '2026-07-04' });
+
+      const matches = matchProfiles(offer, profiles, now);
+
+      expect(matches.map((m) => m.name)).toContain('last-minute');
+    });
+
+    it('9. departureDate exactly +14 days (2026-07-18) matches last-minute', () => {
+      const profiles = loadProfiles();
+      const offer = mkOffer({ departureDate: '2026-07-18' });
+
+      const matches = matchProfiles(offer, profiles, now);
+
+      expect(matches.map((m) => m.name)).toContain('last-minute');
+    });
+
+    it('10. departureDate +15 days (2026-07-19) does not match last-minute', () => {
+      const profiles = loadProfiles();
+      const offer = mkOffer({ departureDate: '2026-07-19' });
+
+      const matches = matchProfiles(offer, profiles, now);
+
+      expect(matches.map((m) => m.name)).not.toContain('last-minute');
+    });
+
+    it('11. departureDate yesterday (2026-07-03) does not match last-minute', () => {
+      const profiles = loadProfiles();
+      const offer = mkOffer({ departureDate: '2026-07-03' });
+
+      const matches = matchProfiles(offer, profiles, now);
+
+      expect(matches.map((m) => m.name)).not.toContain('last-minute');
+    });
+
+    it('12. Prague-midnight edge: now=2026-07-04T22:30:00Z (2026-07-05 00:30 Prague), departureDate 2026-07-04 does not match (already yesterday in Prague)', () => {
+      const profiles = loadProfiles();
+      const lateNow = new Date('2026-07-04T22:30:00.000Z');
+      const offer = mkOffer({ departureDate: '2026-07-04' });
+
+      const matches = matchProfiles(offer, profiles, lateNow);
+
+      expect(matches.map((m) => m.name)).not.toContain('last-minute');
+    });
+
+    it('13. Prague-midnight edge: now=2026-07-04T22:30:00Z (2026-07-05 00:30 Prague), departureDate 2026-07-05 matches as today', () => {
+      const profiles = loadProfiles();
+      const lateNow = new Date('2026-07-04T22:30:00.000Z');
+      const offer = mkOffer({ departureDate: '2026-07-05' });
+
+      const matches = matchProfiles(offer, profiles, lateNow);
+
+      expect(matches.map((m) => m.name)).toContain('last-minute');
+    });
+  });
 });
