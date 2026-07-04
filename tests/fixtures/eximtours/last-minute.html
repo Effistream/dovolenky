@@ -1,0 +1,1869 @@
+
+
+<!DOCTYPE html>
+<html lang="cs">
+
+<head>
+    
+
+    
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no,maximum-scale=1">
+<meta name="msapplication-TileColor" content="#C20063)">
+<meta name="theme-color" content="#C20063">
+<meta name="facebook-domain-verification" content="pvlcdl1a8jqr9e88h8b4rjbxsh1wyh" />
+<meta name="seznam-wmt" content="GV7rULkxBzxe3rYGNNmjsR78pBHhF2nl" />
+
+<title>Last minute: čerstv&#225; nab&#237;dka, vysok&#233; slevy</title>
+
+
+
+
+        <meta name="og:site_name" content="EXIM Tours" />
+        <meta name="og:url" content="https://www.eximtours.cz/last-minute" />
+        <meta name="og:type" content="website" />
+        <meta name="og:title" content="Last minute: čerstvá nabídka, vysoké slevy" />
+        <meta name="og:description" content="Odleťte třeba hned zítra. Kamkoliv vás napadne a navíc za směšnou cenu. Máme pro vás denně aktualizovanou nabídku last minute zájezdů se slevou až desítky %!" />
+        <meta name="og:image" content="https://www.eximtours.cz:443/getattachment/04fbe41f-e8bd-41ca-82f6-7206e6712510/last-minute-exim.png?maxsidesize=1200&resizemode=force" />
+        <meta name="description" content="Odleťte třeba hned zítra. Kamkoliv vás napadne a navíc za směšnou cenu. Máme pro vás denně aktualizovanou nabídku last minute zájezdů se slevou až desítky %!" />
+        <meta name="keywords" content="" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+        <meta name="robots" content="index,follow" />
+
+
+    <script>
+        /*1) INIT Cookie Consent in TOP HEAD */
+        window.dataLayer = window.dataLayer || [];
+    </script>
+
+    <script type="text/javascript" data-type="gtm">
+        window.dataLayer.push({
+  "event": "customVars",
+  "pageCategory": "last minute",
+  "pageType": "top category",
+  "userLoggedin": "no"
+});
+    </script>
+    <script type="text/javascript">
+       var googleSiteKey='6LeUnXAqAAAAAFyCsAmKDIEN-mbZ7UihDjz6sRye'
+    </script>
+
+    
+    <script type="text/javascript">
+        window.dataLayer.push({"event":"customVars2","eventData":{"user":{"type":"anonymous"},"user_id":null}})
+    </script>
+
+
+    
+
+
+
+<script>
+    /*
+     * GTM & Consent load
+     */
+    //create datalayer
+    function gtag() {
+        window.dataLayer.push(arguments);
+    }
+
+    //get consents from local storage
+    function getConsents() {
+        const consents = JSON.parse(localStorage.getItem('consents'));
+        if (consents) {
+            adStorage = consents.marketing == true ? 'granted' : 'denied';
+            analyticsStorage = consents.tracking == true ? 'granted' : 'denied';
+            consent_marketing = consents.marketing == true ? true : false;
+            consent_analytics = consents.tracking == true ? true : false;
+        }
+    }
+
+    //Consent default
+    let consent_marketing = false;
+    let consent_analytics = false;
+    //Google Consent Mode
+    let adStorage = 'denied';
+    let analyticsStorage = 'denied';
+
+    getConsents();//get consents from local storage
+
+    //1. DEFAULT CONSENT, google consent mode all based on adStorage
+    gtag('consent', 'default', {
+        'ad_storage': adStorage,
+        'ad_user_data': adStorage,
+        'ad_personalization': adStorage,
+        'analytics_storage': adStorage,
+        'personalization_storage': adStorage,
+        'functionality_storage': adStorage,
+        'security_storage': adStorage
+    });
+
+    console.log("DERTOURISTIK Consent Init mkt: " + adStorage + ", analytics: " + analyticsStorage);
+    //2. Consent Initialized, run GA in GTM
+    window.dataLayer.push({
+        event: 'consent_init',
+        consent_marketing: adStorage,
+        consent_analytics: analyticsStorage,
+        _clear: true
+    });
+
+
+    //3. Function to update consent in local storage
+    window.addEventListener('ucEvent', function (e) {
+        console.log("ucEvent Run Consent Update:");
+
+        if (e.detail && e.detail.event === 'consent_status') {
+            // New consent staus is from the event
+            const newConsents = {
+                marketing: e.detail.ucCategory.marketing || false,
+                tracking: e.detail.ucCategory.functional || false
+            };
+            //old consent is in local storage
+            var consents = JSON.parse(localStorage.getItem('consents'));
+
+            //set only if the consents are different than saved
+            if (!consents || newConsents.marketing !== consents.marketing || newConsents.tracking !== consents.tracking){
+
+                localStorage.setItem('consents', JSON.stringify(newConsents));
+                const event = new CustomEvent('ucEventLocalStorageChanged');
+                document.dispatchEvent(event);
+
+                console.log('SET Updated consents to local storage:', newConsents);
+                window.dataLayer.push({
+                    event: 'consent_updated',
+                    consent_marketing: newConsents.marketing,
+                    consent_analytics: newConsents.tracking,
+                    _clear: true /*clear previous state*/
+                });
+            }
+        }
+    });
+</script>
+
+<script>
+    function addUsercentricsScriptForApp() {
+        var settingsId = "ZUoEfm2YU";
+        var script = document.createElement('script');
+        script.id = 'usercentrics-cmp';
+        script.setAttribute('data-settings-id', settingsId);
+        script.setAttribute('src', 'https://app.usercentrics.eu/browser-ui/latest/bundle_legacy.js');
+        script.async = true;
+        document.head.appendChild(script);
+    }
+
+    function addWebUsercentricsScript() {
+        var settingsId = "ZUoEfm2YU";
+        var script = document.createElement('script');
+        script.id = 'usercentrics-cmp';
+        script.setAttribute('data-settings-id', settingsId);
+        script.setAttribute('src', 'https://web.cmp.usercentrics.eu/ui/loader.js'); //v3
+        script.async = true;
+        document.head.appendChild(script);
+    }
+
+    if (window.navigator.userAgent.includes('sunrise')) {
+        window.addEventListener('Usercentrics_userSessionData_injected', function () {
+            console.log('Usercentrics Init Sunrise');
+            addUsercentricsScriptForApp();
+        });
+    } else {
+        console.log('Usercentrics Init WEB');
+        addWebUsercentricsScript();
+    }
+</script>
+
+<script>
+    (function (w, d, s, l, i) {
+        w[l] = w[l] || [];
+        w[l].push({
+            'gtm.start':
+                new Date().getTime(), event: 'gtm.js'
+        });
+        var f = d.getElementsByTagName(s)[0],
+            j = d.createElement(s), dl = l != 'dataLayer' ? '&l=' + l : '';
+        j.async = true;
+        j.src =
+            'https://www.googletagmanager.com/gtm.js?id=' + i + dl;
+        f.parentNode.insertBefore(j, f);
+    })(window, document, 'script', 'dataLayer', 'GTM-MNC34MZ');
+</script>
+
+
+      <script>
+        window.addEventListener('ucEvent', function (e) {
+            if (e.detail && e.detail.event == 'consent_status') {
+                if (e.detail['Meiro'] === true) {
+                    console.log('Meiro running');
+      
+                    var domain = 'me.eximtours.cz';
+      
+                    var script = document.createElement('script');
+                    script.onload = function () {
+                        MeiroEvents.init({ 
+                          domain: domain,
+                          sync: {
+                            ga_cid: true,
+                            fb_cid: true
+                          },
+                          outbound_link_tracking: {
+                            enabled: true
+                          },
+      
+                          cross_domain_whitelist: ['exim.pl', 'kartago.sk', 'kartagotours.hu', 'fischer.cz', 'fischer.sk', 'nev-dama.cz', 'etravel.cz', 'dertour.ro'] 
+      
+                        });
+                        MeiroEvents.track('pageView', {
+                            custom_payload: {
+                                'consent': e.detail,
+                            }
+                        });
+
+                        window.dataLayer.push({
+                          'event': 'meiro_init'
+                        });
+
+                        //added custom event for eventListener
+                        document.dispatchEvent(new CustomEvent('meiro: initialised'));
+                    };
+                    script.src = '//' + domain + '/sdk/';
+                    script.async = true;
+                    document.head.appendChild(script);
+                }
+            }
+        });
+      </script>
+      
+
+
+
+<script>
+    window.pageCustomSetting = {
+        mobileSearchFilterOpened: false,
+    };
+</script>
+
+<link rel='dns-prefetch' href='//web.cmp.usercentrics.eu'>
+<link rel='dns-prefetch' href='//www.googletagmanager.com'>
+<link crossorigin='use-credentials' href='https://www.googletagmanager.com' rel='preconnect'>
+
+<link rel="icon" href="/content/Css/Exim/images/favicon.svg" type="image/x-icon">
+<link rel="shortcut icon" href="/content/Css/Exim/images/favicon.svg" type="image/x-icon">
+
+<!-- start preload JS-->
+<link rel="preload" href="/Scripts/web/assets/obsolete/fonts/fischer-font.woff" as="font" crossorigin/>
+<link rel="preload" href="/Scripts/web/assets/font/openSans/regular.woff" as="font" crossorigin/>
+<link rel="preload" href="/Scripts/web/assets/font/openSans/bold.woff" as="font" crossorigin/>
+<link rel="preload" href="/Scripts/web/assets/font/openSans/semiBold.woff" as="font" crossorigin/>
+<link rel="preload" href="/Scripts/web/assets/font/icons.woff" as="font" crossorigin/>
+<link rel='modulepreload' href='/Scripts/web/index.BbuERtGU.js' as='script' crossorigin />
+<link rel='modulepreload' href='/Scripts/web/index.D4-Q2eXC.js' as='script' crossorigin />
+
+<link rel="preconnect" href="https://img.fischer.cz"/>
+<!-- end preload JS-->
+
+<link href="/Scripts/web/assets/index-BCELClVn.css" rel="stylesheet"/>
+
+<link href="/Scripts/web/themes/theme.exim.c0ef70d5.css" rel="stylesheet"/>
+
+
+<script type="text/javascript" src="/Scripts/Exim/vendor/jquery/jquery.min.js"></script>
+<script type="text/javascript" src="/Scripts/Exim/vendor/jquery/jquery-ui.min.js"></script>
+    
+    
+
+            <link rel="canonical" href="https://www.eximtours.cz/last-minute" />
+
+
+    
+    
+<style type="text/css">.htmlText ul li:before {
+ border-left:0
+}
+</style>    
+
+    
+<script>
+
+    if (!("derTouristik" in window)) {
+        window.derTouristik = {};
+    }
+
+    window.derTouristik.clientSection = {
+        "userAccountData": {"user":{"isAuthenticated":false,"name":"","surname":"","address":{"street":"","streetNumber":"","streetWithNumber":"","zip":"","city":"","district":"","regionCode":""},"phoneCountryCode":"","phoneNumber":"","birthDay":null,"sex":0,"nationality":"","email":null,"links":[{"name":"ResetPassword","url":"/reset-hesla","description":""},{"name":"SignIn","url":"/prihlaseni","description":""},{"name":"Register","url":"/registrace","description":""},{"name":"SignOut","url":"/odhlaseni","description":""},{"name":"CustomerSection","url":"/klientska-sekce/zakaznicka-sekce","description":""},{"name":"MyFischerPage","url":"/klientska-sekce","description":""}]},"favorites":{"count":0,"categories":[],"tours":[]},"pages":[{"path":"/","name":"dashboard","meta":{"title":{"html":"Přehled","anchor":"Přehled"},"type":"TEXT","image":null}},{"path":"/derclub","name":"derClub","meta":{"title":{"html":"DERCLUB","anchor":"DER Club"},"type":"IMAGE","image":{"urlBase":"https://www.eximtours.cz/Exim/media/Exim/derclub/logo/dualclub-logo-color-1-(1).png","urlActive":"https://www.eximtours.cz/Exim/media/Exim/derclub/logo/dualclub-logo-white-(1).png","alt":"DERClub"}}},{"path":"/nastaveni-uctu","name":"settings","meta":{"title":{"html":"Nastavení účtu","anchor":"Nastavení účtu"},"type":"TEXT","image":null}},{"path":"/oblibene-hotely","name":"favorite","meta":{"title":{"html":"Oblíbené hotely","anchor":"Oblíbené hotely"},"type":"TEXT","image":null}},{"path":"/skupiny","name":"groups","meta":{"title":{"html":"Skupiny","anchor":"Skupiny"},"type":"TEXT","image":null}},{"path":"/moje-objednavky","name":"orders","meta":{"title":{"html":"Objednávky","anchor":"Objednávky"},"type":"TEXT","image":null}}],"appSettings":{"actionAddOrRemoveFavoriteCategory":true,"useTravellersRooms":false,"pageOrders":{"showFutureOrders":true,"showReservations":true,"showGoneOrders":true,"actionAddTrip":true,"showBookedOrders":true},"userSettings":{"preferedCountriesForPhonePrefix":["CZ","SK","HU","PL","RO"],"avatarImage":{"maxLongestSideLengthInPx":500,"allowedFileSizeInBytes":2000000,"allowedFileFormatsMask":".jpg,.jpeg,.png"}},"adultAge":18,"activateCustomerSection":true,"showAccountIcon":true,"useLocalAuthentication":false,"showTravellerNationality":true,"associatedStreetAndStreetNumber":false,"showDistrictAndRegionInAddress":false,"showFavouriteCompareTable":true,"showSearchMoreButtonInFavouriteSection":true,"showUpsellOrderAction":true,"showBookingDocumentAction":true,"showLoyaltyCheckbox":false,"showClientCoupons":false,"showExternalCouponsWithoutConditionsAndCodes":false,"derClub":{"benefitIcons":[{"iconType":"diamond","title":"Vstupte do klubu bez závazků","text":"Členství vás nic nestojí a otevře vám dveře ke spoustě benefitů a speciálních nabídek."},{"iconType":"gift","title":"Využijte exkluzivní sadu odměn pro členy","text":"Těšit se můžete na výhody jako newsletter, narozeninové překvapení či slevy u našich partnerů."},{"iconType":"trophy","title":"Cestujte pravidelně a získejte další odměny","text":"Pokud s námi poletíte alespoň 2krát během 3 let, čekají na vás další extra výhody."}],"notLoggedInNotLoyalBanner":{"desktop":"https://www.eximtours.cz/Exim/media/Exim/derclub/banners/notLoggedInNotLoyalBanner-desktop.jpg","mobile":"https://www.eximtours.cz/Exim/media/Exim/derclub/banners/notLoggedInNotLoyalBanner-mobile.jpg","linkUrl":"/muj-exim/zakaznicka-sekce#/derclub","alt":"Vstupte do světa extra péče s programem DERCLUB"},"loggedInNotLoyalBanner":{"desktop":"https://www.eximtours.cz/Exim/media/Exim/derclub/banners/loggedInNotLoyalBanner-desktop.jpg","mobile":"https://www.eximtours.cz/Exim/media/Exim/derclub/banners/loggedInNotLoyalBanner-mobile.png","linkUrl":"/vysledky-vyhledavani?nn=7|8|9|10|11|12|13|14&to=4312|4305|2682|4308|4392|4309&tt=1","alt":"Cestujte s námi pravidelně a získejte víc s programem DERCLUB"},"loggedInLoyalBanner":{"desktop":"https://derclub.cz/getmedia/3ce54bf8-a661-4f6c-8ac9-f7adbbb1181b/we-help-banner-desktop.jpg","mobile":"https://derclub.cz/getmedia/7944cb9a-daf6-40c4-824d-3e5a96559d4a/we-help-banner-mobile.jpg","linkUrl":"","alt":"Podpořte nadaci WE HELP"}},"externalPartnerDiscount":null,"contestFavouriteHotels":{"desktop":"https://www.eximtours.cz/getmedia/7a3af08f-cb9b-470c-9b69-880fd24f95ef/Exim_srdcovky_V2.jpg","mobile":"https://www.eximtours.cz/getmedia/10b2e702-d77f-410a-bda1-4bd6dc57b760/Exim_Srdcovky_V2_mobile.jpg","linkUrl":"","alt":"Vstupte do soutěže"},"showContestFavouriteHotels":true},"usefulLinks":[{"name":"DERCLUB","url":"/muj-exim/zakaznicka-sekce#/derclub"},{"name":"Mobilní aplikace","url":"/aplikace"},{"name":"Časté dotazy","url":"/informace-pro-klienty/otazky"},{"name":"Podmínky vstupu do destinací","url":"https://informace.dertouristik.cz/"},{"name":"Informace pro klienty","url":"/informace-pro-klienty"},{"name":"Služby k dovolené","url":"/sluzby"},{"name":"Podmínky pro cestující","url":"/informace-pro-klienty/vseobecne-podminky-k-zajezdu"}],"availableRegions":[],"optionMaps":{"salutationMap":{"1":"Muž","2":"Žena"}}}
+    }
+</script>
+    
+
+</head>
+
+<body id="" class="with-bg-img" style=background-image:none>
+
+    <!-- Google Tag Manager (noscript) -->
+    <noscript>
+        <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MNC34MZ"
+                height="0" width="0" style="display: none; visibility: hidden"></iframe>
+    </noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    <script>
+        WebFontConfig = { google: { families: ['Open Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800:cyrillic-ext,latin,latin-ext'] } };
+        (function (d) {
+            var w = d.createElement('script'), s = d.scripts[0];
+            w.src = '/Scripts/Exim/vendor/webfont.min.js';
+            w.async = true;
+            s.parentNode.insertBefore(w, s);
+        }
+        )(document);
+    </script>
+
+<div id="meiroTop"></div>
+<header class="f_pageHeader js_header" id="pageHeader">
+        <ul class="f_menu f_menu--main" style="height: 0;overflow: hidden;margin: 0;">
+                <li class="f_menu-item">
+                    <div class="f_menu-item-content
+               f_menu-item-content--sub js_mainMenu-showBubble">
+                        <a href="/akcni-nabidky" class="f_menu-anchor">
+                            <span class="f_menu-anchor-content">Akčn&#237; nab&#237;dky</span>
+                        </a>
+                            <span class="f_menu-mobileHandler js_slideDownUp"></span>
+                            <div class="f_menu-sub js_slideDownUp-content" style="display: none;">
+                                <div class="f_bubble">
+                                    <div class="f_bubble-arrow"></div>
+                                    <div class="f_bubble-content js_bubbleContent">
+                                        <div class="f_group">
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                    <ul class="f_list ">
+                                                                        <li class="f_list-item">
+                                                                            <a href="/esim-data" class="f_anchor f_flag f_flag--">1 GB dat za 1 Kč</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/middle-east-flexi" class="f_anchor f_flag f_flag--">Middle East Flexi</a>
+                                                                        </li>
+                                                                </ul>
+                                                </div>
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                    <ul class="f_list ">
+                                                                        <li class="f_list-item">
+                                                                            <a href="/srdcovky" class="f_anchor f_flag f_flag--">Srdcovky</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/vily-sleva" class="f_anchor f_flag f_flag--">Sleva na priv&#225;tn&#237; vily</a>
+                                                                        </li>
+                                                                </ul>
+                                                </div>
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                    <ul class="f_list ">
+                                                                        <li class="f_list-item">
+                                                                            <a href="/ms-fotbal-2026" class="f_anchor f_flag f_flag--">MS v kopan&#233; 2026 i na dovolen&#233;</a>
+                                                                        </li>
+                                                                </ul>
+                                                </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                    </div>
+                </li>
+                <li class="f_menu-item">
+                    <div class="f_menu-item-content
+               f_menu-item-content--sub js_mainMenu-showBubble">
+                        <a href="/last-minute" class="f_menu-anchor">
+                            <span class="f_menu-anchor-content">Last minute</span>
+                        </a>
+                            <span class="f_menu-mobileHandler js_slideDownUp"></span>
+                            <div class="f_menu-sub js_slideDownUp-content" style="display: none;">
+                                <div class="f_bubble">
+                                    <div class="f_bubble-arrow"></div>
+                                    <div class="f_bubble-content js_bubbleContent">
+                                        <div class="f_group">
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                            <p class="f_title">
+                                                                            <a href="/last-minute" class="f_anchor">Všechny last minute</a>
+                                                                        </p>
+                                                                        <ul class="f_list f_list--unordered">
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/last-minute" class="f_anchor ">L&#233;to 2026</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/last-minute/poznavaci-zajezdy" class="f_anchor ">Pozn&#225;vac&#237; z&#225;jezdy</a>
+                                                                                </li>
+                                                                        </ul>
+                                                </div>
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                        <p class="f_title">
+                                                            <a class="f_anchor">Sloupec 2</a>
+                                                        </p>
+                                                                                                                            <p class="f_title">
+                                                                            <a class="f_anchor">TOP 5 last minute destinace</a>
+                                                                        </p>
+                                                                        <ul class="f_list f_list--unordered">
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/last-minute/spanelsko" class="f_anchor ">Španělsko</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/last-minute/recko" class="f_anchor ">Řecko</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/last-minute/kapverdske-ostrovy" class="f_anchor ">Kapverdy</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/last-minute/egypt" class="f_anchor ">Egypt</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/last-minute/tunisko" class="f_anchor ">Tunisko</a>
+                                                                                </li>
+                                                                        </ul>
+                                                </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                    </div>
+                </li>
+                <li class="f_menu-item">
+                    <div class="f_menu-item-content
+               f_menu-item-content--sub js_mainMenu-showBubble">
+                        <a href="/first-minute/zima" class="f_menu-anchor">
+                            <span class="f_menu-anchor-content">First minute - Exotika a zima u moře</span>
+                        </a>
+                            <span class="f_menu-mobileHandler js_slideDownUp"></span>
+                            <div class="f_menu-sub js_slideDownUp-content" style="display: none;">
+                                <div class="f_bubble">
+                                    <div class="f_bubble-arrow"></div>
+                                    <div class="f_bubble-content js_bubbleContent">
+                                        <div class="f_group">
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                    <ul class="f_list ">
+                                                                        <li class="f_list-item">
+                                                                            <a href="/exotika-primym-letem" class="f_anchor f_flag f_flag--">Př&#237;m&#233; lety do exotiky</a>
+                                                                        </li>
+                                                                </ul>
+                                                </div>
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                    <ul class="f_list ">
+                                                                        <li class="f_list-item">
+                                                                            <a href="/kambodza" class="f_anchor f_flag f_flag--">Kambodža - nově v prodeji</a>
+                                                                        </li>
+                                                                </ul>
+                                                </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                    </div>
+                </li>
+                <li class="f_menu-item">
+                    <div class="f_menu-item-content
+               f_menu-item-content--sub js_mainMenu-showBubble">
+                        <a href="/kluby" class="f_menu-anchor">
+                            <span class="f_menu-anchor-content">Animačn&#237; kluby</span>
+                        </a>
+                            <span class="f_menu-mobileHandler js_slideDownUp"></span>
+                            <div class="f_menu-sub js_slideDownUp-content" style="display: none;">
+                                <div class="f_bubble">
+                                    <div class="f_bubble-arrow"></div>
+                                    <div class="f_bubble-content js_bubbleContent">
+                                        <div class="f_group">
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                    <ul class="f_list ">
+                                                                        <li class="f_list-item">
+                                                                            <a href="/kluby/mango-klub" class="f_anchor f_flag f_flag--">Dětsk&#253; klub Mango</a>
+                                                                        </li>
+                                                                </ul>
+                                                </div>
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                    <ul class="f_list ">
+                                                                        <li class="f_list-item">
+                                                                            <a href="/kluby/motion-zima" class="f_anchor f_flag f_flag--">Aktivn&#237; dovolen&#225; MOTION</a>
+                                                                        </li>
+                                                                </ul>
+                                                </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                    </div>
+                </li>
+                <li class="f_menu-item">
+                    <div class="f_menu-item-content
+               f_menu-item-content--sub js_mainMenu-showBubble">
+                        <a href="/first-minute/leto" class="f_menu-anchor">
+                            <span class="f_menu-anchor-content">Letn&#237; dovolen&#225;</span>
+                        </a>
+                            <span class="f_menu-mobileHandler js_slideDownUp"></span>
+                            <div class="f_menu-sub js_slideDownUp-content" style="display: none;">
+                                <div class="f_bubble">
+                                    <div class="f_bubble-arrow"></div>
+                                    <div class="f_bubble-content js_bubbleContent">
+                                        <div class="f_group">
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                    <ul class="f_list ">
+                                                                        <li class="f_list-item">
+                                                                            <a href="/first-minute/odlety-praha" class="f_anchor f_flag f_flag--">Odlety z Prahy</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/first-minute/odlety-brno" class="f_anchor f_flag f_flag--">Odlety z Brna</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/first-minute/odlety-ostrava" class="f_anchor f_flag f_flag--">Odlety z Ostravy</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/first-minute/odlety-pardubice" class="f_anchor f_flag f_flag--">Odlety z Pardubic</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/first-minute/odlety-karlovy-vary" class="f_anchor f_flag f_flag--">Odlety z Karlov&#253;ch Varů</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/first-minute/odlety-ceske-budejovice" class="f_anchor f_flag f_flag--">Odlety z Česk&#253;ch Budějovic</a>
+                                                                        </li>
+                                                                </ul>
+                                                </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                    </div>
+                </li>
+                <li class="f_menu-item">
+                    <div class="f_menu-item-content
+               ">
+                        <a href="/derclub" class="f_menu-anchor">
+                            <span class="f_menu-anchor-content">Věrnostn&#237; program DERCLUB</span>
+                        </a>
+                    </div>
+                </li>
+                <li class="f_menu-item">
+                    <div class="f_menu-item-content
+               ">
+                        <a href="/kontakty/nase-pobocky" class="f_menu-anchor">
+                            <span class="f_menu-anchor-content">Pobočky</span>
+                        </a>
+                    </div>
+                </li>
+                <li class="f_menu-item">
+                    <div class="f_menu-item-content
+               ">
+                        <a href="/informace-pro-klienty/otazky" class="f_menu-anchor">
+                            <span class="f_menu-anchor-content">Čast&#233; dotazy</span>
+                        </a>
+                    </div>
+                </li>
+                <li class="f_menu-item">
+                    <div class="f_menu-item-content
+               f_menu-item-content--sub js_mainMenu-showBubble">
+                        <a href="/dovolena" class="f_menu-anchor">
+                            <span class="f_menu-anchor-content">Dovolen&#225;</span>
+                        </a>
+                            <span class="f_menu-mobileHandler js_slideDownUp"></span>
+                            <div class="f_menu-sub js_slideDownUp-content" style="display: none;">
+                                <div class="f_bubble">
+                                    <div class="f_bubble-arrow"></div>
+                                    <div class="f_bubble-content js_bubbleContent">
+                                        <div class="f_group">
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                            <p class="f_title">
+                                                                            <a class="f_anchor">Z&#225;jezdy na m&#237;ru</a>
+                                                                        </p>
+                                                                        <ul class="f_list f_list--unordered">
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/rodinna-dovolena" class="f_anchor ">Rodina</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/informace-pro-klienty/mango-club" class="f_anchor ">Dětsk&#233; kluby</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/deti-zdarma" class="f_anchor ">Děti zdarma</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/pobytove-zajezdy" class="f_anchor ">P&#225;ry</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/dovolena-seniori" class="f_anchor ">Senioři</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/dovolena-pro-jednoho" class="f_anchor ">Singles</a>
+                                                                                </li>
+                                                                        </ul>
+                                                </div>
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                            <p class="f_title">
+                                                                            <a class="f_anchor">Speci&#225;ln&#237; z&#225;jezdy</a>
+                                                                        </p>
+                                                                        <ul class="f_list f_list--unordered">
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/platinum" class="f_anchor ">Platinum</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/vily" class="f_anchor ">Soukrom&#233; vily</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/exotika" class="f_anchor ">Exotika</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/poznavaci-zajezdy" class="f_anchor ">Pozn&#225;vac&#237;</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/dovolena-all-inclusive" class="f_anchor ">All inclusive</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/golf" class="f_anchor ">Golf</a>
+                                                                                </li>
+                                                                        </ul>
+                                                </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                    </div>
+                </li>
+                <li class="f_menu-item">
+                    <div class="f_menu-item-content
+               f_menu-item-content--sub js_mainMenu-showBubble">
+                        <a href="/vysledky-vyhledavani?IFS=True&amp;ST=1&amp;NN=7|8|9&amp;PF=1000&amp;PT=450000&amp;TT=1" class="f_menu-anchor">
+                            <span class="f_menu-anchor-content">Destinace</span>
+                        </a>
+                            <span class="f_menu-mobileHandler js_slideDownUp"></span>
+                            <div class="f_menu-sub js_slideDownUp-content" style="display: none;">
+                                <div class="f_bubble">
+                                    <div class="f_bubble-arrow"></div>
+                                    <div class="f_bubble-content js_bubbleContent">
+                                        <div class="f_group">
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                    <ul class="f_list ">
+                                                                        <li class="f_list-item">
+                                                                            <a href="/albanie" class="f_anchor f_flag f_flag--">Alb&#225;nie</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/spojene-arabske-emiraty" class="f_anchor f_flag f_flag--">Arabsk&#233; emir&#225;ty</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/bahrajn" class="f_anchor f_flag f_flag--">Bahrajn</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/bulharsko" class="f_anchor f_flag f_flag--">Bulharsko</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/cerna-hora" class="f_anchor f_flag f_flag--">Čern&#225; Hora</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/dominikanska-republika" class="f_anchor f_flag f_flag--">Dominik&#225;nsk&#225; r.</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/egypt" class="f_anchor f_flag f_flag--">Egypt</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/chorvatsko" class="f_anchor f_flag f_flag--">Chorvatsko</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/italie" class="f_anchor f_flag f_flag--">It&#225;lie</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/jamajka" class="f_anchor f_flag f_flag--">Jamajka</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/kambodza" class="f_anchor f_flag f_flag--">Kambodža</a>
+                                                                        </li>
+                                                                </ul>
+                                                </div>
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                    <ul class="f_list ">
+                                                                        <li class="f_list-item">
+                                                                            <a href="/kapverdske-ostrovy" class="f_anchor f_flag f_flag--">Kapverdy</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/katar" class="f_anchor f_flag f_flag--">Katar</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/kena" class="f_anchor f_flag f_flag--">Keňa</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/kypr" class="f_anchor f_flag f_flag--">Kypr</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/maledivy" class="f_anchor f_flag f_flag--">Maledivy</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/malta" class="f_anchor f_flag f_flag--">Malta</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/maroko" class="f_anchor f_flag f_flag--">Maroko</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/mauricius" class="f_anchor f_flag f_flag--">Mauricius</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/mexiko" class="f_anchor f_flag f_flag--">Mexiko</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/oman" class="f_anchor f_flag f_flag--">Om&#225;n</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/panama" class="f_anchor f_flag f_flag--">Panama</a>
+                                                                        </li>
+                                                                </ul>
+                                                </div>
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                    <ul class="f_list ">
+                                                                        <li class="f_list-item">
+                                                                            <a href="/portugalsko" class="f_anchor f_flag f_flag--">Portugalsko</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/recko" class="f_anchor f_flag f_flag--">Řecko</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/saudska-arabie" class="f_anchor f_flag f_flag--">Sa&#250;dsk&#225; Ar&#225;bie</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/seychely" class="f_anchor f_flag f_flag--">Seychely</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/spanelsko" class="f_anchor f_flag f_flag--">Španělsko</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/thajsko" class="f_anchor f_flag f_flag--">Thajsko</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/tunisko" class="f_anchor f_flag f_flag--">Tunisko</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/turecko" class="f_anchor f_flag f_flag--">Turecko</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/tanzanie/zanzibar" class="f_anchor f_flag f_flag--">Zanzibar</a>
+                                                                        </li>
+                                                                        <li class="f_list-item">
+                                                                            <a href="/vietnam" class="f_anchor f_flag f_flag--">Vietnam</a>
+                                                                        </li>
+                                                                </ul>
+                                                </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                    </div>
+                </li>
+                <li class="f_menu-item">
+                    <div class="f_menu-item-content
+               f_menu-item-content--sub js_mainMenu-showBubble">
+                        <a href="/sluzby" class="f_menu-anchor">
+                            <span class="f_menu-anchor-content">Služby</span>
+                        </a>
+                            <span class="f_menu-mobileHandler js_slideDownUp"></span>
+                            <div class="f_menu-sub js_slideDownUp-content" style="display: none;">
+                                <div class="f_bubble">
+                                    <div class="f_bubble-arrow"></div>
+                                    <div class="f_bubble-content js_bubbleContent">
+                                        <div class="f_group">
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                            <p class="f_title">
+                                                                            <a href="/sluzby" class="f_anchor">Před odjezdem</a>
+                                                                        </p>
+                                                                        <ul class="f_list f_list--unordered">
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/flexitravel" class="f_anchor ">Flexi Travel</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/sluzby/cestovni-pojisteni" class="f_anchor ">Cestovn&#237; pojištěn&#237;</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/sluzby/parkovani-na-letisti" class="f_anchor ">Parkov&#225;n&#237; na letišti</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/sluzby/ubytovani-na-letisti" class="f_anchor ">Ubytov&#225;n&#237; na letišti</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/sluzby/online-checkin" class="f_anchor ">Online check-in</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/sluzby/transfery-na-letiste-v-praze" class="f_anchor ">Transfer na letiště v Praze </a>
+                                                                                </li>
+                                                                        </ul>
+                                                                        <p class="f_title">
+                                                                            <a href="/sluzby" class="f_anchor">Na letišti</a>
+                                                                        </p>
+                                                                        <ul class="f_list f_list--unordered">
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/sluzby/letistni-salonky" class="f_anchor ">Letištn&#237; salonky</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/sluzby/sluzby-pro-handicapovane" class="f_anchor ">Asistenčn&#237; služby</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/sluzby/security-fasttrack" class="f_anchor ">Security FastTrack</a>
+                                                                                </li>
+                                                                        </ul>
+                                                </div>
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                            <p class="f_title">
+                                                                            <a href="/sluzby" class="f_anchor">V letadle</a>
+                                                                        </p>
+                                                                        <ul class="f_list f_list--unordered">
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/sluzby/business-class" class="f_anchor ">Business Class</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/sluzby/rezervace-mist-v-letadle" class="f_anchor ">Rezervace m&#237;st v letadle</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/sluzby/servis-na-palube" class="f_anchor ">Servis na palubě</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/informace-pro-klienty/informace-na-cestu/zavazadla" class="f_anchor ">Přeprava zavazadel a zv&#237;řat</a>
+                                                                                </li>
+                                                                        </ul>
+                                                </div>
+                                                <div class="f_group-item">
+                                                    <!-- HTML pro sloupec -->
+
+
+                                                                                                                            <p class="f_title">
+                                                                            <a href="/sluzby" class="f_anchor">V destinaci</a>
+                                                                        </p>
+                                                                        <ul class="f_list f_list--unordered">
+                                                                                <li class="f_list-item">
+                                                                                    <a href="https://informace.dertouristik.cz/" class="f_anchor ">V&#237;za</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/sluzby/esim" class="f_anchor ">eSIM</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/sluzby/individualni-transfer" class="f_anchor ">Individu&#225;ln&#237; transfer</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/sluzby/early-check-in-late-check-out" class="f_anchor ">Early check-in, Late check-out</a>
+                                                                                </li>
+                                                                                <li class="f_list-item">
+                                                                                    <a href="/sluzby/vylety" class="f_anchor ">Fakultativn&#237; v&#253;lety</a>
+                                                                                </li>
+                                                                        </ul>
+                                                </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                    </div>
+                </li>
+        </ul>
+        <div data-component-name="appAbnbHeader">
+            <script type="application/json">
+             {
+                "logo": {
+                    "url": "/getmedia/4e0e0deb-447d-4cc2-9b44-8e95709faf07/logo_eximtours_new.svg?ext=.svg",
+                    "text": "exim"
+                    },
+                    "fulltext": {
+                        "inputText": "Zde napište co hledáte",
+                    "baseUrl": "/hledani-vysledky?q="                   
+                },
+                "phoneNumber": "+420255787787"    
+            }
+            </script>
+            <div class="max-w-[--content-width-maximum] mx-auto px-[--content-width-padding] py-4 relative z-[100]">
+                <div class="flex justify-between w-full items-center">
+                    <a href="/">
+                        <img src="/getmedia/4e0e0deb-447d-4cc2-9b44-8e95709faf07/logo_eximtours_new.svg?ext=.svg"
+                             alt="exim"
+                             class="max-h-5 sm:max-h-6 block transition-all"/>
+                    </a>
+                    <ul class="flex items-center gap-4 sm:gap-8 p-0 m-0 list-none transition-all">
+                        <li>
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative block w-6 h-6">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                        </li>
+                        <li>
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative block w-6 h-6">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                        </li>
+                        <li class="hidden min-[701px]:block">
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative block w-6 h-6">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative block w-24 h-6">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+
+        <div data-component-name="mainSearchFilter" class="w-full">
+            <script type="application/json">
+            
+                {"segmentationType":"residential","mobileIsOpened":false,"showMeal":false,"resetAdditionaFilterOnSearch":false}
+            </script>
+
+
+            <!--mobile placeholder start -->
+            <div class="bg-[--mainFilter-background] min-[1100px]:hidden w-full py-3 px-4">
+                <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative w-1/4 mx-auto h-[22px]">
+                    <div class="motion-safe:animate-[loader_1S_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                </div>
+            </div>
+            <!--mobile placeholder end -->
+            <!--placeholder start -->
+            <!-- obsah pro desktop a pro otevÅ™enou mobilnÃ­ verzi v pÅ™Ã­padÄ› Å¾e na mobilu mÃ¡ bÃ½t otevÅ™eno, je potÅ™eba odebrat classu max-[1099px]:hidden -->
+            <div class="bg-[--mainFilter-background] py-4 w-full  max-[1099px]:hidden ">
+                <div class="max-w-[1212px] mx-auto">
+
+                    <div class="pb-3.5 flex gap-6 max-w-[--content-width-maximum] relative mx-auto mb-4 overflow-auto after:content-[''] after:h-px after:absolute after:bottom-0 after:inset-x-0 after:opacity-50 after:bg-[--segmentation-bottomLine]">
+                        <div>
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-5 w-5 mx-auto mb-[5px] min-[750px]:hidden">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-5 w-[100px]">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-5 w-5 mx-auto mb-[5px] min-[750px]:hidden">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-5 w-[160px]">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-5 w-5 mx-auto mb-[5px] min-[750px]:hidden">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-5 w-[90px]">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mx-4 grid grid-cols-1 min-[460px]:grid-cols-2 min-[1100px]:grid-cols-4 gap-4">
+                        <div class="bg-white box-border rounded-[--cornerRounding] py-2 px-4 w-full">
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-4 mb-0.5 w-2/3">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-3.5 w-1/2">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                        </div>
+                        <div class="bg-white box-border rounded-[--cornerRounding] py-2 px-4 w-full">
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-4 mb-0.5 w-2/3">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-3.5 w-1/2">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                        </div>
+                        <div class="bg-white box-border rounded-[--cornerRounding] py-2 px-4 w-full">
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-4 mb-0.5 w-2/3">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-3.5 w-1/2">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                        </div>
+                        <div class="bg-white box-border rounded-[--cornerRounding] py-2 px-4 w-full">
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-4 mb-0.5 w-2/3">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-3.5 w-1/2">
+                                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!--placeholder end -->
+            <script type="application/json">
+               {"segmentationType":"residential"}
+            </script>
+            <span class="f_loaderPlaceholder"></span>
+        </div>
+
+
+</header>
+    <!-- Rendered page content -->
+    <section class="main transition-auto transition-dim" id="snippet--content">
+        <div id="pageContent">
+            
+
+    <section>
+                <div id="">
+                <div class="f_teaser f_teaser--fullWidth in_teaser">
+        <div class="in_teaser-wrapper">
+            <img src="/getmedia/d9987298-9da9-4b5c-b8bc-61c9017fd18d/2256x470_LP_ET_TEXT.svg" class="in_teaser-text" alt="Last minute EXIM tours">
+            <img src="/getmedia/d4dc5ea6-94cc-4600-9203-7ef5d231627e/720x1252_ET_TEXT.svg" class="in_teaser-text in_teaser-text--mobile" alt="Last minute EXIM tours - mobil">
+            <div class="in_teaser-footer">
+                <a href="/last-minute#zajezdy" class="f_button f_button--common">
+                    <span class="f_button-text f_icon f_icon--chevronRight f_icon_set--right">Zobrazit zájezdy</span>
+                </a>
+            </div>
+        </div>
+    </div>
+        </div>
+
+    </section>
+    <section>
+            <div class="grd-container" style="margin-top: 16px; margin-bottom: 16px;">
+        <div class="grd-row">
+            <div class="grd-col grd-col--12">
+                <div style="margin-top: 15px;">
+
+                    <ol class="f_breadcrumb" vocab="http://schema.org/" typeof="BreadcrumbList">
+
+                        <li class="f_breadcrumb-item" property="itemListElement" typeof="ListItem">
+                            <span property="position" content="0">
+                                <a href="/" class="f_anchor" property="item" typeof="WebPage">
+                                    <span property="name">Eximtours.cz</span>
+                                </a>
+                            </span>
+                        </li>
+
+                                <li class="f_breadcrumb-item" property="itemListElement" typeof="ListItem">
+                                    <span property="position" content="1">
+                                        <span property="name">Last Minute</span>
+                                    </span>
+                                </li>
+                    </ol>
+
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    </section>
+    <section>
+        <div class="grd-container" id="" style="margin-top: 16px; margin-bottom: 16px;">    
+    <div class="grd-row">
+        <div class="grd-col grd-col--12">
+            <h2 class="f_title f_title--cuddleTop f_title_set--center">
+            <span id="zajezdy">Aktuální last minute nabídky</span>
+            </h2>
+        </div>
+    </div>
+</div>
+
+    </section>
+    <section>
+        <div class="grd-container" style="margin-top: 16px; margin-bottom: 16px;">
+    <div class="grd-row">
+        <div class="grd-col grd-col--12">
+            <div class="f_menu f_menu--separated f_menu_set--center">
+                <ul class="f_menu-content">
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+    </section>
+    <section>
+        <div data-component-name="appTourList">
+  <script type="application/json">
+    {"toursSearchSettings":{"documentGuid":"91095255-3662-4fbd-85a2-6f39dd1dc81d","searchSettings":{"searchFromIndex":0,"toursCountToGet":20,"sortOrder":"asc","sortBy":""}},"hotelsSearchSettings":{"searchFilter":"","searchSettings":{"searchFromIndex":0,"hotelsCountToGet":5,"sortOrder":"asc","sortBy":""}},"tourListResult":{"tours":[{"id":1093248704,"searchFilter":"DS=0&TT=1&TO=4305&D=64419&DD=2026-07-05&RD=2026-07-12&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-05T00:00:00","location":{"country":"Egypt","destination":"Hurghada"},"departureLocation":"Brno","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":12490.0}},{"id":403499746,"searchFilter":"DS=0&TT=1&TO=4308&D=63402&DD=2026-07-06&RD=2026-07-13&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-06T00:00:00","location":{"country":"Řecko","destination":"Rhodos"},"departureLocation":"Pardubice","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":12990.0}},{"id":-444882714,"searchFilter":"DS=0&TT=1&TO=4312&D=64420&DD=2026-07-06&RD=2026-07-13&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-06T00:00:00","location":{"country":"Egypt","destination":"Marsa Alam"},"departureLocation":"Praha","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":16690.0}},{"id":1429361960,"searchFilter":"DS=0&TT=1&TO=4312&D=63245&DD=2026-07-07&RD=2026-07-14&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-07T00:00:00","location":{"country":"Španělsko","destination":"Costa Dorada"},"departureLocation":"Praha","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":18990.0}},{"id":-1093971970,"searchFilter":"DS=0&TT=1&TO=2682&D=63319&DD=2026-07-07&RD=2026-07-14&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-07T00:00:00","location":{"country":"Řecko","destination":"Kos"},"departureLocation":"Ostrava","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":17990.0}},{"id":102725064,"searchFilter":"DS=0&TT=1&TO=4312&D=64419&DD=2026-07-07&RD=2026-07-14&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-07T00:00:00","location":{"country":"Egypt","destination":"Hurghada"},"departureLocation":"Praha","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":9990.0}},{"id":-1446560176,"searchFilter":"DS=0&TT=1&TO=4308&D=211764&DD=2026-07-07&RD=2026-07-14&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-07T00:00:00","location":{"country":"Španělsko","destination":"Costa Almería"},"departureLocation":"Pardubice","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":17990.0}},{"id":1672635779,"searchFilter":"DS=0&TT=1&TO=4312&D=63316&DD=2026-07-08&RD=2026-07-15&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-08T00:00:00","location":{"country":"Řecko","destination":"Korfu"},"departureLocation":"Praha","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":16490.0}},{"id":-1524480716,"searchFilter":"DS=0&TT=1&TO=4312&D=63333&DD=2026-07-08&RD=2026-07-15&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-08T00:00:00","location":{"country":"Řecko","destination":"Lefkada"},"departureLocation":"Praha","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":15990.0}},{"id":-765152905,"searchFilter":"DS=0&TT=1&TO=2682&D=63350&DD=2026-07-08&RD=2026-07-15&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-08T00:00:00","location":{"country":"Španělsko","destination":"Mallorca"},"departureLocation":"Ostrava","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":10890.0}},{"id":-556624315,"searchFilter":"DS=0&TT=1&TO=4392&D=63350&DD=2026-07-08&RD=2026-07-15&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-08T00:00:00","location":{"country":"Španělsko","destination":"Mallorca"},"departureLocation":"České Budějovice","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":10790.0}},{"id":-941402767,"searchFilter":"DS=0&TT=1&TO=4312&D=63354&DD=2026-07-08&RD=2026-07-15&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-08T00:00:00","location":{"country":"Španělsko","destination":"Menorca"},"departureLocation":"Praha","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":17990.0}},{"id":-227562958,"searchFilter":"DS=0&TT=1&TO=4305&D=64420&DD=2026-07-08&RD=2026-07-15&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-08T00:00:00","location":{"country":"Egypt","destination":"Marsa Alam"},"departureLocation":"Brno","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":13740.0}},{"id":1004293019,"searchFilter":"DS=0&TT=1&TO=4305&D=63484&DD=2026-07-09&RD=2026-07-16&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-09T00:00:00","location":{"country":"Bulharsko","destination":"Burgas"},"departureLocation":"Brno","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":9590.0}},{"id":953136718,"searchFilter":"DS=0&TT=1&TO=4308&D=63484&DD=2026-07-09&RD=2026-07-16&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-09T00:00:00","location":{"country":"Bulharsko","destination":"Burgas"},"departureLocation":"Pardubice","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":9990.0}},{"id":906904339,"searchFilter":"DS=0&TT=1&TO=4312&D=63483&DD=2026-07-10&RD=2026-07-17&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-10T00:00:00","location":{"country":"Bulharsko","destination":"Varna"},"departureLocation":"Praha","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":9790.0}},{"id":-2003625886,"searchFilter":"DS=0&TT=1&TO=4312&D=63390&DD=2026-07-11&RD=2026-07-18&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-11T00:00:00","location":{"country":"Řecko","destination":"Pelopones"},"departureLocation":"Praha","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":21990.0}},{"id":1544579670,"searchFilter":"DS=0&TT=1&TO=4308&D=63483&DD=2026-07-12&RD=2026-07-19&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-12T00:00:00","location":{"country":"Bulharsko","destination":"Varna"},"departureLocation":"Pardubice","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":10790.0}},{"id":-621721111,"searchFilter":"DS=0&TT=1&TO=4312&D=63284&DD=2026-07-13&RD=2026-07-20&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-13T00:00:00","location":{"country":"Španělsko","destination":"Ibiza"},"departureLocation":"Praha","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":20790.0}},{"id":633338936,"searchFilter":"DS=0&TT=1&TO=4392&D=63447&DD=2026-07-14&RD=2026-07-21&ER=0&ISSS=0&NN=7&PF=0&AC1=2&KC1=0&IC1=0&QF=109_1_0&ILM=1","departureDate":"2026-07-14T00:00:00","location":{"country":"Tunisko","destination":"Tunisko (pevnina)"},"departureLocation":"České Budějovice","nightsCount":{"from":7,"to":7},"isTopTop":true,"adultPriceFrom":{"amount":10990.0}}],"totalCount":200}}
+  </script>
+</div>
+    </section>
+    <section>
+                <div id="">
+            <div class="grd-container">
+  <div class="grd-row">
+    <div class="grd-col grd-col--12">
+      
+        <div id="poukazyMeiro">
+        </div>
+
+    </div>
+  </div>
+</div>
+        </div>
+
+    </section>
+    <section>
+        <div class="grd-container" id="" style="margin-top: 16px; margin-bottom: 16px;">    
+    <div class="grd-row">
+        <div class="grd-col grd-col--12">
+            <h2 class="f_title f_title--cuddleBottom f_title--cuddleTop f_title_set--center">
+            Last minute dovolená podle vašeho gusta
+            </h2>
+        </div>
+    </div>
+</div>
+
+    </section>
+    <section>
+                <div class="grd-container" id="" style="margin-top: 16px; margin-bottom: 16px;">
+            <div class="grd-row">
+                <div class="grd-col grd-col--12">
+                    <div class="tee-styler-htmlContent">
+                        <div class="fshr-paragraph--centered" style="text-align: center;">Leťte přesně tam, kam jste si vysnili. Ať už zvolíte <a href="https://www.eximtours.cz/super-last-minute">super last minute dovolenou</a> s odletem do týdne nebo last minute dovolenou s odletem do jednoho měsíce, můžete si na poslední chvíli vybrat ze zájezdů do mnoha destinací. Díky našim last minute slevám na zájezdy k moři se už brzy budete koupat ve Středomoří nebo dokonce v exotice.</div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </section>
+    <section>
+        <div data-component-name="appGroupSearch">
+    <script type="application/json">
+         {"title":"GroupSearch2","description":"","showTitle":false,"showMoreButtonText":"","design":"default","showOnly":"countries","locationCountToGet":20,"groupSearchResultSettings":{"documentGuid":"d14ca6da-753b-4383-a5ac-c2fe7d10685b","searchFromIndex":0},"groupSearchResult":{"locations":[{"id":"63150","name":"Katar","adultPriceFrom":{"amount":24025.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=64185%7c64186%7c64187%7c64188%7c64189%7c64190%7c64191%7c218467&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"https://www.eximtours.cz/getmedia/12af7baa-c64e-49a6-a2e6-733e5f057b94/katar_foto.jpg?maxsidesize=500&resizemode=force","medium":"https://www.eximtours.cz/getmedia/12af7baa-c64e-49a6-a2e6-733e5f057b94/katar_foto.jpg?maxsidesize=800&resizemode=force","large":"https://www.eximtours.cz/getmedia/12af7baa-c64e-49a6-a2e6-733e5f057b94/katar_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":0},{"id":"63126","name":"Malajsie","adultPriceFrom":{"amount":31073.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=64177%7c64178%7c64446&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"https://www.eximtours.cz/getattachment/b55927ab-571b-4b4b-b228-2c5778c18843/malajsie-malajsie-0_1200x0.jpg?maxsidesize=500&resizemode=force","medium":"https://www.eximtours.cz/getattachment/b55927ab-571b-4b4b-b228-2c5778c18843/malajsie-malajsie-0_1200x0.jpg?maxsidesize=800&resizemode=force","large":"https://www.eximtours.cz/getattachment/b55927ab-571b-4b4b-b228-2c5778c18843/malajsie-malajsie-0_1200x0.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":0},{"id":"63138","name":"Omán","adultPriceFrom":{"amount":18669.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=64097%7c64098%7c64099%7c64100%7c64101%7c64102%7c64103%7c64105%7c64123%7c64124%7c64125&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"https://www.eximtours.cz/getmedia/e12a871d-54eb-4670-8b45-62a837d0b2ac/oman_foto.jpg?maxsidesize=500&resizemode=force","medium":"https://www.eximtours.cz/getmedia/e12a871d-54eb-4670-8b45-62a837d0b2ac/oman_foto.jpg?maxsidesize=800&resizemode=force","large":"https://www.eximtours.cz/getmedia/e12a871d-54eb-4670-8b45-62a837d0b2ac/oman_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":0},{"id":"62984","name":"Spojené arabské emiráty","adultPriceFrom":{"amount":17495.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=64086%7c64087%7c64089%7c64090%7c64091%7c64092%7c64093%7c64094%7c64095%7c64096&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"https://www.eximtours.cz/getmedia/f1121f15-cf33-4b35-ac2b-903603807bda/sae_foto.jpg?maxsidesize=500&resizemode=force","medium":"https://www.eximtours.cz/getmedia/f1121f15-cf33-4b35-ac2b-903603807bda/sae_foto.jpg?maxsidesize=800&resizemode=force","large":"https://www.eximtours.cz/getmedia/f1121f15-cf33-4b35-ac2b-903603807bda/sae_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":0},{"id":"63099","name":"Srí Lanka","adultPriceFrom":{"amount":26141.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=64077&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"https://www.eximtours.cz/getmedia/28f0d92c-3b42-44bc-96aa-865bc3979d99/srilanka_foto.jpg?maxsidesize=500&resizemode=force","medium":"https://www.eximtours.cz/getmedia/28f0d92c-3b42-44bc-96aa-865bc3979d99/srilanka_foto.jpg?maxsidesize=800&resizemode=force","large":"https://www.eximtours.cz/getmedia/28f0d92c-3b42-44bc-96aa-865bc3979d99/srilanka_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":0},{"id":"63178","name":"Thajsko","adultPriceFrom":{"amount":21275.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=64126%7c64127%7c64128%7c64129%7c64130%7c64131%7c64132%7c64133%7c64134%7c64135%7c64136%7c64137%7c64138%7c64139%7c64140%7c64141%7c64142%7c64143%7c64144%7c64145%7c64146%7c64281&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"https://www.eximtours.cz/getmedia/877e930c-725b-4073-b4f5-b1b93ad63fb5/thajsko_foto.jpg?maxsidesize=500&resizemode=force","medium":"https://www.eximtours.cz/getmedia/877e930c-725b-4073-b4f5-b1b93ad63fb5/thajsko_foto.jpg?maxsidesize=800&resizemode=force","large":"https://www.eximtours.cz/getmedia/877e930c-725b-4073-b4f5-b1b93ad63fb5/thajsko_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":0},{"id":"63053","name":"Velká Británie","adultPriceFrom":{"amount":16692.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=63670%7c63671%7c63672%7c63673%7c63674%7c64457%7c83051&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"https://www.eximtours.cz/getmedia/e0992e16-fcd2-4e85-b38c-47a4f24b0778/velka_britanie_foto.jpg?maxsidesize=500&resizemode=force","medium":"https://www.eximtours.cz/getmedia/e0992e16-fcd2-4e85-b38c-47a4f24b0778/velka_britanie_foto.jpg?maxsidesize=800&resizemode=force","large":"https://www.eximtours.cz/getmedia/e0992e16-fcd2-4e85-b38c-47a4f24b0778/velka_britanie_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":0},{"id":"63042","name":"Egypt","adultPriceFrom":{"amount":9990.0},"badgeLabel":"Doporučujeme","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=64419%7c64420%7c64422%7c64423%7c64424%7c64425&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"/getmedia/f3dcae47-0224-4ea0-83fb-de40df1f6ef5/egypt_foto.jpg?maxsidesize=500&resizemode=force","medium":"/getmedia/f3dcae47-0224-4ea0-83fb-de40df1f6ef5/egypt_foto.jpg?maxsidesize=800&resizemode=force","large":"/getmedia/f3dcae47-0224-4ea0-83fb-de40df1f6ef5/egypt_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":1},{"id":"63045","name":"Španělsko","adultPriceFrom":{"amount":10790.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=63213%7c63226%7c63241%7c63242%7c63243%7c63244%7c63245%7c63267%7c63284%7c63349%7c63350%7c63354%7c63455%7c74459%7c74460%7c74463%7c74464%7c74465%7c211764%7c213028&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"/getmedia/39087301-cf6c-42e9-a447-57690d1b108b/spanelsko_foto.jpg?maxsidesize=500&resizemode=force","medium":"/getmedia/39087301-cf6c-42e9-a447-57690d1b108b/spanelsko_foto.jpg?maxsidesize=800&resizemode=force","large":"/getmedia/39087301-cf6c-42e9-a447-57690d1b108b/spanelsko_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":2},{"id":"63030","name":"Kapverdské ostrovy","adultPriceFrom":{"amount":23990.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=63715%7c63716%7c63717%7c63718%7c63719%7c63720%7c63721%7c63722%7c63723%7c63724&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"/getmedia/b89b1427-6be2-480f-80be-db48bc638956/kapverdy_foto.jpg?maxsidesize=500&resizemode=force","medium":"/getmedia/b89b1427-6be2-480f-80be-db48bc638956/kapverdy_foto.jpg?maxsidesize=800&resizemode=force","large":"/getmedia/b89b1427-6be2-480f-80be-db48bc638956/kapverdy_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":4},{"id":"63038","name":"Dominikánská republika","adultPriceFrom":{"amount":28546.0},"badgeLabel":"Přímý let Airbus A350-900","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=63862%7c63864%7c63865&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"/getmedia/b29a8f5e-1676-414b-835e-6d01f1a5a8f3/dominikanska_republika_foto.jpg?maxsidesize=500&resizemode=force","medium":"/getmedia/b29a8f5e-1676-414b-835e-6d01f1a5a8f3/dominikanska_republika_foto.jpg?maxsidesize=800&resizemode=force","large":"/getmedia/b29a8f5e-1676-414b-835e-6d01f1a5a8f3/dominikanska_republika_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":5},{"id":"63125","name":"Mexiko","adultPriceFrom":{"amount":27693.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=63972%7c63973%7c63974%7c63977%7c63978%7c63979%7c63980%7c63981%7c63982%7c63983%7c63984%7c63985%7c63986%7c63987%7c63988%7c64037%7c223408%7c223409%7c223410&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"/getmedia/e973922f-4b88-4b48-bf40-e4e156b05405/mexiko_foto.jpg?maxsidesize=500&resizemode=force","medium":"/getmedia/e973922f-4b88-4b48-bf40-e4e156b05405/mexiko_foto.jpg?maxsidesize=800&resizemode=force","large":"/getmedia/e973922f-4b88-4b48-bf40-e4e156b05405/mexiko_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":8},{"id":"63123","name":"Maledivy","adultPriceFrom":{"amount":36033.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=220441&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"/getmedia/42b4c27d-7bb7-4c3f-abd7-1e8699f19e8a/maledivy_foto.jpg?maxsidesize=500&resizemode=force","medium":"/getmedia/42b4c27d-7bb7-4c3f-abd7-1e8699f19e8a/maledivy_foto.jpg?maxsidesize=800&resizemode=force","large":"/getmedia/42b4c27d-7bb7-4c3f-abd7-1e8699f19e8a/maledivy_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":10},{"id":"63122","name":"Mauricius","adultPriceFrom":{"amount":32607.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=63738&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"/getmedia/c4bbe4f6-c990-4106-ba6d-7ee34c6971bf/mauricius_foto.jpg?maxsidesize=500&resizemode=force","medium":"/getmedia/c4bbe4f6-c990-4106-ba6d-7ee34c6971bf/mauricius_foto.jpg?maxsidesize=800&resizemode=force","large":"/getmedia/c4bbe4f6-c990-4106-ba6d-7ee34c6971bf/mauricius_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":11},{"id":"63051","name":"Francie","adultPriceFrom":{"amount":20632.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=63206%7c63210%7c63211%7c63221%7c63235%7c63239%7c63240%7c63268%7c63269%7c63276%7c63277%7c63282%7c63286%7c63317%7c63331%7c63342%7c63355%7c63368%7c63369%7c63385%7c63389%7c63392%7c63394%7c63403%7c63415%7c63416%7c63417%7c63418%7c77904&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"https://www.eximtours.cz/getmedia/8c3051e3-6132-49a4-8b09-8a06139072a9/francie_foto.jpg?maxsidesize=500&resizemode=force","medium":"https://www.eximtours.cz/getmedia/8c3051e3-6132-49a4-8b09-8a06139072a9/francie_foto.jpg?maxsidesize=800&resizemode=force","large":"https://www.eximtours.cz/getmedia/8c3051e3-6132-49a4-8b09-8a06139072a9/francie_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":12},{"id":"63187","name":"Zanzibar","adultPriceFrom":{"amount":28468.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=63763%7c63764%7c63765%7c63766%7c63767&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"/getmedia/df146e72-3426-4c09-a916-f8571f74c64c/zanzibar_foto.jpg?maxsidesize=500&resizemode=force","medium":"/getmedia/df146e72-3426-4c09-a916-f8571f74c64c/zanzibar_foto.jpg?maxsidesize=800&resizemode=force","large":"/getmedia/df146e72-3426-4c09-a916-f8571f74c64c/zanzibar_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":13},{"id":"63106","name":"Maroko","adultPriceFrom":{"amount":15614.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=63707%7c63710&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"https://www.eximtours.cz/getmedia/01e4880a-f0a1-44cd-8ba4-e7c60ce16708/maroko_foto.jpg?maxsidesize=500&resizemode=force","medium":"https://www.eximtours.cz/getmedia/01e4880a-f0a1-44cd-8ba4-e7c60ce16708/maroko_foto.jpg?maxsidesize=800&resizemode=force","large":"https://www.eximtours.cz/getmedia/01e4880a-f0a1-44cd-8ba4-e7c60ce16708/maroko_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":14},{"id":"63158","name":"Seychely","adultPriceFrom":{"amount":44454.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=220399&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"https://www.eximtours.cz/getmedia/fbcfb848-1b7a-473f-87b6-938f10cc9b6f/seychely_foto_1.jpg?maxsidesize=500&resizemode=force","medium":"https://www.eximtours.cz/getmedia/fbcfb848-1b7a-473f-87b6-938f10cc9b6f/seychely_foto_1.jpg?maxsidesize=800&resizemode=force","large":"https://www.eximtours.cz/getmedia/fbcfb848-1b7a-473f-87b6-938f10cc9b6f/seychely_foto_1.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":15},{"id":"63085","name":"Keňa","adultPriceFrom":{"amount":29624.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=63725%7c63726%7c63727&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"https://www.eximtours.cz/getmedia/abe612cd-c4e8-4f91-a3f9-9497facd6861/kena_foto.jpg?maxsidesize=500&resizemode=force","medium":"https://www.eximtours.cz/getmedia/abe612cd-c4e8-4f91-a3f9-9497facd6861/kena_foto.jpg?maxsidesize=800&resizemode=force","large":"https://www.eximtours.cz/getmedia/abe612cd-c4e8-4f91-a3f9-9497facd6861/kena_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":16},{"id":"63064","name":"Řecko","adultPriceFrom":{"amount":9990.0},"badgeLabel":"","searchUrl":"/vysledky-vyhledavani?ds=0&tt=1&d=63219%7c63220%7c63281%7c63311%7c63314%7c63316%7c63319%7c63324%7c63333%7c63335%7c63341%7c63362%7c63364%7c63384%7c63390%7c63402%7c63408%7c63409%7c63428%7c63442%7c63471%7c63472&dd=2026-07-05&rd=2026-09-02&er=0&isss=0&nn=7%7c10%7c14&ac1=2&kc1=0&ic1=0","hoverText":"","image":{"source":{"small":"https://www.eximtours.cz/getmedia/c744453f-1d42-4cce-8602-35479c9825b4/recko_foto.jpg?maxsidesize=500&resizemode=force","medium":"https://www.eximtours.cz/getmedia/c744453f-1d42-4cce-8602-35479c9825b4/recko_foto.jpg?maxsidesize=800&resizemode=force","large":"https://www.eximtours.cz/getmedia/c744453f-1d42-4cce-8602-35479c9825b4/recko_foto.jpg?maxsidesize=1200&resizemode=force"}},"nodeOrder":17}],"totalCount":26}}
+    </script>
+</div>
+
+    </section>
+    <section>
+        
+    <div id="" class="f_section ">
+
+
+
+
+                <div class="f_benefit">
+
+                            <div class="f_benefit-item">
+                                <div class="f_benefit-content f_icon f_icon--plane">
+                                        <div class="f_title">
+                                            Odletová místa
+                                        </div>
+                                                                            <div class="f_benefit-text">
+                                            Leťte z&nbsp;<a href="/last-minute/odlety-z-prahy">Prahy</a>,&nbsp;<a href="/last-minute/odlety-z-brna">Brna</a>,&nbsp;<a href="/last-minute/odlety-z-ostravy">Ostravy</a>,&nbsp;<br />
+<a href="/last-minute/odlety-pardubice">Pardubic</a>&nbsp;nebo z&nbsp;<a href="https://www.eximtours.cz/last-minute/odlety-karlovy-vary">Karlových Varů</a> a&nbsp;<a href="https://www.eximtours.cz/last-minute/odlety-ceske-budejovice">Českých Budějovic</a>.<br />
+<br />
+<br />
+&nbsp;
+                                        </div>
+                                </div>
+                            </div>
+                            <div class="f_benefit-item">
+                                <div class="f_benefit-content f_icon f_icon--cutlery">
+                                        <div class="f_title">
+                                            All inclusive
+                                        </div>
+                                                                            <div class="f_benefit-text">
+                                            Vyberte si last minute dovolenou, na které si můžete dopřát <a href="https://www.eximtours.cz/last-minute/all-inclusive">neomezené jídlo a pití</a>.
+                                        </div>
+                                </div>
+                            </div>
+                            <div class="f_benefit-item">
+                                <div class="f_benefit-content f_icon f_icon--palmHouse">
+                                        <div class="f_title">
+                                            Exotická dovolená
+                                        </div>
+                                                                            <div class="f_benefit-text">
+                                            Bílá pláž, palmy, moře nejkrásnějších barev vás čeká na <a href="/last-minute/exotika">last minute v exotice</a>.
+                                        </div>
+                                </div>
+                            </div>
+                            <div class="f_benefit-item">
+                                <div class="f_benefit-content f_icon f_icon--earth">
+                                        <div class="f_title">
+                                            Poznávací zájezdy
+                                        </div>
+                                                                            <div class="f_benefit-text">
+                                            Neláká vás plážová dovolená? S last minute slevou se s námi můžete vydat i <a href="/last-minute/poznavaci-zajezdy">za poznáním</a>.
+                                        </div>
+                                </div>
+                            </div>
+
+                </div>
+        
+        
+
+    </div>
+
+    </section>
+
+
+
+
+        </div>
+    </section>
+
+    <div id="pageFooter">
+        
+<div data-component-name="appServiceRequest">
+    <script type="application/json">
+ {"serviceTypes":[{"id":1,"text":"Parkování na letišti"},{"id":2,"text":"Cestovní pojištění"},{"id":3,"text":"Servis na palubě (catering)"},{"id":4,"text":"Místa v letadle (seating)"},{"id":5,"text":"Salónek na letišti"},{"id":6,"text":"Ubytování na letišti - Holiday Inn"},{"id":7,"text":"Ostatní"}]}
+    </script>
+</div>
+
+
+
+    <div data-component-name="appContactUsSection">
+        <script type="application/json">
+              {"phone":{"defaultRegion":"CZ"},"tripTypeSelection":[{"value":1,"text":"nový zájezd"},{"value":2,"text":"zakoupený zájezd"}],"serviceTypeSelection":{"serviceTypes":[{"id":1,"text":"Parkování na letišti"},{"id":2,"text":"Cestovní pojištění"},{"id":3,"text":"Servis na palubě (catering)"},{"id":4,"text":"Místa v letadle (seating)"},{"id":5,"text":"Salónek na letišti"},{"id":6,"text":"Ubytování na letišti - Holiday Inn"},{"id":7,"text":"Ostatní"}]},"Hotel":{"Identifier":0,"HotelName":null,"Country":null,"Destination":null,"Region":null}}
+        </script>
+        <div class="hidden sm:block py-4 mx-auto max-w-[--content-width-maximum] px-4">
+            <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-[40px] w-52 mx-auto my-4">
+                <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+            </div>
+            <div class="grid gap-4 md:grid-cols-3">
+                <div class="gap-4 flex flex-col text-[--text-title] items-center">
+                    <div class="bg-neutral-200 overflow-hidden relative rounded-full w-20 h-20">
+                        <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                    </div>
+                    <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-12 w-36">
+                        <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                    </div>
+                    <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-12 w-full">
+                        <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                    </div>
+                    <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-9 w-36 mx-auto">
+                        <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                    </div>
+                </div>
+                <div class="gap-4 flex flex-col text-[--text-title] items-center">
+                    <div class="bg-neutral-200 overflow-hidden relative rounded-full w-20 h-20">
+                        <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                    </div>
+                    <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-12 w-36">
+                        <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                    </div>
+                    <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-12 w-full">
+                        <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                    </div>
+                    <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-9 w-36 mx-auto">
+                        <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                    </div>
+                </div>
+                <div class="gap-4 flex flex-col text-[--text-title] items-center">
+                    <div class="bg-neutral-200 overflow-hidden relative rounded-full w-20 h-20">
+                        <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                    </div>
+                    <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-12 w-36">
+                        <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                    </div>
+                    <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-12 w-full">
+                        <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                    </div>
+                    <div class="bg-neutral-200 overflow-hidden rounded-[--cornerRounding] relative h-9 w-36 mx-auto">
+                        <div class="motion-safe:animate-[loader_1s_linear_infinite] left-0 absolute inset-y-0 right-full bg-neutral-300"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<div id="newsletter_anchor"></div>
+<div class="fshr-pageSection fshr-pageSection--highlighted fshr-notForMaximizedMap fshr-form-aboveFooter" id="eximFooterNewsletter">
+
+
+    <div class="grd-container js-form js-sendByAjax js-gtm-trackGoal" data-ajaxform-url="/api/ContactForm/newsletter" data-ajaxform-method="post"
+          data-gtm-trackgoal-action="Newsletter" data-selector-helperdatapool="#helperPool">
+      <div class="js-ajaxResultMessage fshr-ajaxResultMessage"></div>
+      <div class="grd-row">
+        <div class="grd-col grd-col--4 grd-col--slg-12">
+          <label class="fshr-contentSeparated-label" for="email-footer">Nejlepš&#237; nab&#237;dky do vašeho e-mailu</label>
+        </div>
+        <div class="grd-col grd-col--5 grd-col--slg-8 grd-col--smd-12">
+          <div class="fshr-contentSeparated-formItem">
+            <input id="email-footer" name="email-footer" class="fshr-contentSeparated-formItem-input js-showContentIfValue"
+                    type="email" placeholder="Zadejte svůj e-mail"
+                    required type="email" data-showcontentifvalue-selector="closest(.grd-row)->next(.grd-row)"
+                    data-text-itemrequired="(povinn&#225; položka)"
+                    data-validitytext-empty="Položka je povinn&#225;.&lt;br&gt;Pros&#237;me, vyplňte ji."
+                    data-text-itemrequired-invalid="(špatn&#253; form&#225;t)"
+                    data-validitytext-invalid="(špatn&#253; form&#225;t)"
+                    data-validitytext-selectone="Pros&#237;me, vyberte jednu z možnost&#237;."
+                    data-text-itemrequired-valid="(v poř&#225;dku)">
+
+          </div>
+        </div>
+        <div class="grd-col grd-col--3 grd-col--slg-4 grd-col--smd-8 grd-offset--smd-2">
+          <button class="f_button f_button--common" style="margin: 0" type="submit">
+            <span class="f_button-text f_icon f_icon_set--right f_icon--chevronRight">
+              Odeb&#237;rat
+            </span>
+          </button>
+        </div>
+      </div>
+
+      
+
+    </div>
+</div>
+
+<div class="bg-neutral-100">
+    <div class="max-w-(--web-contentWidth-withPadding) pt-8 pb-6 px-4 box-border mx-auto">
+        
+
+
+
+
+<div class="md:flex gap-4 justify-between items-stretch">
+
+    <div class="sm:flex gap-4 sm:justify-between md:w-3/4">
+                <div class="hidden sm:block md:w-1/3">
+                                <div class="text-xl text-(--web-titleColor) font-semibold  ">
+                                    O EXIM tours
+                                </div>
+                                    <ul class="m-0 mt-4 p-0 list-none">
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/kontakty">Kontakt</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/kontakty/nase-pobocky">Pobočky</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="https://dertouristik.jobs.cz/">Kari&#233;ra</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/o-nas/o-spolecnosti">O n&#225;s</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/informace-pro-klienty/uzitecne-dokumenty">Užitečn&#233; dokumenty</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/prohlaseni-o-pristupnosti">Prohl&#225;šen&#237; o př&#237;stupnosti</a>
+                                            </li>
+                                    </ul>
+                </div>
+                <div class="hidden sm:block md:w-1/3">
+                                <div class="text-xl text-(--web-titleColor) font-semibold  ">
+                                    Pro klienty
+                                </div>
+                                    <ul class="m-0 mt-4 p-0 list-none">
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/muj-exim">Klientsk&#225; sekce</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/derclub">Věrnostn&#237; program DERCLUB</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/informace-pro-klienty/poukazky">Pouk&#225;zky a benefity</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/informace-pro-klienty/ochrana-osobnich-udaju">Ochrana osobn&#237;ch &#250;dajů</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a class="f_anchor" onclick="UC_UI.showSecondLayer();">Nastaven&#237; soukrom&#237;</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/hintbox-compliance-linka">Compliance linka</a>
+                                            </li>
+                                    </ul>
+                </div>
+                <div class="hidden sm:block md:w-1/3">
+                                <div class="text-xl text-(--web-titleColor) font-semibold  ">
+                                    Informace k z&#225;jezdu
+                                </div>
+                                    <ul class="m-0 mt-4 p-0 list-none">
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/informace-pro-klienty/cestovni-pojisteni">Cestovn&#237; pojištěn&#237;</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/informace-pro-klienty/otazky">Čast&#233; dotazy</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/informace-pro-klienty/vseobecne-podminky-k-zajezdu">Podm&#237;nky pro cestuj&#237;c&#237;</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/sluzby">Služby k cestov&#225;n&#237; letadlem</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a target=_blank class="f_anchor" href="https://www.dertouristik.cz/viza-a-pobytove-taxy">Vstupn&#237; a pobytov&#233; poplatky</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a target=_blank class="f_anchor" href="https://www.dertouristik.cz/pruvodce/vylety">V&#253;lety na dovolen&#233;</a>
+                                            </li>
+                                    </ul>
+                </div>
+                <div class="hidden sm:block md:w-1/3">
+                                <div class="text-xl text-(--web-titleColor) font-semibold  ">
+                                    Typy dovolen&#233;
+                                </div>
+                                    <ul class="m-0 mt-4 p-0 list-none">
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/pobytove-zajezdy/leto">Letn&#237; dovolen&#225; u moře</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/last-minute">Last minute z&#225;jezdy</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/kluby">Animačn&#237; kluby</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/exotika">Exotick&#225; dovolen&#225;</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/deti-zdarma">Dovolen&#225; s dětmi zdarma</a>
+                                            </li>
+                                            <li class="mt-2  ">
+                                                    <a  class="f_anchor" href="/poznavaci-zajezdy">Pozn&#225;vac&#237; z&#225;jezdy</a>
+                                            </li>
+                                    </ul>
+                </div>
+    </div>
+
+
+
+    
+        <div class="sm:hidden">
+            <ul class="m-0 p-0 list-none text-center">
+<li class="">
+                            <a  href="/last-minute" class="f_anchor">Last minute z&#225;jezdy</a>
+                    </li>
+<li class="mt-2">
+                            <a  href="/pobytove-zajezdy/leto" class="f_anchor">Letn&#237; dovolen&#225; u moře</a>
+                    </li>
+<li class="mt-2">
+                            <a  href="/derclub" class="f_anchor">Věrnostn&#237; program DERCLUB</a>
+                    </li>
+<li class="mt-2">
+                            <a  href="/kluby" class="f_anchor">Animačn&#237; kluby</a>
+                    </li>
+<li class="mt-2">
+                            <a  href="/informace-pro-klienty/poukazky/darkove-poukazky" class="f_anchor">D&#225;rkov&#233; poukazy</a>
+                    </li>
+<li class="mt-2">
+                            <a  href="/kontakty" class="f_anchor">Kontakty</a>
+                    </li>
+<li class="mt-2">
+                            <a  href="/kontakty/nase-pobocky" class="f_anchor">Pobočky</a>
+                    </li>
+<li class="mt-2">
+                            <a  href="/muj-exim" class="f_anchor">Klientsk&#225; sekce</a>
+                    </li>
+<li class="mt-2">
+                            <a  href="/aplikace" class="f_anchor">Mobiln&#237; aplikace Exim</a>
+                    </li>
+<li class="mt-2">
+                            <a  href="/informace-pro-klienty/cestovni-pojisteni" class="f_anchor">Cestovn&#237; pojištěn&#237;</a>
+                    </li>
+<li class="mt-2">
+                            <a  href="/informace-pro-klienty/otazky" class="f_anchor">Čast&#233; dotazy</a>
+                    </li>
+<li class="mt-2">
+                            <a  href="/informace-pro-klienty/vseobecne-podminky-k-zajezdu" class="f_anchor">Podm&#237;nky k z&#225;jezdu</a>
+                    </li>
+<li class="mt-2">
+                            <a  href="/informace-pro-klienty" class="f_anchor">Informace pro klienty</a>
+                    </li>
+<li class="mt-2">
+                            <a target=_blank href="https://dertouristik.jobs.cz/" class="f_anchor">Kari&#233;ra</a>
+                    </li>
+<li class="mt-2">
+                            <a  href="/informace-pro-klienty/ochrana-osobnich-udaju" class="f_anchor">Ochrana osobn&#237;ch &#250;dajů</a>
+                    </li>
+<li class="mt-2">
+                            <a onclick="UC_UI.showSecondLayer();" class="f_anchor">Nastaven&#237; soukrom&#237;</a>
+                    </li>
+            </ul>
+        </div>
+
+    <div class="text-center mt-8 md:mt-0 md:flex md:flex-col md:justify-between">
+        <div class="text-title inline-block md:block md:text-right md:h-full">
+            <div class="text-right">Po-Ne 7-22 hod.</div>
+            <a href="tel:+420255787787"
+               class="f_icon f_icon--phone f_icon_set--inheritColor text-3xl text-brand-primary font-semibold no-underline before:text-xl before:leading-none before:pr-3">
+                255 787 787
+            </a>
+            <div class="js-gtmWhatsappButton"></div>
+        </div>
+        <div class="mt-8 md:mt-0 md:pt-8 box-border">
+            <div class="flex gap-5 my-auto justify-center mb-4 md:justify-end">
+                        <a href="https://www.facebook.com/eximtours">
+                            <img class="block js-gtm-eventClick" src="/Content/Css/Exim/web/asset/image/social/grayscale/facebook.svg" data-gtm-eventclick-category="ClickSocial" data-gtm-eventclick-action="clickFacebook"
+                                 alt="Facebook" loading="lazy" />
+                        </a>
+                        <a href="https://www.instagram.com/eximtoursck/">
+                            <img class="block js-gtm-eventClick" src="/Content/Css/Exim/web/asset/image/social/grayscale/instagram.svg" data-gtm-eventclick-category="ClickSocial" data-gtm-eventclick-action="clickInstagram"
+                                 alt="Instagram" loading="lazy" />
+                        </a>
+                        <a href="https://www.youtube.com/user/CKEXIMtube">
+                            <img class="block js-gtm-eventClick" src="/Content/Css/Exim/web/asset/image/social/grayscale/youtube.svg" data-gtm-eventclick-category="ClickSocial" data-gtm-eventclick-action="clickYoutube"
+                                 alt="Youtube" loading="lazy" />
+                        </a>
+                        <a href="https://cz.linkedin.com/company/exim-tours-a.s.">
+                            <img class="block js-gtm-eventClick" src="/Content/Css/Exim/web/asset/image/social/grayscale/linkedin.svg" style="height: 35px" data-gtm-eventclick-category="ClickSocial" data-gtm-eventclick-action="clickLinkedIn"
+                                 alt="Linked" loading="lazy" />
+                        </a>
+            </div>
+            <div class="text-center md:text-right">Copyright &#169; 2026, DER Touristik CZ a.s.</div>
+        </div>
+    </div>
+</div>
+            <div data-component-name="footerStorePromo">
+        <script type="application/json">
+          {"image":{"src":"https://www.eximtours.cz/Exim/media/Exim/app/exim_app_footer.png","alt":"Vaše dovolená v kapse","title":"Vaše dovolená v kapse"},"content":{"title":"Vaše dovolená v kapse","description":"Stáhněte si aplikaci a mějte vše důležité o vašem zájezdu vždy při ruce."},"store":[{"image":{"src":"https://www.eximtours.cz/Exim/media/Exim/app/appstoredownload.png","alt":"App Store","title":"App Store"},"link":"https://apps.apple.com/cz/app/exim/id6449975394?l=cs","type":0},{"image":{"src":"https://www.eximtours.cz/Exim/media/Exim/app/googleplaydownload.png","alt":"Google Play","title":"Google Play"},"link":"https://play.google.com/store/apps/details?id=com.dertouristik.exim","type":1}],"qr":{"src":"https://www.eximtours.cz/Exim/media/Exim/app/Exim.svg","alt":"QR pro stažení aplikace","title":"QR pro stažení aplikace"},"bookingLink":"exim://sunrise.app/home/addBooking","enabledDataSources":[256,2048,8192,16384,65536,92416],"enabled":true,"orderVerificationPhoneImage":{"src":"https://www.eximtours.cz/Exim/media/Exim/app/app-phone-exim.png","title":"Vaše dovolená v kapse"}}
+        </script>
+    </div>
+
+
+<div class="mt-8 border-t border-t-neutral-200 border-solid border-0 pt-6 lg:flex lg:gap-4 items-center">
+    <div class="sm:flex gap-4 justify-center sm:items-center">
+        <div class="text-center block w-auto h-auto shrink-0">
+            <a href="https://www.dertouristik.cz/" title="DER Touristik" target="_blank">
+                <img class="block mx-auto h-full shrink-0" alt="DER Touristik" src="/Scripts/web/assets/image/logo/der-touristik.svg" loading="lazy"/>
+            </a>
+        </div>
+        <div class="text-center sm:text-left text-neutral-400 text-sm mt-4">
+            Jsme součástí <b>REWE Group</b> a její divize <b>DERTOUR&nbsp;Group</b>, největší středoevropské skupiny v cestovním ruchu.
+        </div>
+    </div>
+        <div class="hidden sm:flex gap-4 justify-center shrink-0 sm:mt-4">
+            <div>
+                <img src="/Scripts/web/assets/image/footerBrands/exim.svg" alt="" loading="lazy"/>
+            </div>
+            <div>
+                <img src="/Scripts/web/assets/image/footerBrands/fischer.svg" alt="" loading="lazy"/>
+            </div>
+            
+            <div>
+                <img src="/Scripts/web/assets/image/footerBrands/nevdama.svg" alt="" loading="lazy"/>
+            </div>
+            <div>
+                <img src="/Scripts/web/assets/image/footerBrands/etravel.svg" alt="" loading="lazy"/>
+            </div>
+            <div>
+                <img src="/Scripts/web/assets/image/footerBrands/kartago.svg" alt="" loading="lazy" />
+            </div>
+        </div>
+</div>
+    </div>
+</div>
+
+
+
+        
+<div class="fshr-popupWindow-overlay js-popupWindow-overlay fshr-popupWindow--callback" id="popup-callback" data-popup-ajaxurl="/home/callback" data-popup-ajaxmethod="get">
+  <div class="fshr-popupWindow-centerWrapper">
+    <div class="fshr-popupWindow-center">
+      <div class="fshr-popupWindow fshr-popupWindow--centered js-popupWindow js-form js-sendByAjax fshr-icon fshr-icon--phone js-gtm-trackGoal" data-gtm-trackgoal-action="Callback"
+           data-ajaxform-url="/api/ContactForm/callback" data-ajaxform-method="post" data-selector-helperdatapool="#helperPool">
+        <div class="fshr-popupWindow-header">
+          <a href="#" class="fshr-popupWindow-close js-popupWindow--close">Zavř&#237;t</a>
+          <p class="fshr-popupWindow-title">
+            Zpětn&#233; vol&#225;n&#237;
+          </p>
+        </div>
+        <div class="fshr-popupWindow-content js-popupWindow-content"></div>
+        <div class="fshr-popupWindow-footer js-popupWindow-footer"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="fshr-popupWindow-overlay js-popupWindow-overlay fshr-popupWindow--branch" id="popup-branch" data-popup-ajaxurl="/home/branchvisit" data-popup-ajaxmethod="get">
+  <div class="fshr-popupWindow-centerWrapper">
+    <div class="fshr-popupWindow-center">
+      <div class="fshr-popupWindow fshr-popupWindow--centered js-form js-popupWindow fshr-icon fshr-icon--man js-sendByAjax js-gtm-trackGoal" data-gtm-trackgoal-action="VisitBranch"
+           data-ajaxform-url="/api/ContactForm/branch" data-ajaxform-method="post" data-selector-helperdatapool="#helperPool">
+        <div class="fshr-popupWindow-header">
+          <a href="#" class="fshr-popupWindow-close js-popupWindow--close">Zavř&#237;t</a>
+          <p class="fshr-popupWindow-title">N&#225;vštěva pobočky</p>
+        </div>
+        <div class="fshr-popupWindow-content js-popupWindow-content">
+        </div>
+        <div class="fshr-popupWindow-footer js-popupWindow-footer">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="fshr-popupWindow-overlay js-popupWindow-overlay fshr-popupWindow--question" id="popup-question" data-popup-ajaxurl="/home/question" data-popup-ajaxmethod="get">
+  <div class="fshr-popupWindow-centerWrapper">
+    <div class="fshr-popupWindow-center">
+      <div class="fshr-popupWindow fshr-popupWindow--centered js-popupWindow fshr-icon fshr-icon--envelope js-form js-sendByAjax js-gtm-trackGoal"
+           data-gtm-trackgoal-action="Question" data-ajaxerror-message="Formul&#225;ř se nepodařilo odeslat, zkuste to pros&#237;m později."
+           data-ajaxform-url="/api/ContactForm/question" data-ajaxform-method="post" data-selector-helperdatapool="#helperPool">
+        <div class="fshr-popupWindow-header">
+          <a href="#" class="fshr-popupWindow-close js-popupWindow--close">Zavř&#237;t</a>
+          <p class="fshr-popupWindow-title">Dotaz k z&#225;jezdu</p>
+        </div>
+        <div class="fshr-popupWindow-content js-popupWindow-content"></div>
+        <div class="fshr-popupWindow-footer js-popupWindow-footer">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="fshr-popupWindow-overlay js-popupWindow-overlay" id="popup-contacts">
+    <div class="fshr-popupWindow-centerWrapper">
+        <div class="fshr-popupWindow-center">
+            <div class="fshr-popupWindow fshr-popupWindow--centered js-popupWindow">
+                <div class="fshr-popupWindow-header">
+                    <a href="#" class="fshr-popupWindow-close js-popupWindow--close">Zavř&#237;t</a>
+                    <p class="fshr-popupWindow-title">&lt;b&gt;Kontaktujte n&#225;s&lt;/b&gt;</p>
+                </div>
+                <div class="fshr-popupWindow-content">
+                    <div class="fshr-contentBox">
+                        "
+                    </div>
+                    <div class="fshr-contentBox" style="margin-top: 10px;">
+                        <ul class="fshr-mobileListMenu">
+                            <li class="fshr-mobileListMenu-item">
+                                <a href="#popup-callback" data-popup-ajaxurl="/home/callback" data-popup-ajaxmethod="get"
+                                   class="fshr-mobileListMenu-anchor fshr-icon fshr-icon--phone js-popupWindow--show js-gtm-eventClick" 
+                                   data-gtm-eventclick-category="ClickGoal" data-gtm-eventclick-action="Callback">
+                                    <span class="fshr-mobileListMenu-item-title">Zpětn&#233; vol&#225;n&#237;</span>
+                                    <span class="fshr-mobileListMenu-item-text">Zanechte n&#225;m svůj telefon a n&#225;š odborn&#253; poradce v&#225;s bude kontaktovat.</span>
+                                </a>
+                            </li>
+                            <li class="fshr-mobileListMenu-item">
+                                <a href="#popup-branch" data-popup-ajaxurl="/home/branchvisit" data-popup-ajaxmethod="get"
+                                   class="fshr-mobileListMenu-anchor fshr-icon fshr-icon--man js-popupWindow--show js-gtm-eventClick" 
+                                   data-gtm-eventclick-category="ClickGoal" data-gtm-eventclick-action="VisitBranch" data-map-branchid="">
+                                    <span class="fshr-mobileListMenu-item-title">N&#225;vštěva pobočky</span>
+                                    <span class="fshr-mobileListMenu-item-text">Sjednejte si schůzku v nejbližš&#237; pobočce. Šetřete čas a nechte n&#225;s vypracovat vhodnou nab&#237;dku.</span>
+                                </a>
+                            </li>
+
+                            <li class="fshr-mobileListMenu-item">
+                                <a href="#popup-question" data-popup-ajaxurl="/home/question" data-popup-ajaxmethod="get"
+                                   class="fshr-mobileListMenu-anchor fshr-icon fshr-icon--envelope js-popupWindow--show js-gtm-eventClick" 
+                                   data-gtm-eventclick-category="ClickGoal" data-gtm-eventclick-action="Question">
+                                    <span class="fshr-mobileListMenu-item-title">Dotaz k z&#225;jezdu</span>
+                                    <span class="fshr-mobileListMenu-item-text">Nejste si 100% jist&#237; v&#253;běrem z&#225;jezdu? Jsme připraveni zodpovědět všechny vaše dotazy.</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="fshr-popupWindow-overlay js-popupWindow-overlay fshr-popupWindow--question" id="popup-question-service" data-popup-ajaxurl="/home/questionservice" data-popup-ajaxmethod="get">
+    <div class="fshr-popupWindow-centerWrapper">
+        <div class="fshr-popupWindow-center">
+            <div class="fshr-popupWindow fshr-popupWindow--centered js-popupWindow fshr-icon fshr-icon--envelope js-form js-sendByAjax js-gtm-trackGoal"
+                 data-gtm-trackgoal-action="Question" data-ajaxerror-message="Formuláø se nepodaøilo odeslat, zkuste to prosím pozdìji."
+                 data-ajaxform-url="/api/ContactForm/QuestionService" data-ajaxform-method="post" data-selector-helperdatapool="#helperPool">
+                <div class="fshr-popupWindow-header">
+                    <a href="#" class="fshr-popupWindow-close js-popupWindow--close">Zavř&#237;t</a>
+                    <p class="fshr-popupWindow-title">Z&#225;jem o službu</p>
+                </div>
+                <div class="fshr-popupWindow-content js-popupWindow-content"></div>
+                <div class="fshr-popupWindow-footer js-popupWindow-footer">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+        <div id="c_popup-availability"></div>
+
+        <div data-component-name="popupAside"></div>
+        <div data-component-name="popup"></div>
+
+    </div>
+
+
+    <script src='/Scripts/web/index.BbuERtGU.js' type='module'></script>
+<script src='/Scripts/web/index.D4-Q2eXC.js' type='module'></script>
+
+
+
+<script src="/Scripts/Exim/Localization/cs.js"></script>
+    <script src="/Scripts/Exim/vendor/jquery/jquery.slick.min.js"></script>
+
+    
+        <div id="">
+                <style>
+        .in_teaser {
+            background-image: url(/getmedia/9b99cc43-b2c2-4d53-9d55-7a77c97dc4d7/2256x470_LP_ET_BG_LM.jpg);
+            display: block;
+            padding-bottom: 16px;
+            padding-top: 16px;
+        }
+        .in_teaser-text {
+            display: block;
+            margin-bottom: 60px;
+            margin-top: 10px;
+            right: 160px;
+            width: 35%;
+        }
+        .in_teaser-text--mobile {
+            display: none;
+        }
+        .in_teaser-badge {
+            bottom: -90px;
+            position: absolute;
+            right: 60px;
+            width: 15%;
+        }
+        .in_teaser-wrapper {
+            margin: 0 auto;
+            max-width: 1180px;
+            position: relative;
+            text-align: left;
+            width: 100%;
+        }
+        .in_teaser-h1 {
+            opacity: 0;
+            width: 0;
+            height: 0;
+            position: absolute;
+            left: 0;
+            top: 0;
+            margin: 0;
+            overflow: hidden;
+        }
+        @media (max-width: 1200px) {
+            .in_teaser-badge {
+                height: auto
+                width: 5%;
+                right: 0px;
+            }
+        }
+        @media (max-width: 1160px) {
+            .in_teaser {
+                min-height: 0;
+            }
+            .in_teaser-text {
+                max-width: 100%;
+                width: 50vw;
+            }
+            .in_teaser-badge {
+                bottom: 0;
+            }
+        }
+        @media (max-width: 1160px) {
+            .in_teaser-badge {
+                height: auto;
+                width: 15%;
+            }
+        }
+        @media (max-width: 660px) {
+            .in_teaser,
+            .in_teaser.f_teaser--fullWidth {
+                background-image: url(/getmedia/37b6513f-e99a-40bb-a2fd-d30b568cac85/720x1252_ET_BG.jpg?v=1);
+                background-size: cover;
+                background-position: 0 29%;
+            }
+            .in_teaser-text {
+                display: none;
+                width: auto;
+            }
+            .in_teaser-text--mobile {
+                margin: 0 auto;
+                margin-bottom: 500px;
+                margin-top: 10px;
+                display: block;
+            }
+            .in_teaser-badge {
+                bottom: -32px;
+                display: block;
+                margin: 370px 0 50px auto;
+                height: auto;
+                width: 40%;
+                left: -140px;
+                position: relative;
+            }
+            .in_teaser-footer {
+                text-align: center;
+            }
+        }
+.in_teaser .in_teaser-badge {
+}
+    </style>
+        </div>
+        <div id="">
+            <script type="text/javascript">
+var $widgets = document.querySelectorAll(".js-ajaxPlaceholder--widget");
+for (var index = 0; index < $widgets.length; index++) {
+    var $widget = $widgets[index];
+    var url = $widget.getAttribute("data-widget-url");
+    var regex = new RegExp("dd=", "i");
+    if (url && !regex.test(url)) {
+        var today = new Date()
+        var tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        var parsedDate = [];
+        
+        parsedDate.push(tomorrow.getFullYear());
+        parsedDate.push(("0" + (tomorrow.getMonth() + 1)).slice(-2));
+        parsedDate.push(("0" + tomorrow.getDate()).slice(-2));
+        
+        var newDd = parsedDate.join("-");
+        url = url + "&dd=" + newDd;
+        $widget.setAttribute("data-widget-url", url);
+    }
+}
+</script>
+        </div>
+        <div id="">
+            <style>
+@media (max-width: 1400px) {
+
+.f_teaser--fullWidth {
+    background-position: 85% 0;
+}
+
+}
+</style>
+        </div>
+
+    
+
+    <style>
+        @media (max-width: 640px) {
+            .f_breadcrumb {
+                display: none !important;
+            }
+        }
+
+        .grecaptcha-badge {
+            visibility: hidden;
+        }
+    </style>
+
+</body>
+</html>

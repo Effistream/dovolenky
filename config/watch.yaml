@@ -1,0 +1,26 @@
+profiles:
+  leto-more:
+    enabled: true
+    countries: [Řecko, Turecko, Egypt, Španělsko, Kypr, Bulharsko, Chorvatsko, Itálie]
+    transport: flight
+    board: [AI]
+    departure_months: [6, 7, 8, 9]
+    max_price_per_person: 25000
+    min_real_discount_pct: 15
+    notify_new_offers: false
+  last-minute:
+    enabled: true
+    countries: []            # prázdné = všechny
+    departure_within_days: 14
+    min_real_discount_pct: 25
+    max_price_per_person: 20000
+    notify_new_offers: true
+notifications:
+  price_drop_pct: 10
+  renotify_drop_pct: 5
+  renotify_after_days: 7
+  max_messages_per_run: 20
+  digest_hour: 8
+scan:
+  adults: 2
+  min_request_gap_ms: 3000
