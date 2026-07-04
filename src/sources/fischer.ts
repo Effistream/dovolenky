@@ -175,6 +175,10 @@ function mapOneHotel(h: FischerHotel, tourMeta: TourMeta): NormalizedOffer | nul
 
 function toTourMeta(t: FischerTour): TourMeta {
   const departureDate = t.departureDate ? t.departureDate.slice(0, 10) : null;
+  // Deliberate collapse: nightsCount is a {from,to} range but every sampled /last-minute tour
+  // had {from:7,to:7} (see the file-header note), so we take the minimum stay (`from`) as the
+  // single `nights` value. If Fischer ever serves a live from!=to range, this silently reports
+  // the shortest stay rather than the full range — revisit if that's observed.
   const nights = t.nightsCount?.from ?? null;
   const country = t.location?.country ?? null;
   const locality = t.location?.destination ?? null;
@@ -198,7 +202,20 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
     return [];
   }
 
-  const targetTours = tours.slice(0, MAX_TOURS);
+  // Adapter-owned ordering: pick the MAX_TOURS earliest-departing tours ourselves rather than
+  // trusting the server's response order. The server currently already returns tours in
+  // departureDate-ascending order on /last-minute, so this sort is a no-op in practice today —
+  // but making the semantics explicit here means the "top N" selection stays correct (and
+  // testable) even if that server-side ordering ever changes. Stable sort; null departureDate
+  // sorts last (unknown-date tours are least useful to prioritize).
+  const sortedTours = [...tours].sort((a, b) => {
+    if (a.departureDate === b.departureDate) return 0;
+    if (a.departureDate === null) return 1;
+    if (b.departureDate === null) return -1;
+    return a.departureDate < b.departureDate ? -1 : 1;
+  });
+
+  const targetTours = sortedTours.slice(0, MAX_TOURS);
   const all: NormalizedOffer[] = [];
   const seen = new Set<string>();
 

@@ -128,7 +128,96 @@ describe('mapFischerHotels (fixture)', () => {
   });
 });
 
+/** Builds a minimal synthetic /last-minute page carrying the given tours in the hydration blob,
+ *  matching the real wrapper shape (`toursSearchSettings.documentGuid` + `tourListResult.tours`). */
+function buildHydrationHtml(tours: unknown[]): string {
+  const payload = {
+    toursSearchSettings: { documentGuid: 'synthetic-guid' },
+    tourListResult: { tours },
+  };
+  return `<html><body><section><div data-component-name="appTourList"><script type="application/json">${JSON.stringify(
+    payload,
+  )}</script></div></section></body></html>`;
+}
+
+function makeSyntheticTour(overrides: Record<string, unknown>) {
+  return {
+    id: 1,
+    searchFilter: 'DS=0&TT=1',
+    departureDate: '2026-07-06T00:00:00',
+    location: { country: 'Řecko', destination: 'Chalkidiki' },
+    departureLocation: 'Praha',
+    nightsCount: { from: 7, to: 7 },
+    adultPriceFrom: { amount: 10000 },
+    ...overrides,
+  };
+}
+
 describe('fischer source adapter', () => {
+  it('collapses a nightsCount {from,to} range to the minimum stay (from) when from !== to', async () => {
+    const tour = makeSyntheticTour({ id: 999, nightsCount: { from: 7, to: 14 } });
+    const html = buildHydrationHtml([tour]);
+    const textMock = vi.fn().mockResolvedValue(html);
+    const jsonMock = vi.fn().mockResolvedValue({ hotels: [hotelListFixture.hotels[0]] });
+
+    const ctx: SourceContext = {
+      http: { json: jsonMock, text: textMock } as unknown as SourceContext['http'],
+      adults: 2,
+      log: vi.fn(),
+    };
+
+    const offers = await fischer.fetchOffers(ctx);
+    expect(offers.length).toBeGreaterThan(0);
+    expect(offers[0]!.nights).toBe(7);
+  });
+
+  it('sorts tours by departureDate ascending before taking the top MAX_TOURS, regardless of server order', async () => {
+    // Shuffled input order: [id 3 (07-20), id 1 (null date), id 2 (07-10)]. Expected processing
+    // order after the adapter's own sort: id 2 (07-10, earliest) -> id 3 (07-20) -> id 1 (null,
+    // sorts last). This proves selection isn't relying on server-side order.
+    const tourFar = makeSyntheticTour({
+      id: 3,
+      searchFilter: 'tour-far',
+      departureDate: '2026-07-20T00:00:00',
+      location: { country: 'Řecko', destination: 'C' },
+    });
+    const tourNullDate = makeSyntheticTour({
+      id: 1,
+      searchFilter: 'tour-null-date',
+      departureDate: null,
+      location: { country: 'Řecko', destination: 'A' },
+    });
+    const tourNear = makeSyntheticTour({
+      id: 2,
+      searchFilter: 'tour-near',
+      departureDate: '2026-07-10T00:00:00',
+      location: { country: 'Řecko', destination: 'B' },
+    });
+    const tours = [tourFar, tourNullDate, tourNear];
+    const html = buildHydrationHtml(tours);
+    const textMock = vi.fn().mockResolvedValue(html);
+    const jsonMock = vi.fn().mockResolvedValue({ hotels: [hotelListFixture.hotels[0]] });
+
+    const ctx: SourceContext = {
+      http: { json: jsonMock, text: textMock } as unknown as SourceContext['http'],
+      adults: 2,
+      log: vi.fn(),
+    };
+
+    await fischer.fetchOffers(ctx);
+
+    // The adapter must request getTourHotelList in departureDate-ascending order (earliest
+    // first, null-departureDate tour last) rather than in the raw/shuffled input order.
+    const requestedSearchFilters = jsonMock.mock.calls.map((call) => {
+      const opts = call[1] as { body: string };
+      return JSON.parse(opts.body).searchFilter as string;
+    });
+    expect(jsonMock).toHaveBeenCalledTimes(3);
+    expect(requestedSearchFilters).toEqual(['tour-near', 'tour-far', 'tour-null-date']);
+  });
+});
+
+describe('fischer source adapter (fixture-backed)', () => {
   it('is named fischer and issues bounded requests (1 page + up to N tour POSTs)', async () => {
     const textMock = vi.fn().mockResolvedValue(lastMinuteHtml);
     const jsonMock = vi.fn().mockResolvedValue(hotelListFixture);
