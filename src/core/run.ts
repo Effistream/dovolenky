@@ -28,7 +28,11 @@ const BACKOFF_MS = 24 * 60 * 60 * 1000;
 const BACKOFF_MARKER = 'backoff';
 
 /** How many recent runs to scan back through when skipping backoff rows to find the last
- *  real (non-backoff) run. Generous enough to see past a long block-backoff streak. */
+ *  real (non-backoff) run. Generous enough to see past a long block-backoff streak at the
+ *  scheduled 2h cadence (max ~12 backoff rows per 24h block window). Known limitation:
+ *  frequent MANUAL reruns during an active block can push the blocked row past this window —
+ *  backoff then fails safe (re-attempts early) but the health alert stays silent until the
+ *  manual runs stop. */
 const RECENT_RUN_SCAN_LIMIT = 20;
 
 /** True for a bookkeeping row inserted by the block-backoff skip (transparent to history). */
