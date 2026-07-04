@@ -2,7 +2,12 @@ import type { NormalizedOffer, SourceAdapter, SourceContext } from '../core/type
 import { normalizeBoard, normalizeCountry, parseCzDate, offerKeyHash } from '../core/normalize.js';
 
 const BASE_URL = 'https://www.blue-style.cz';
-const LISTING_PATHS = ['/last-minute/', '/recko/', '/turecko/', '/egypt/'];
+// Only /last-minute/ is fetched: the country/region pages (/recko/, /turecko/, /egypt/, ...)
+// only expose partial "cheapest teaser" CheapestTerm fragments (see collectCheapestTerms doc
+// below) with no hotelName/board/stars/discount, so parseBluestyle always yields zero usable
+// offers for them — fetching them just wastes a request. If Blue Style ever starts serving
+// full CheapestTerm data on those pages, add them back here.
+const LISTING_PATHS = ['/last-minute/'];
 
 const NEXT_DATA_RE = /<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s;
 
@@ -107,17 +112,30 @@ function mapOffer(term: RawCheapestTerm): NormalizedOffer | null {
   const url = new URL(term.url, BASE_URL).toString();
   const pricePerPerson = Math.round(term.priceFrom);
 
+  // Only treat the discount as usable when it's a genuine percentage in (0, 100): pct <= 0 is
+  // "no discount", and pct >= 100 would divide by zero or go negative in the original-price
+  // formula below (producing Infinity/negative numbers), so both ends are guarded out.
   const pct = term.percentageDiscount;
-  const claimedDiscountPct = typeof pct === 'number' && pct > 0 ? pct : null;
+  const claimedDiscountPct = typeof pct === 'number' && pct > 0 && pct < 100 ? pct : null;
   const claimedOriginalPrice =
     claimedDiscountPct !== null ? Math.round(pricePerPerson / (1 - claimedDiscountPct / 100)) : null;
 
-  const country = normalizeCountry(term.destinationName ?? null);
+  // destinationName is the resort/city (e.g. "Hurghada"), not the country. The country slug is
+  // reliably the first path segment of the offer URL (e.g. /egypt/hurghada/... -> "egypt"), so
+  // derive it from there via normalizeCountry; destinationName becomes the locality instead.
+  const urlPath = term.url.split('?')[0] ?? '';
+  const firstSegment = urlPath.split('/').find((seg) => seg.length > 0) ?? null;
+  const countryFromSlug = normalizeCountry(firstSegment);
+  const country = countryFromSlug ?? normalizeCountry(term.destinationName ?? null);
+  const locality = term.destinationName?.trim() || null;
   const board = normalizeBoard(term.boardingType ?? null);
   const departureDate = parseCzDate(term.departureDate ?? null);
   const nights = typeof term.nightCount === 'number' ? term.nightCount : null;
   const stars = starsFromEnum(term.hotelStars);
 
+  // Hashes normalized fields (title, ISO departure date, nights, board enum) rather than any
+  // raw source id, consistent with the cedok adapter's sourceOfferKey pattern — this keeps the
+  // key stable across re-fetches and collapses duplicate term fragments for the same offer.
   const sourceOfferKey = offerKeyHash([title, departureDate, nights, board]);
 
   return {
@@ -125,7 +143,7 @@ function mapOffer(term: RawCheapestTerm): NormalizedOffer | null {
     sourceOfferKey,
     title,
     country,
-    locality: null,
+    locality,
     stars,
     board,
     transport: 'unknown',
