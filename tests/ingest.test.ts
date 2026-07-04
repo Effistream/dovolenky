@@ -144,4 +144,88 @@ describe('ingestOffer', () => {
     expect(rowA?.misses).toBe(0);
     expect(rowA?.active).toBe(true);
   });
+
+  it('scenario 6: concurrent inserts for the same (source, sourceOfferKey) throw the unique error ingestOffer catches', async () => {
+    // Verifies the actual error shape ingestOffer's catch block matches against:
+    // insert the same row twice directly (simulating two concurrent callers
+    // that both saw `existing === undefined` before either had committed) and
+    // confirm libsql's rejection carries the strings isUniqueConstraintError
+    // looks for, either on the error itself or on its wrapped `cause`.
+    const now = new Date('2026-07-04T10:00:00.000Z');
+    const nowIso = now.toISOString();
+    const offer = makeOffer({ sourceOfferKey: 'race-key' });
+
+    const insertValues = {
+      source: offer.source,
+      sourceOfferKey: offer.sourceOfferKey,
+      title: offer.title,
+      country: offer.country,
+      locality: offer.locality,
+      stars: offer.stars,
+      board: offer.board,
+      transport: offer.transport,
+      departureAirport: offer.departureAirport,
+      departureDate: offer.departureDate,
+      nights: offer.nights,
+      tourOperator: offer.tourOperator,
+      url: offer.url,
+      firstSeenAt: nowIso,
+      lastSeenAt: nowIso,
+      active: true,
+      misses: 0,
+    };
+
+    await db.insert(offers).values(insertValues);
+
+    let caught: unknown;
+    try {
+      await db.insert(offers).values(insertValues);
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeDefined();
+
+    function messageChainIncludes(err: unknown, needle: string): boolean {
+      let current: unknown = err;
+      for (let depth = 0; current && depth < 5; depth += 1) {
+        const message = (current as { message?: unknown }).message;
+        if (typeof message === 'string' && message.includes(needle)) return true;
+        current = (current as { cause?: unknown }).cause;
+      }
+      return false;
+    }
+
+    const matchesUniqueConstraint =
+      messageChainIncludes(caught, 'UNIQUE constraint failed') || messageChainIncludes(caught, 'SQLITE_CONSTRAINT');
+    expect(matchesUniqueConstraint).toBe(true);
+  });
+
+  it('scenario 7: ingestOffer called twice for the same key behaves like the race-recovery path (isNew false, single row)', async () => {
+    // ingestOffer has no seam to inject a mid-flight insert from "another
+    // process" without a second real DB connection, so this exercises the
+    // observable contract the catch block must preserve: whether the row was
+    // found on the initial select (the common path) or discovered via the
+    // catch block's re-select after a unique-constraint violation (the race
+    // path), a second ingest for the same (source, sourceOfferKey) must land
+    // on ingestExistingOffer semantics — isNew false, previousPrice from the
+    // latest snapshot, misses reset, lastSeenAt bumped, and only one offer row.
+    const t0 = new Date('2026-07-04T10:00:00.000Z');
+    const first = await ingestOffer(db, makeOffer({ sourceOfferKey: 'race-key-2' }), t0);
+    expect(first.isNew).toBe(true);
+
+    const t1 = new Date('2026-07-04T11:00:00.000Z');
+    const second = await ingestOffer(db, makeOffer({ sourceOfferKey: 'race-key-2', pricePerPerson: 12345 }), t1);
+
+    expect(second.isNew).toBe(false);
+    expect(second.offerId).toBe(first.offerId);
+    expect(second.previousPrice).toBe(16781);
+    expect(second.snapshotWritten).toBe(true);
+
+    const rows = await db.select().from(offers).where(sql`${offers.source} = 'invia' AND ${offers.sourceOfferKey} = 'race-key-2'`);
+    expect(rows.length).toBe(1);
+    expect(rows[0]?.misses).toBe(0);
+    expect(rows[0]?.active).toBe(true);
+    expect(rows[0]?.lastSeenAt).toBe(t1.toISOString());
+  });
 });
