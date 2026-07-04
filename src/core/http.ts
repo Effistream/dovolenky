@@ -14,6 +14,14 @@ export class SourceBlockedError extends Error {
   }
 }
 
+/**
+ * Internal marker for non-retryable HTTP error statuses (any `!response.ok`
+ * that isn't handled by `SourceBlockedError` or the 5xx retry path, e.g.
+ * 404/400). Thrown immediately with no retry; unwrapped back to a plain
+ * `Error` before leaving `doFetchWithRetry` so callers see a normal Error.
+ */
+class NonRetryableHttpError extends Error {}
+
 export interface HttpClientOptions {
   minGapMs?: number;
   userAgent?: string;
@@ -29,6 +37,7 @@ export class HttpClient {
   private readonly hostGapOverrides: Record<string, number>;
   private readonly sleepImpl: (ms: number) => Promise<void>;
   private readonly lastRequestAt = new Map<string, number>();
+  private readonly hostQueues = new Map<string, Promise<void>>();
 
   constructor(opts: HttpClientOptions = {}) {
     this.minGapMs = opts.minGapMs ?? DEFAULT_MIN_GAP_MS;
@@ -44,17 +53,68 @@ export class HttpClient {
   }
 
   async text(url: string, init?: RequestInit): Promise<string> {
-    await this.waitForHostGap(url);
+    return this.runOnHostQueue(url, () => this.doFetchWithRetry(url, init));
+  }
 
+  async json<T = unknown>(url: string, init?: RequestInit): Promise<T> {
+    const body = await this.text(url, init);
+    return JSON.parse(body) as T;
+  }
+
+  /**
+   * Serializes all requests to the same host through a per-host promise
+   * queue. Each request chains onto the host's tail promise: it waits for
+   * the previous request (fetch included) to settle, then waits out the
+   * politeness gap, then runs its own fetch. This guarantees no two
+   * requests to the same host are ever in flight (or gap-waiting)
+   * concurrently, while different hosts remain fully independent.
+   *
+   * The queue tail is a `.catch(() => {})`-guarded promise so a failed
+   * request never poisons the chain for subsequent requests, and the map
+   * entry is replaced (not appended to indefinitely) so memory stays O(1)
+   * per host regardless of request count.
+   */
+  private runOnHostQueue<T>(url: string, task: () => Promise<T>): Promise<T> {
+    const host = new URL(url).host;
+    const previousTail = this.hostQueues.get(host) ?? Promise.resolve();
+
+    const result = previousTail.then(async () => {
+      await this.waitForHostGap(host);
+      try {
+        return await task();
+      } finally {
+        // Recorded after the fetch completes (success or failure), so the
+        // next request's gap wait is measured from when this one actually
+        // finished, not from when it started.
+        this.lastRequestAt.set(host, Date.now());
+      }
+    });
+
+    // The next request should wait for this one to fully settle (success or
+    // failure) before it starts its own gap wait. Swallow the error here so
+    // the queue tail itself never rejects and past requests don't pile up
+    // in memory — this replaces the map entry rather than chaining onto it.
+    const nextTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.hostQueues.set(host, nextTail);
+
+    return result;
+  }
+
+  private async doFetchWithRetry(url: string, init?: RequestInit): Promise<string> {
     let lastError: unknown;
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
       try {
+        const headers = new Headers(init?.headers);
+        if (!headers.has('user-agent')) {
+          headers.set('User-Agent', this.userAgent);
+        }
+
         const response = await this.fetchImpl(url, {
           ...init,
-          headers: {
-            ...(init?.headers as Record<string, string> | undefined),
-            'User-Agent': this.userAgent,
-          },
+          headers,
         });
 
         if (response.status === 403 || response.status === 429) {
@@ -71,10 +131,17 @@ export class HttpClient {
           throw lastError;
         }
 
+        if (!response.ok) {
+          throw new NonRetryableHttpError(`HTTP ${response.status} for ${url}`);
+        }
+
         return await response.text();
       } catch (err) {
         if (err instanceof SourceBlockedError) {
           throw err;
+        }
+        if (err instanceof NonRetryableHttpError) {
+          throw new Error(err.message);
         }
         lastError = err;
         const backoff = RETRY_BACKOFF_MS[attempt];
@@ -90,14 +157,8 @@ export class HttpClient {
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
-  async json<T = unknown>(url: string, init?: RequestInit): Promise<T> {
-    const body = await this.text(url, init);
-    return JSON.parse(body) as T;
-  }
-
-  private async waitForHostGap(url: string): Promise<void> {
-    const host = new URL(url).host;
-    const gap = this.gapForHost(url);
+  private async waitForHostGap(host: string): Promise<void> {
+    const gap = this.hostGapOverrides[host] ?? this.minGapMs;
     const last = this.lastRequestAt.get(host);
     const now = Date.now();
 
@@ -107,7 +168,5 @@ export class HttpClient {
         await this.sleepImpl(gap - elapsed);
       }
     }
-
-    this.lastRequestAt.set(host, Date.now());
   }
 }
