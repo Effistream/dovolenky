@@ -180,4 +180,158 @@ describe('computeRealDiscount', () => {
     expect(result.baseline).toBeNull();
     expect(result.fake).toBe(false);
   });
+
+  describe('Prague-local "today" boundary (Finding 1 regression)', () => {
+    // now = 2026-07-05T07:00:00Z = Prague 09:00 CEST (Jul 5 Prague day)
+    const PRAGUE_NOW = new Date('2026-07-05T07:00:00Z');
+
+    it('excludes a snapshot at 2026-07-04T23:00:00Z (Prague 01:00 on Jul 5) as "today"', () => {
+      const ownSnapshots = [
+        { price: 20000, at: '2026-06-10T12:00:00Z' },
+        { price: 19000, at: '2026-06-15T12:00:00Z' },
+        { price: 21000, at: '2026-06-20T12:00:00Z' },
+        // Prague-local Jul 5 (same as PRAGUE_NOW's Prague day) -> must be excluded as "today"
+        { price: 99999, at: '2026-07-04T23:00:00Z' },
+      ];
+      const result = computeRealDiscount({
+        current: 15000,
+        ownSnapshots,
+        omnibus: null,
+        marketPrices: [],
+        claimedPct: null,
+        now: PRAGUE_NOW,
+      });
+      // only the 3 June snapshots qualify -> median 20000
+      expect(result.reference).toBe('own');
+      expect(result.baseline).toBe(20000);
+    });
+
+    it('includes a snapshot at 2026-07-04T20:00:00Z (Prague 22:00 on Jul 4) as NOT today', () => {
+      const ownSnapshots = [
+        { price: 20000, at: '2026-06-10T12:00:00Z' },
+        { price: 19000, at: '2026-06-15T12:00:00Z' },
+        // Prague-local Jul 4 (different from PRAGUE_NOW's Prague day Jul 5) -> must be included
+        { price: 21000, at: '2026-07-04T20:00:00Z' },
+      ];
+      const result = computeRealDiscount({
+        current: 15000,
+        ownSnapshots,
+        omnibus: null,
+        marketPrices: [],
+        claimedPct: null,
+        now: PRAGUE_NOW,
+      });
+      // all 3 snapshots qualify -> median 20000
+      expect(result.reference).toBe('own');
+      expect(result.baseline).toBe(20000);
+    });
+  });
+
+  describe('zero/negative baseline guard (Finding 2 regression)', () => {
+    it('omnibus: 0 with 8 valid marketPrices -> falls through to market', () => {
+      const marketPrices = [10000, 12000, 14000, 15000, 17000, 18000, 20000, 22000]; // median 16000
+      const result = computeRealDiscount({
+        current: 12000,
+        ownSnapshots: [],
+        omnibus: 0,
+        marketPrices,
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBe('market');
+      expect(result.baseline).toBe(16000);
+      expect(result.realPct).toBe(25);
+    });
+
+    it('omnibus: 0 alone (no own, no market) -> all-null result', () => {
+      const result = computeRealDiscount({
+        current: 12000,
+        ownSnapshots: [],
+        omnibus: 0,
+        marketPrices: [],
+        claimedPct: 50,
+        now: NOW,
+      });
+      expect(result.reference).toBeNull();
+      expect(result.realPct).toBeNull();
+      expect(result.baseline).toBeNull();
+      expect(result.fake).toBe(false);
+    });
+  });
+
+  describe('boundary tests (Finding 3)', () => {
+    it('exactly 3 own snapshots spanning exactly 5.0 days -> own is used', () => {
+      const ownSnapshots = [
+        { price: 19000, at: daysAgo(10) },
+        { price: 20000, at: daysAgo(7.5) },
+        { price: 21000, at: daysAgo(5) },
+      ];
+      const result = computeRealDiscount({
+        current: 15000,
+        ownSnapshots,
+        omnibus: null,
+        marketPrices: [],
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBe('own');
+      expect(result.baseline).toBe(20000);
+    });
+
+    it('claimedPct - realPct exactly 15 -> fake true', () => {
+      // baseline 10000, current 8500 -> realPct = round((10000-8500)/10000*100) = 15
+      const result = computeRealDiscount({
+        current: 8500,
+        ownSnapshots: [],
+        omnibus: 10000,
+        marketPrices: [],
+        claimedPct: 30,
+        now: NOW,
+      });
+      expect(result.realPct).toBe(15);
+      expect(result.fake).toBe(true);
+    });
+
+    it('claimedPct - realPct exactly 14 -> fake false', () => {
+      // baseline 10000, current 8500 -> realPct 15; claimed 29 -> diff 14
+      const result = computeRealDiscount({
+        current: 8500,
+        ownSnapshots: [],
+        omnibus: 10000,
+        marketPrices: [],
+        claimedPct: 29,
+        now: NOW,
+      });
+      expect(result.realPct).toBe(15);
+      expect(result.fake).toBe(false);
+    });
+
+    it('marketPrices length exactly 7 -> market NOT used', () => {
+      const marketPrices = [10000, 12000, 14000, 15000, 17000, 18000, 20000]; // 7 values
+      const result = computeRealDiscount({
+        current: 12000,
+        ownSnapshots: [],
+        omnibus: null,
+        marketPrices,
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBeNull();
+      expect(result.baseline).toBeNull();
+    });
+
+    it('marketPrices length exactly 8 -> market IS used', () => {
+      const marketPrices = [10000, 12000, 14000, 15000, 17000, 18000, 20000, 22000]; // 8 values
+      const result = computeRealDiscount({
+        current: 12000,
+        ownSnapshots: [],
+        omnibus: null,
+        marketPrices,
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBe('market');
+      expect(result.baseline).toBe(16000);
+    });
+  });
 });
