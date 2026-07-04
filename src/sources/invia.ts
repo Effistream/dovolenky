@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
 import { randomUUID } from 'node:crypto';
 import type { Board, NormalizedOffer, SourceAdapter, SourceContext, Transport } from '../core/types.js';
-import { normalizeCountry, offerKeyHash, parseCzk } from '../core/normalize.js';
+import { isKnownCountry, normalizeCountry, offerKeyHash, parseCzk } from '../core/normalize.js';
 import { SourceBlockedError } from '../core/http.js';
 
 const BASE_URL = 'https://www.invia.cz';
@@ -128,10 +128,13 @@ function daysBetween(startRaw: string | undefined, endRaw: string | undefined): 
  *   1. `opts.country` — the authoritative country we asked for in the search query (e.g.
  *      "Řecko" when we queried nl_country_id=[28]). Always used when provided, since we know
  *      exactly which country we searched.
- *   2. GA4 `item_category_local` (a Czech country slug, e.g. "italie", "madarsko") ONLY if
- *      normalizeCountry recognizes it as a real country — used for the country-agnostic
- *      last-minute query where we don't have a single authoritative country.
- *   3. null — never fall back to locality/resort text as country.
+ *   2. JWT payload `countryId` — looked up in VERIFIED_COUNTRY_IDS (recon-confirmed ids only).
+ *      Used for the country-agnostic last-minute query (opts.country unset) when the per-card
+ *      JWT carries an id we've verified, since it's a stronger signal than the GA4 slug.
+ *   3. GA4 `item_category_local` (a Czech country slug, e.g. "italie", "madarsko") ONLY if
+ *      isKnownCountry recognizes it as a real, canonical country — used when neither of the
+ *      above apply.
+ *   4. null — never fall back to locality/resort text, nor a non-canonical/raw slug, as country.
  */
 export function parseInviaBoxes(
   json: { customData: { boxes: string } },
@@ -180,8 +183,12 @@ function parseCard(
   const locationParts = locationText.split('-').map((s) => s.trim()).filter(Boolean);
   const locality = locationParts.length > 1 ? locationParts[locationParts.length - 1]! : null;
 
+  const verifiedCountryFromJwt =
+    typeof payload.countryId === 'number' ? VERIFIED_COUNTRY_IDS[payload.countryId] ?? null : null;
   const country =
-    queryCountry ?? (ga4?.item_category_local ? resolveCountryFromSlug(ga4.item_category_local) : null);
+    queryCountry ??
+    verifiedCountryFromJwt ??
+    (ga4?.item_category_local ? resolveCountryFromSlug(ga4.item_category_local) : null);
 
   const departureDate = yyyymmddToIso(payload.checkInDate);
   const nights =
@@ -230,8 +237,17 @@ function parseCard(
   };
 }
 
+/**
+ * Resolves a GA4 `item_category_local` slug (e.g. "italie", "ceska_republika") to a canonical
+ * country name, or null if the slug doesn't resolve to a country we recognize. Underscore
+ * word-separators are normalized to spaces before the isKnownCountry/normalizeCountry lookup.
+ * Unlike normalizeCountry alone, this never leaks a raw/non-canonical slug (e.g. "spanelsko
+ * pevnina" or an unrecognized "polsko"-like token before Polsko was added) — per spec, country
+ * must be canonical or null, never garbage/city text.
+ */
 function resolveCountryFromSlug(slug: string): string | null {
-  return normalizeCountry(slug.replace(/_/g, ' '));
+  const candidate = slug.replace(/_/g, ' ');
+  return isKnownCountry(candidate) ? normalizeCountry(candidate) : null;
 }
 
 interface AjaxBoxesResponse {

@@ -133,6 +133,76 @@ describe('parseInviaBoxes: last-minute fixture (no country filter)', () => {
   });
 });
 
+/**
+ * Builds a minimal synthetic `customData.boxes` HTML fragment for one card, matching exactly
+ * the selectors parseCard/parseInviaBoxes rely on (h2 title, a[href*="s_offer_id="], the GA4
+ * data-ga-click-data-value blob, [data-testid="price"], .b-product-list-2__location). Used to
+ * exercise the GA4-slug country-fallback path in isolation. The JWTs below carry no countryId,
+ * so resolution falls through to the GA4 item_category_local slug (query-2/last-minute style).
+ */
+function makeSyntheticBox(opts: { title: string; jwt: string; itemCategoryLocal: string; locationText: string }): {
+  customData: { boxes: string };
+} {
+  const ga4 = {
+    event: 'select_item',
+    ecommerce: {
+      items: [
+        {
+          item_name: opts.title,
+          item_brand: 'Test Operator',
+          item_category_local: opts.itemCategoryLocal,
+          price: 12345,
+          value: 12345,
+          item_parameter_3: 'PRG',
+        },
+      ],
+    },
+  };
+  const ga4Attr = JSON.stringify(ga4).replace(/"/g, '&quot;');
+  const href = `https://www.invia.cz/hotel/test/test/?s_offer_id=${opts.jwt}`;
+  const boxes = `
+<article role="article" class="b-product-list-2">
+  <div class="b-product-list-2__inner">
+    <a href="${href}" data-ga-click-data-value="${ga4Attr}"><h2 class="h5">${opts.title}</h2></a>
+    <p class="b-product-list-2__location">${opts.locationText}</p>
+    <span class="price"><strong data-testid="price">123</strong> Kč za os.</span>
+  </div>
+</article>`;
+  return { customData: { boxes } };
+}
+
+describe('parseInviaBoxes: synthetic GA4-slug country fallback (query-2 style, no countryId in JWT)', () => {
+  // JWT payloads below deliberately omit countryId so resolution exercises the GA4-slug path.
+  const noCountryIdJwt1 =
+    'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZXJtSWQiOiI5OTkiLCJob3RlbElkIjoxLCJjaGVja0luRGF0ZSI6IjIwMjYwOTAxIiwiY2hlY2tPdXREYXRlIjoiMjAyNjA5MDgiLCJkYXlzQ291bnQiOjcsIm1lYWxJZCI6NSwidHJhbnNwb3J0YXRpb25JZCI6M30.sig';
+  const noCountryIdJwt2 =
+    'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZXJtSWQiOiI5OTgiLCJob3RlbElkIjoyLCJjaGVja0luRGF0ZSI6IjIwMjYwOTAxIiwiY2hlY2tPdXREYXRlIjoiMjAyNjA5MDgiLCJkYXlzQ291bnQiOjcsIm1lYWxJZCI6NSwidHJhbnNwb3J0YXRpb25JZCI6M30.sig';
+
+  it('slug "spanelsko pevnina" (non-canonical, resort-qualified) resolves to null country, never the raw slug', () => {
+    const fixture = makeSyntheticBox({
+      title: 'Test Hotel Spain',
+      jwt: noCountryIdJwt1,
+      itemCategoryLocal: 'spanelsko pevnina',
+      locationText: 'Španělsko - Pevnina - Costa Brava',
+    });
+    const offers = parseInviaBoxes(fixture);
+    expect(offers.length).toBe(1);
+    expect(offers[0]!.country).toBeNull();
+  });
+
+  it('slug "italie" (canonical) resolves to "Itálie"', () => {
+    const fixture = makeSyntheticBox({
+      title: 'Test Hotel Italy',
+      jwt: noCountryIdJwt2,
+      itemCategoryLocal: 'italie',
+      locationText: 'Itálie - Sardinie / Sardegna - Bari Sardo',
+    });
+    const offers = parseInviaBoxes(fixture);
+    expect(offers.length).toBe(1);
+    expect(offers[0]!.country).toBe('Itálie');
+  });
+});
+
 describe('invia adapter fetchOffers', () => {
   it('queries twice (Řecko + last-minute) and merges deduped offers', async () => {
     const jsonMock = vi

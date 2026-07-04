@@ -24,7 +24,7 @@ export function normalizeTransport(raw: string | null | undefined): Transport {
 }
 
 // Kanonické názvy zemí; klíč = stripped varianta/slug.
-const COUNTRIES = ['Řecko','Turecko','Egypt','Španělsko','Kypr','Bulharsko','Chorvatsko','Itálie','Tunisko','Malta','Portugalsko','Albánie','Černá Hora','Maroko','Spojené arabské emiráty','Thajsko','Zanzibar','Kapverdy','Dominikánská republika','Mexiko','Kuba','Maledivy','Mauricius','Seychely','Srí Lanka','Indonésie','Vietnam','Madeira','Kanárské ostrovy','Slovinsko','Francie','Rakousko','Maďarsko','Slovensko','Česká republika','Gruzie','Jordánsko','Izrael','Omán','Katar'];
+const COUNTRIES = ['Řecko','Turecko','Egypt','Španělsko','Kypr','Bulharsko','Chorvatsko','Itálie','Tunisko','Malta','Portugalsko','Albánie','Černá Hora','Maroko','Spojené arabské emiráty','Thajsko','Zanzibar','Kapverdy','Dominikánská republika','Mexiko','Kuba','Maledivy','Mauricius','Seychely','Srí Lanka','Indonésie','Vietnam','Madeira','Kanárské ostrovy','Slovinsko','Francie','Rakousko','Maďarsko','Slovensko','Česká republika','Gruzie','Jordánsko','Izrael','Omán','Katar','Polsko'];
 const COUNTRY_BY_KEY = new Map(COUNTRIES.map(c => [strip(c), c]));
 COUNTRY_BY_KEY.set('sae', 'Spojené arabské emiráty');
 COUNTRY_BY_KEY.set('emiraty', 'Spojené arabské emiráty');
@@ -38,6 +38,21 @@ export function normalizeCountry(raw: string | null | undefined): string | null 
   if (hit) return hit;
   // fallback: Title-case první token tak jak přišel
   return first;
+}
+
+/**
+ * True iff `raw` resolves to a canonical country we actually recognize (i.e. its stripped
+ * first token — same tokenization normalizeCountry uses: split on /[\/,–-]/, take the first
+ * segment, strip diacritics/case — is a key in COUNTRY_BY_KEY). Does NOT change
+ * normalizeCountry's own raw-passthrough fallback behavior; callers who need a strict
+ * "canonical or null" result should gate normalizeCountry's return with this guard, e.g.
+ * `isKnownCountry(raw) ? normalizeCountry(raw) : null`.
+ */
+export function isKnownCountry(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  const first = raw.split(/[\/,–-]/)[0]?.trim() ?? '';
+  if (!first) return false;
+  return COUNTRY_BY_KEY.has(strip(first));
 }
 
 export function parseCzk(raw: string | null | undefined): number | null {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeBoard, normalizeTransport, normalizeCountry, parseCzk, parseCzDate, offerKeyHash } from '../src/core/normalize.js';
+import { normalizeBoard, normalizeTransport, normalizeCountry, isKnownCountry, parseCzk, parseCzDate, offerKeyHash } from '../src/core/normalize.js';
 
 describe('normalize', () => {
   it('board', () => {
@@ -26,6 +26,26 @@ describe('normalize', () => {
     expect(normalizeCountry('Albánie, Vlora')).toBe('Albánie');
     expect(normalizeCountry('chorvatsko')).toBe('Chorvatsko');
     expect(normalizeCountry('')).toBeNull();
+    // Polsko was added as a recognized destination (see isKnownCountry tests below).
+    expect(normalizeCountry('polsko')).toBe('Polsko');
+  });
+  it('isKnownCountry', () => {
+    expect(isKnownCountry('recko')).toBe(true);
+    // Polsko is now a recognized canonical country (added to COUNTRIES).
+    expect(isKnownCountry('polsko')).toBe(true);
+    // "spanelsko pevnina" is not a canonical country key (it's a resort/region qualifier
+    // glued to the country name) — must be rejected, never leaked as a raw string.
+    expect(isKnownCountry('spanelsko pevnina')).toBe(false);
+    // Same tokenization as normalizeCountry: split on /[\/,–-]/ takes only the first segment
+    // *before* the hyphen, so "kanarske-ostrovy" reduces to "kanarske" alone, which is not a
+    // COUNTRY_BY_KEY key (the real key is "kanarske ostrovy", space-separated) — documenting
+    // this literal (if perhaps surprising) behavior rather than special-casing hyphenated
+    // country names.
+    expect(isKnownCountry('kanarske-ostrovy')).toBe(false);
+    expect(isKnownCountry('')).toBe(false);
+    expect(isKnownCountry(null)).toBe(false);
+    expect(isKnownCountry(undefined)).toBe(false);
+    expect(isKnownCountry('totally-unknown-place')).toBe(false);
   });
   it('parseCzk', () => {
     expect(parseCzk(' 16 781 Kč')).toBe(16781);
