@@ -150,6 +150,20 @@ describe('eximtours source adapter', () => {
     expect(offers.length).toBeGreaterThan(0);
   });
 
+  it('rethrows a total last-minute seed fetch failure (so runScan records it failed, not empty)', async () => {
+    const textMock = vi.fn().mockRejectedValue(new Error('seed down'));
+    const jsonMock = vi.fn();
+
+    const ctx: SourceContext = {
+      http: { json: jsonMock, text: textMock } as unknown as SourceContext['http'],
+      adults: 2,
+      log: vi.fn(),
+    };
+
+    await expect(eximtours.fetchOffers(ctx)).rejects.toThrow('seed down');
+    expect(jsonMock).not.toHaveBeenCalled();
+  });
+
   it('stops issuing further destination requests on SourceBlockedError but keeps offers already collected', async () => {
     const { SourceBlockedError } = await import('../src/core/http.js');
     const textMock = vi.fn().mockResolvedValue(lastMinuteHtml);

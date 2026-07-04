@@ -87,9 +87,11 @@ describe('mapFischerHotels (fixture)', () => {
     expect(byName.get('ELINOTEL SERMILIA RESORT')!.board).toBe('AI'); // All Inclusive Ultra
   });
 
-  it('maps stars from rating.count, including 0 stars', () => {
+  it('maps stars from rating.count, normalizing 0 (unrated) to null like other adapters', () => {
     const byName = new Map(offers.map((o) => [o.title, o]));
-    expect(byName.get('Villa Dio')!.stars).toBe(0);
+    // Villa Dio comes back with rating.count 0 (unrated villa); normalized to null so "no
+    // rating" is expressed the same way as every other adapter (null, never 0).
+    expect(byName.get('Villa Dio')!.stars).toBeNull();
     expect(byName.get('ELINOTEL SERMILIA RESORT')!.stars).toBe(5);
   });
 
@@ -253,6 +255,20 @@ describe('fischer source adapter (fixture-backed)', () => {
 
     const offers = await fischer.fetchOffers(ctx);
     expect(offers.length).toBeGreaterThan(0);
+  });
+
+  it('rethrows a total last-minute page fetch failure (so runScan records it failed, not empty)', async () => {
+    const textMock = vi.fn().mockRejectedValue(new Error('page down'));
+    const jsonMock = vi.fn();
+
+    const ctx: SourceContext = {
+      http: { json: jsonMock, text: textMock } as unknown as SourceContext['http'],
+      adults: 2,
+      log: vi.fn(),
+    };
+
+    await expect(fischer.fetchOffers(ctx)).rejects.toThrow('page down');
+    expect(jsonMock).not.toHaveBeenCalled();
   });
 
   it('stops on SourceBlockedError but keeps offers already collected', async () => {

@@ -225,9 +225,12 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
     const html = await ctx.http.text(`${BASE_URL}/last-minute`);
     seeds = parseEximSeeds(html);
   } catch (err) {
+    // Total failure of the seed/listing fetch is NOT "market empty" — it means the request
+    // itself failed. Rethrow so runScan records this source 'failed' (and skips
+    // markMissedOffers) rather than swallowing to [] and flipping inventory inactive.
     const message = err instanceof Error ? err.message : String(err);
     ctx.log(`eximtours: last-minute page fetch failed (${message}), aborting`);
-    return [];
+    throw err;
   }
 
   if (seeds.length === 0) {

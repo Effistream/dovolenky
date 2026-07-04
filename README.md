@@ -38,8 +38,9 @@ jednou denně navíc souhrnný digest top 10 nabídek.
    - **prahy** v `notifications` řídí, kdy se posílá zpráva o poklesu ceny
      (`price_drop_pct`), kdy se stejná nabídka připomene znovu (`renotify_drop_pct`,
      `renotify_after_days`) a v kolik hodin jde denní digest (`digest_hour`).
-6. `npm run scan -- --dry-run` — ověří, že zdroje odpovídají a config je platný,
-   nic nezapisuje do DB ani neposílá na Telegram.
+6. `npm run scan -- --dry-run` — ověří, že zdroje odpovídají a config je platný;
+   neposílá na Telegram ani neoznačuje zmizelé nabídky, ale nabídky a cenové
+   snapshoty do DB zapisuje (sbírá historii).
 7. `ops/install-launchd.sh` — zaregistruje pravidelný běh (viz níže). Skript si
    spouští uživatel sám, až je připravený.
 
@@ -49,7 +50,7 @@ jednou denně navíc souhrnný digest top 10 nabídek.
 |---|---|
 | `npm run scan` | proběhne všemi zdroji, zapíše do DB, pošle notifikace/digest |
 | `npm run scan -- --source=invia` | jen jeden zdroj (jméno viz `src/sources/index.ts`) |
-| `npm run scan -- --dry-run` | nic nezapisuje ani neposílá, jen vypíše do konzole |
+| `npm run scan -- --dry-run` | neposílá zprávy, nezapisuje notifikace a neoznačuje zmizelé nabídky; nabídky a cenové snapshoty do DB ukládá (sbírá historii) |
 | `npm run scan -- --no-notify` | zapíše do DB, ale neposílá na Telegram |
 | `npm run digest` | ruční vyvolání denního digestu (mimo běžný rozvrh) |
 | `npm run telegram:setup` | zjistí a uloží `TELEGRAM_CHAT_ID` |
@@ -88,7 +89,10 @@ zatím sbírá.
 
    `fetchOffers` dostane `ctx.http` (rate-limitovaný fetch wrapper), `ctx.adults`
    a `ctx.log`; musí vrátit pole `NormalizedOffer` (viz stejný soubor pro tvar).
-   Chyby zdroje nechej probublat — `runScan` izoluje zdroje přes `Promise.allSettled`.
+   Chyby zdroje nechej probublat — `runScan` prochází zdroje sekvenčně a každý
+   izoluje v samostatném try/catch (pád jednoho zdroje neshodí ostatní).
+   Když `fetchOffers` vrátí prázdné pole, zdroj se označí jako `partial` a
+   `markMissedOffers` se pro něj přeskočí (nula nabídek nikdy neznamená „trh je prázdný").
 
 2. Ulož reálnou odpověď zdroje (HTML/JSON) do `tests/fixtures/<jmeno>/` a napiš
    `tests/<jmeno>.test.ts`, který z fixture vyparsuje očekávané nabídky — vzor viz

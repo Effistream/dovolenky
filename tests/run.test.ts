@@ -409,33 +409,38 @@ describe('runScan', () => {
     expect(summary.digestSent).toBe(false);
   });
 
-  it('scenario 6: markMissedOffers runs per successful source', async () => {
+  it('scenario 6: markMissedOffers runs per source that returns a (non-empty) offer set', async () => {
     const now0 = new Date('2026-07-04T08:00:00.000Z');
-    // First scan: offer present.
+    // A different offer under the same source, present on every run so the source is never
+    // zero-offer (which would skip markMissedOffers entirely — see scenario 6b). The original
+    // offer disappears from that non-empty set and so is genuinely missed.
+    const otherOffer = makeOffer({ sourceOfferKey: 'other-still-here', url: 'https://example.com/other' });
+
+    // First scan: both offers present.
     await runScan({
       db,
       cfg: makeConfig({ profiles: {} }),
       http: makeHttp(),
       telegram: null,
-      adapters: [happyAdapter([makeOffer()])],
+      adapters: [happyAdapter([makeOffer(), otherOffer])],
       now: now0,
     });
-    // Second scan: happy returns nothing → miss #1.
+    // Second scan: only the other offer → original missed #1.
     await runScan({
       db,
       cfg: makeConfig({ profiles: {} }),
       http: makeHttp(),
       telegram: null,
-      adapters: [happyAdapter([])],
+      adapters: [happyAdapter([otherOffer])],
       now: new Date('2026-07-04T10:00:00.000Z'),
     });
-    // Third scan: still nothing → miss #2 → inactive.
+    // Third scan: still only the other offer → original missed #2 → inactive.
     await runScan({
       db,
       cfg: makeConfig({ profiles: {} }),
       http: makeHttp(),
       telegram: null,
-      adapters: [happyAdapter([])],
+      adapters: [happyAdapter([otherOffer])],
       now: new Date('2026-07-04T12:00:00.000Z'),
     });
 
@@ -445,6 +450,51 @@ describe('runScan', () => {
       .where(and(eq(offers.source, 'happy'), eq(offers.sourceOfferKey, 'hotel-hot-2026-08-15')));
     expect(row?.misses).toBe(2);
     expect(row?.active).toBe(false);
+
+    // The still-present offer must stay active with zero misses throughout.
+    const [otherRow] = await db
+      .select()
+      .from(offers)
+      .where(and(eq(offers.source, 'happy'), eq(offers.sourceOfferKey, 'other-still-here')));
+    expect(otherRow?.misses).toBe(0);
+    expect(otherRow?.active).toBe(true);
+  });
+
+  it('scenario 6b: a zero-offer source is "partial" and does NOT mark its offers missed (C1/C2)', async () => {
+    // First scan: offer present and ingested.
+    await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: [happyAdapter([makeOffer()])],
+      now: new Date('2026-07-04T08:00:00.000Z'),
+    });
+
+    // Second & third scans: adapter returns [] (e.g. total listing failure swallowed to [], or
+    // zajezdy's intentional out-of-window skip). markMissedOffers MUST be skipped both times, so
+    // the offer stays active — otherwise a couple of empty runs would flip the whole inventory
+    // inactive and the health alert could never fire.
+    for (const t of ['2026-07-04T10:00:00.000Z', '2026-07-04T12:00:00.000Z']) {
+      const summary = await runScan({
+        db,
+        cfg: makeConfig({ profiles: {} }),
+        http: makeHttp(),
+        telegram: null,
+        adapters: [happyAdapter([])],
+        now: new Date(t),
+      });
+      const happy = summary.perSource.find((s) => s.source === 'happy');
+      expect(happy?.status).toBe('partial');
+      expect(happy?.offersFound).toBe(0);
+    }
+
+    const [row] = await db
+      .select()
+      .from(offers)
+      .where(and(eq(offers.source, 'happy'), eq(offers.sourceOfferKey, 'hotel-hot-2026-08-15')));
+    expect(row?.misses).toBe(0);
+    expect(row?.active).toBe(true);
   });
 
   it('scenario 7: null telegram behaves like dry-run for sends but still counts', async () => {
@@ -496,5 +546,188 @@ describe('runScan', () => {
     const overflowMsg = tg.messages.find((m) => m.includes('dalších'));
     expect(overflowMsg).toBeDefined();
     expect(overflowMsg).toContain('1');
+  });
+
+  it('scenario 9: a thrown seed failure → status failed, and the source is NOT mass-missed (C1)', async () => {
+    // Seed an offer for the source so, if markMissedOffers wrongly ran on the failed run, the
+    // offer would flip toward inactive. A failing fetch must instead leave it untouched.
+    await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: [{ name: 'broken', async fetchOffers() { return [makeOffer({ source: 'broken' })]; } }],
+      now: new Date('2026-07-04T08:00:00.000Z'),
+    });
+
+    const summary = await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: [throwingAdapter()], // name 'broken', throws
+      now: new Date('2026-07-04T10:00:00.000Z'),
+    });
+
+    expect(summary.perSource[0]?.status).toBe('failed');
+
+    // The pre-existing offer must NOT have been marked missed by the failed run.
+    const [row] = await db
+      .select()
+      .from(offers)
+      .where(eq(offers.source, 'broken'));
+    expect(row?.misses).toBe(0);
+    expect(row?.active).toBe(true);
+  });
+
+  it('scenario 9b: an intentional empty return (e.g. zajezdy out-of-window) → partial, benign note, no misses (C2)', async () => {
+    const summary = await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: [happyAdapter([])],
+      now: new Date('2026-07-04T10:00:00.000Z'),
+    });
+
+    expect(summary.perSource[0]?.status).toBe('partial');
+
+    const [run] = await db.select().from(sourceRuns).where(eq(sourceRuns.source, 'happy'));
+    expect(run?.status).toBe('partial');
+    expect(run?.errorSample).toContain('zero offers'); // benign note, not an error
+    expect(run?.offersFound).toBe(0);
+  });
+
+  it('scenario 10: dry-run keeps ingest/snapshot writes but SKIPS markMissedOffers (I1)', async () => {
+    // First (real) scan ingests two offers.
+    const other = makeOffer({ sourceOfferKey: 'other-key', url: 'https://example.com/other' });
+    await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: [happyAdapter([makeOffer(), other])],
+      now: new Date('2026-07-04T08:00:00.000Z'),
+    });
+
+    const snapsBefore = await db.select().from(priceSnapshots);
+
+    // Dry run where only `other` is returned at a NEW price. The original disappears from a
+    // non-empty set, but because it's a dry run markMissedOffers must be skipped (no misses),
+    // while the snapshot for `other`'s new price is still written (history is collected).
+    await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: [happyAdapter([makeOffer({ sourceOfferKey: 'other-key', url: 'https://example.com/other', pricePerPerson: 9000 })])],
+      now: new Date('2026-07-04T10:00:00.000Z'),
+      dryRun: true,
+    });
+
+    // markMissedOffers skipped: the vanished original still has 0 misses and is active.
+    const [orig] = await db
+      .select()
+      .from(offers)
+      .where(and(eq(offers.source, 'happy'), eq(offers.sourceOfferKey, 'hotel-hot-2026-08-15')));
+    expect(orig?.misses).toBe(0);
+    expect(orig?.active).toBe(true);
+
+    // Ingest/snapshot writes still happened: a new snapshot at 9000 for `other`.
+    const snapsAfter = await db.select().from(priceSnapshots);
+    expect(snapsAfter.length).toBeGreaterThan(snapsBefore.length);
+    expect(snapsAfter.some((s) => s.pricePerPerson === 9000)).toBe(true);
+  });
+
+  it('scenario 11: 24h backoff skips a source blocked <24h ago (no adapter call), runs it after 24h (I2)', async () => {
+    const now = new Date('2026-07-04T10:00:00.000Z');
+
+    // A recent block (2h ago): a failed source_run whose error_sample starts with BLOCKED:.
+    await db.insert(sourceRuns).values({
+      source: 'blocked',
+      startedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+      finishedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+      offersFound: 0,
+      snapshotsWritten: 0,
+      errorCount: 1,
+      status: 'failed',
+      errorSample: 'BLOCKED:Request blocked with status 403',
+    });
+
+    let called = 0;
+    const spy: SourceAdapter = {
+      name: 'blocked',
+      async fetchOffers() {
+        called += 1;
+        return [makeOffer({ source: 'blocked' })];
+      },
+    };
+
+    const summaryA = await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: [spy],
+      now,
+    });
+
+    // Skipped: adapter never called; run recorded 'partial'/backoff.
+    expect(called).toBe(0);
+    expect(summaryA.perSource[0]?.status).toBe('partial');
+    const runs = await db.select().from(sourceRuns).where(eq(sourceRuns.source, 'blocked'));
+    const backoffRun = runs.find((r) => r.errorSample === 'backoff');
+    expect(backoffRun).toBeDefined();
+
+    // Fresh DB: the same block but 25h ago → backoff has lifted, adapter runs normally.
+    const db2 = openDb(':memory:');
+    await ensureSchema(db2);
+    await db2.insert(sourceRuns).values({
+      source: 'blocked',
+      startedAt: new Date(now.getTime() - 25 * 60 * 60 * 1000).toISOString(),
+      finishedAt: new Date(now.getTime() - 25 * 60 * 60 * 1000).toISOString(),
+      offersFound: 0,
+      snapshotsWritten: 0,
+      errorCount: 1,
+      status: 'failed',
+      errorSample: 'BLOCKED:Request blocked with status 403',
+    });
+
+    let called2 = 0;
+    const spy2: SourceAdapter = {
+      name: 'blocked',
+      async fetchOffers() {
+        called2 += 1;
+        return [makeOffer({ source: 'blocked' })];
+      },
+    };
+
+    const summaryB = await runScan({
+      db: db2,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: [spy2],
+      now,
+    });
+
+    expect(called2).toBe(1);
+    expect(summaryB.perSource[0]?.status).toBe('ok');
+  });
+
+  it('scenario 11b: a blocked seed error is recorded with a BLOCKED: error_sample so backoff can see it (I2)', async () => {
+    const summary = await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: [blockedAdapter()], // throws SourceBlockedError(403)
+      now: new Date('2026-07-04T10:00:00.000Z'),
+    });
+
+    expect(summary.perSource[0]?.status).toBe('failed');
+    const [run] = await db.select().from(sourceRuns).where(eq(sourceRuns.source, 'blocked'));
+    expect(run?.status).toBe('failed');
+    expect(run?.errorSample?.startsWith('BLOCKED:')).toBe(true);
   });
 });

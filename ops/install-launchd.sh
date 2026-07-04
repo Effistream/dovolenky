@@ -10,6 +10,7 @@ set -euo pipefail
 
 LABEL="com.daniel.dovolenky.scan"
 SCRIPT_DIR="$(cd "$(dirname "${(%):-%x}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PLIST_SRC="$SCRIPT_DIR/launchd/$LABEL.plist"
 PLIST_DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 
@@ -22,6 +23,12 @@ if [[ "${1:-}" == "--uninstall" ]]; then
 fi
 
 echo "Instaluji $LABEL…"
+
+# On a fresh checkout logs/ and data/ don't exist yet; launchd redirects stdout/stderr into
+# logs/scan.log and the scan writes the SQLite DB into data/, so create both before load or the
+# very first run fails to open its log/DB.
+mkdir -p "$PROJECT_DIR/logs" "$PROJECT_DIR/data"
+
 cp "$PLIST_SRC" "$PLIST_DEST"
 echo "Zkopírováno do $PLIST_DEST."
 

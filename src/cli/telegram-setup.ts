@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadDotEnv } from './env.js';
 
 const POLL_TIMEOUT_SECONDS = 25;
@@ -147,8 +147,11 @@ async function main(): Promise<void> {
 }
 
 // Only run when executed directly (e.g. `tsx src/cli/telegram-setup.ts`), not
-// when imported by tests for the pure `updateEnvVar` helper.
-const isMainModule = process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
+// when imported by tests for the pure `updateEnvVar` helper. pathToFileURL correctly
+// percent-encodes the argv path so this comparison holds on paths with non-ASCII
+// characters (e.g. the "OneDrive-Osobní" segment) — a raw `file://` + argv concat does
+// NOT encode them and silently makes this a no-op, so setup never runs there.
+const isMainModule = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
 if (isMainModule) {
   main().catch((err) => {
     console.error('telegram-setup selhal:', err);

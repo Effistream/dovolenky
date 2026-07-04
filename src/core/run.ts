@@ -5,6 +5,7 @@ import type { AppConfig } from './config.js';
 import type { Telegram } from './telegram.js';
 import type { NormalizedOffer, SourceAdapter } from './types.js';
 import { ingestOffer, markMissedOffers } from './ingest.js';
+import { SourceBlockedError } from './http.js';
 import { computeRealDiscount, type DiscountResult } from './discount.js';
 import { matchProfiles } from './filters.js';
 import { evaluateOffer, filterAgainstLog, recordSent, capMessages, type Candidate } from './notify.js';
@@ -12,6 +13,12 @@ import { formatOffer } from './format.js';
 import { pragueDayString } from './dates.js';
 import { marketBucketPrices, ownSnapshotsFor } from './market.js';
 import { buildDigest } from './digest.js';
+
+/** error_sample prefix marking a run that ended 'failed' because the source blocked us
+ *  (403/429). Used by the 24h backoff (spec §9): a source blocked within the last 24h is
+ *  skipped rather than re-hammered. */
+const BLOCKED_PREFIX = 'BLOCKED:';
+const BACKOFF_MS = 24 * 60 * 60 * 1000;
 
 export interface RunScanDeps {
   db: Db;
@@ -148,9 +155,12 @@ async function maybeSendDigest(
   telegram: Telegram | null,
   dryRun: boolean,
 ): Promise<boolean> {
-  const pragueHour = Number(
-    new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Prague', hour: '2-digit', hour12: false }).format(now),
-  );
+  // Intl can format midnight as "24" instead of "0" depending on locale/runtime; normalize
+  // (mirrors the same defense in zajezdy.ts's zajezdyAllowedNow).
+  const pragueHour =
+    Number(
+      new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Prague', hour: '2-digit', hour12: false }).format(now),
+    ) % 24;
   if (pragueHour < cfg.notifications.digestHour) return false;
 
   const today = pragueDayString(now);
@@ -182,6 +192,28 @@ async function maybeSendDigest(
   return true;
 }
 
+/**
+ * 24h backoff after a block (spec §9): if this source's most recent run ended 'failed' with a
+ * BLOCKED: error_sample within the last BACKOFF_MS, returns the ISO time the backoff lifts so
+ * the caller can skip the source this run; otherwise null (run normally).
+ */
+async function blockedBackoffUntil(db: Db, source: string, now: Date): Promise<string | null> {
+  const [last] = await db
+    .select({ status: sourceRuns.status, startedAt: sourceRuns.startedAt, errorSample: sourceRuns.errorSample })
+    .from(sourceRuns)
+    .where(eq(sourceRuns.source, source))
+    .orderBy(desc(sourceRuns.id))
+    .limit(1);
+
+  if (!last || last.status !== 'failed' || !last.errorSample?.startsWith(BLOCKED_PREFIX)) return null;
+
+  const blockedAt = new Date(last.startedAt).getTime();
+  if (Number.isNaN(blockedAt)) return null;
+
+  const liftsAt = blockedAt + BACKOFF_MS;
+  return now.getTime() < liftsAt ? new Date(liftsAt).toISOString() : null;
+}
+
 export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
   const { db, cfg, telegram, adapters } = deps;
   const now = deps.now ?? new Date();
@@ -201,6 +233,26 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
     let errorSample: string | null = null;
     let errorMessage: string | undefined;
 
+    // 24h backoff after a block (spec §9): skip the source entirely (no adapter call) while a
+    // recent block is still cooling off; record a benign 'partial'/backoff run so history stays
+    // continuous and this doesn't count toward the 3×-failed health alert.
+    const backoffUntil = await blockedBackoffUntil(db, adapter.name, now);
+    if (backoffUntil) {
+      log(`source ${adapter.name}: backoff po blokaci, přeskakuji do ${backoffUntil}`);
+      await db.insert(sourceRuns).values({
+        source: adapter.name,
+        startedAt,
+        finishedAt: now.toISOString(),
+        offersFound: 0,
+        snapshotsWritten: 0,
+        errorCount: 0,
+        status: 'partial',
+        errorSample: 'backoff',
+      });
+      perSource.push({ source: adapter.name, status: 'partial', offersFound: 0 });
+      continue;
+    }
+
     try {
       const fetched = await adapter.fetchOffers({ http: deps.http, adults: cfg.scan.adults, log });
       offersFound = fetched.length;
@@ -210,19 +262,36 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
       snapshotsWritten = processed.snapshotsWritten;
       errorCount = processed.errored;
 
-      if (processed.errored > 0) {
+      if (offersFound === 0) {
+        // Zero offers from a listing/discovery adapter never means "the market is empty" — it
+        // means we saw nothing this run (intentional skip like zajezdy's crawl window, an empty
+        // page, or a swallowed partial failure). Treat it as 'partial' and, crucially, SKIP
+        // markMissedOffers: otherwise a couple of empty runs would flip the whole source's
+        // inventory inactive (C1/C2). Real disappearances are detected against non-empty runs.
         status = 'partial';
-        errorSample = `${processed.errored} offer(s) failed processing`;
+        errorSample = 'zero offers returned — skipping markMissedOffers';
+        log(`source ${adapter.name}: 0 offers returned, skipping markMissedOffers`);
       } else {
-        status = 'ok';
-      }
+        if (processed.errored > 0) {
+          status = 'partial';
+          errorSample = `${processed.errored} offer(s) failed processing`;
+        } else {
+          status = 'ok';
+        }
 
-      await markMissedOffers(db, adapter.name, fetched.map((o) => o.sourceOfferKey), now);
+        // Skip markMissedOffers on dry runs: the ingest/snapshot writes above are useful history
+        // to collect, but flipping offers missed/inactive is a harmful side effect for a dry run
+        // (spec / README: --dry-run neoznačuje zmizelé nabídky).
+        if (!dryRun) {
+          await markMissedOffers(db, adapter.name, fetched.map((o) => o.sourceOfferKey), now);
+        }
+      }
     } catch (err) {
       status = 'failed';
       errorCount = 1;
       errorMessage = (err as Error).message;
-      errorSample = errorMessage;
+      // Mark blocks distinctly so the 24h backoff can recognize them on the next run.
+      errorSample = err instanceof SourceBlockedError ? `${BLOCKED_PREFIX}${errorMessage}` : errorMessage;
       log(`source ${adapter.name} failed: ${errorMessage}`);
     }
 

@@ -142,7 +142,10 @@ function mapOneHotel(h: FischerHotel, tourMeta: TourMeta): NormalizedOffer | nul
   const pricePerPerson = round(priceRaw);
 
   const board = normalizeBoard(h.meal ?? null);
-  const stars = h.rating?.count ?? null;
+  // Unrated hotels (villas etc.) come back as rating.count 0; normalize 0 -> null so "no rating"
+  // is expressed consistently with every other adapter (which use null, not 0, for unrated).
+  const ratingCount = h.rating?.count;
+  const stars = typeof ratingCount === 'number' && ratingCount > 0 ? ratingCount : null;
   const url = new URL(h.detailUrl, BASE_URL).toString();
   const sourceOfferKey = offerKeyHash([h.hotelId ?? h.name, tourMeta.departureDate, tourMeta.nights, board]);
 
@@ -191,9 +194,13 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
     const html = await ctx.http.text(`${BASE_URL}/last-minute`);
     hydration = parseFischerHydration(html);
   } catch (err) {
+    // Total failure of the seed/listing fetch is NOT "market empty" — it means we saw nothing
+    // because the request itself failed. Rethrow so runScan records this source as 'failed'
+    // (and skips markMissedOffers), rather than swallowing to [] which would flip the whole
+    // source inventory inactive after 2 runs and mute the 3×-failed health alert.
     const message = err instanceof Error ? err.message : String(err);
     ctx.log(`fischer: last-minute page fetch failed (${message}), aborting`);
-    return [];
+    throw err;
   }
 
   const tours = (hydration.tours as FischerTour[]).filter((t) => t?.adultPriceFrom?.amount);

@@ -138,6 +138,20 @@ describe('etravel source adapter', () => {
     expect(offers.every((o) => o.source === 'etravel')).toBe(true);
   });
 
+  it('rethrows a total discovery failure (so runScan records it failed, not empty)', async () => {
+    const jsonMock = vi.fn().mockRejectedValue(new Error('discovery down'));
+
+    const ctx: SourceContext = {
+      http: { json: jsonMock, text: vi.fn() } as unknown as SourceContext['http'],
+      adults: 2,
+      log: vi.fn(),
+    };
+
+    await expect(etravel.fetchOffers(ctx)).rejects.toThrow('discovery down');
+    // Only the single discovery call was attempted; no destination queries followed.
+    expect(jsonMock).toHaveBeenCalledTimes(1);
+  });
+
   it('isolates a per-destination request failure without sinking the whole fetch', async () => {
     const jsonMock = vi
       .fn()

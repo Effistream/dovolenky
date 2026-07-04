@@ -146,7 +146,11 @@ function mapOffer(term: RawCheapestTerm): NormalizedOffer | null {
     locality,
     stars,
     board,
-    transport: 'unknown',
+    // /last-minute/ is a fly-package section by construction (Blue Style is a fly-package
+    // operator and these last-minute terms carry depCity/arrCity/airline params), so transport
+    // is 'flight' — same justification as fischer.ts/eximtours.ts. Without this the offers were
+    // invisible to a flight-only profile.
+    transport: 'flight',
     departureAirport: null,
     departureDate,
     nights,

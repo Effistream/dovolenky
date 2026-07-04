@@ -80,6 +80,16 @@ describe('parseBluestyle', () => {
     }
   });
 
+  it('tags transport as flight (fly-package last-minute section) so flight-only profiles see it', () => {
+    // Blue Style is a fly-package operator and /last-minute/ terms carry depCity/arrCity/airline;
+    // transport is hardcoded 'flight' (same as fischer/exim) rather than 'unknown', which would
+    // hide every offer from a flight-only profile.
+    expect(offers.length).toBeGreaterThan(0);
+    for (const o of offers) {
+      expect(o.transport).toBe('flight');
+    }
+  });
+
   it('computes claimedDiscountPct/claimedOriginalPrice for offers carrying a percentageDiscount', () => {
     // All 10 offers in this fixture happen to carry a positive percentageDiscount.
     const withDiscount = offers.filter((o) => o.claimedDiscountPct !== null);
