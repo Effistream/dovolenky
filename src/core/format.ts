@@ -1,0 +1,146 @@
+import type { NormalizedOffer } from './types.js';
+import type { DiscountResult } from './discount.js';
+
+const DIGEST_LIMIT = 10;
+
+const KIND_EMOJI: Record<'hot_deal' | 'price_drop' | 'new_offer', string> = {
+  hot_deal: '🔥',
+  price_drop: '📉',
+  new_offer: '🆕',
+};
+
+const REFERENCE_LABEL: Record<'own' | 'omnibus' | 'market', string> = {
+  own: '30denní medián',
+  omnibus: 'zákonné 30denní minimum',
+  market: 'medián trhu',
+};
+
+export function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * Formats a CZK amount as e.g. "12 990 Kč". `toLocaleString('cs-CZ')` inserts
+ * a non-breaking space (U+00A0) as the thousands separator; we replace it
+ * with a regular space so the output is consistent (and simple to assert on
+ * in tests / diffs) across environments, since Telegram renders both the
+ * same visually.
+ */
+function formatCzk(amount: number): string {
+  return `${amount.toLocaleString('cs-CZ').replace(/ /g, ' ')} Kč`;
+}
+
+function formatPricePerPerson(amount: number): string {
+  return `${formatCzk(amount)}/os.`;
+}
+
+function starsLine(stars: number | null): string {
+  return stars != null && stars > 0 ? ` ${'★'.repeat(stars)}` : '';
+}
+
+function locationLine(offer: NormalizedOffer): string {
+  const parts = [offer.country, offer.locality].filter((p): p is string => !!p).map(escapeHtml);
+  return parts.length > 0 ? ` — ${parts.join(', ')}` : '';
+}
+
+/**
+ * `DiscountResult.realPct` is positive when the price is genuinely cheaper
+ * than the baseline (e.g. 22 means 22 % below baseline) and negative when
+ * the price actually rose. We always render it with an explicit sign using
+ * the typographic minus '−' (U+2212, matching the rest of the message,
+ * e.g. "uvádí slevu −45 %") rather than JS's ASCII hyphen-minus.
+ */
+function signedPct(pct: number): string {
+  return pct >= 0 ? `−${pct} %` : `+${Math.abs(pct)} %`;
+}
+
+function realDiscountLine(d: DiscountResult): string {
+  if (d.realPct == null || d.reference == null || d.baseline == null) {
+    return '📊 reálná sleva: sbírám historii';
+  }
+  const label = REFERENCE_LABEL[d.reference];
+  const line = `📊 Reálná sleva ${signedPct(d.realPct)} vs. ${label} ${formatCzk(d.baseline)}`;
+  return d.fake ? `${line} ⚠️ nadsazená sleva` : line;
+}
+
+function priceLine(kind: 'hot_deal' | 'price_drop' | 'new_offer', offer: NormalizedOffer, extra?: { previousPrice?: number }): string {
+  const base = `💰 ${formatPricePerPerson(offer.pricePerPerson)}`;
+  const claimed = offer.claimedDiscountPct != null ? ` (uvádí slevu −${offer.claimedDiscountPct} %)` : '';
+  const line = `${base}${claimed}`;
+  if (kind === 'price_drop' && extra?.previousPrice != null) {
+    return `${line}\n↓ z ${formatCzk(extra.previousPrice)}`;
+  }
+  return line;
+}
+
+function detailsLine(offer: NormalizedOffer): string {
+  const parts: string[] = [];
+  if (offer.departureDate && offer.nights != null) {
+    parts.push(`🗓 ${offer.departureDate} (${offer.nights} nocí)`);
+  } else if (offer.departureDate) {
+    parts.push(`🗓 ${offer.departureDate}`);
+  }
+  if (offer.departureAirport) {
+    parts.push(`✈️ ${escapeHtml(offer.departureAirport)}`);
+  }
+  if (offer.board !== 'unknown') {
+    parts.push(BOARD_LABEL[offer.board]);
+  }
+  return parts.join(' · ');
+}
+
+const BOARD_LABEL: Record<NormalizedOffer['board'], string> = {
+  AI: 'All inclusive',
+  FB: 'Plná penze',
+  HB: 'Polopenze',
+  BB: 'Snídaně',
+  none: 'Bez stravy',
+  unknown: '',
+};
+
+function linkLine(offer: NormalizedOffer): string {
+  const source = offer.tourOperator ?? offer.source;
+  return `🔗 <a href="${escapeHtml(offer.url)}">odkaz</a> · zdroj: ${escapeHtml(source)}`;
+}
+
+export function formatOffer(
+  kind: 'hot_deal' | 'price_drop' | 'new_offer',
+  offer: NormalizedOffer,
+  d: DiscountResult,
+  extra?: { previousPrice?: number },
+): string {
+  const emoji = KIND_EMOJI[kind];
+  const title = `${emoji} ${escapeHtml(offer.title)}${starsLine(offer.stars)}${locationLine(offer)}`;
+  const lines = [title];
+
+  const details = detailsLine(offer);
+  if (details) lines.push(details);
+
+  lines.push(priceLine(kind, offer, extra));
+  lines.push(realDiscountLine(d));
+  lines.push(linkLine(offer));
+
+  return lines.join('\n');
+}
+
+export function formatDigest(
+  items: { offer: NormalizedOffer; d: DiscountResult }[],
+  stats: { activeOffers: number; newLast24h: number },
+): string {
+  const top = items.slice(0, DIGEST_LIMIT);
+
+  const lines = ['☀️ Denní přehled nabídek', ''];
+
+  for (const { offer, d } of top) {
+    const stars = starsLine(offer.stars);
+    const pct = d.realPct != null ? signedPct(d.realPct) : 'sbírám historii';
+    lines.push(
+      `• ${escapeHtml(offer.title)}${stars} — ${formatPricePerPerson(offer.pricePerPerson)} (reálná sleva ${pct}) · <a href="${escapeHtml(offer.url)}">odkaz</a>`,
+    );
+  }
+
+  lines.push('');
+  lines.push(`📊 Aktivních nabídek: ${stats.activeOffers} · Nových za 24 h: ${stats.newLast24h}`);
+
+  return lines.join('\n');
+}
