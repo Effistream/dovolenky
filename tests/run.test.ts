@@ -730,4 +730,212 @@ describe('runScan', () => {
     expect(run?.status).toBe('failed');
     expect(run?.errorSample?.startsWith('BLOCKED:')).toBe(true);
   });
+
+  it('scenario 11c: a persistent block stays held for 24h — the backoff row it just wrote does not un-hold it (I2)', async () => {
+    // The block happens at T0. The backoff mechanism inserts its own benign 'partial'/backoff row
+    // each skipped run; blockedBackoffUntil must SKIP those rows and keep reading the original
+    // BLOCKED failure, or the source would be re-called every backoff cycle (~4h) instead of held.
+    const t0 = new Date('2026-07-04T00:00:00.000Z');
+    await db.insert(sourceRuns).values({
+      source: 'blocked',
+      startedAt: t0.toISOString(),
+      finishedAt: t0.toISOString(),
+      offersFound: 0,
+      snapshotsWritten: 0,
+      errorCount: 1,
+      status: 'failed',
+      errorSample: 'BLOCKED:Request blocked with status 403',
+    });
+
+    let called = 0;
+    const spy: SourceAdapter = {
+      name: 'blocked',
+      async fetchOffers() {
+        called += 1;
+        return [makeOffer({ source: 'blocked' })];
+      },
+    };
+
+    // Run at T0+2h → skipped, writes a backoff row.
+    const s1 = await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: [spy],
+      now: new Date(t0.getTime() + 2 * 60 * 60 * 1000),
+    });
+    expect(called).toBe(0);
+    expect(s1.perSource[0]?.status).toBe('partial');
+
+    // Run again at T0+4h with the T0+2h backoff row now the most-recent row → STILL skipped.
+    // (Before the fix, the most-recent-row read would see 'partial'/backoff, not the block, and
+    // the adapter would be called again.)
+    const s2 = await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: [spy],
+      now: new Date(t0.getTime() + 4 * 60 * 60 * 1000),
+    });
+    expect(called).toBe(0);
+    expect(s2.perSource[0]?.status).toBe('partial');
+
+    // Run at T0+25h → block has aged out, adapter finally runs.
+    const s3 = await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: [spy],
+      now: new Date(t0.getTime() + 25 * 60 * 60 * 1000),
+    });
+    expect(called).toBe(1);
+    expect(s3.perSource[0]?.status).toBe('ok');
+  });
+
+  it('scenario 11d: health alert fires for a persistently blocked source despite interleaved backoff rows (I2)', async () => {
+    const tg = new TelegramMock();
+
+    // Prior history in id order: two REAL BLOCKED failures, each followed by a benign backoff row.
+    // Filtered to real runs this is [failed, failed]; the current run is the 3rd real failure.
+    await db.insert(sourceRuns).values([
+      {
+        source: 'blocked',
+        startedAt: '2026-07-01T00:00:00.000Z',
+        finishedAt: '2026-07-01T00:00:00.000Z',
+        offersFound: 0,
+        snapshotsWritten: 0,
+        errorCount: 1,
+        status: 'failed',
+        errorSample: 'BLOCKED:Request blocked with status 403',
+      },
+      {
+        source: 'blocked',
+        startedAt: '2026-07-01T04:00:00.000Z',
+        finishedAt: '2026-07-01T04:00:00.000Z',
+        offersFound: 0,
+        snapshotsWritten: 0,
+        errorCount: 0,
+        status: 'partial',
+        errorSample: 'backoff',
+      },
+      {
+        source: 'blocked',
+        startedAt: '2026-07-02T02:00:00.000Z',
+        finishedAt: '2026-07-02T02:00:00.000Z',
+        offersFound: 0,
+        snapshotsWritten: 0,
+        errorCount: 1,
+        status: 'failed',
+        errorSample: 'BLOCKED:Request blocked with status 403',
+      },
+      {
+        source: 'blocked',
+        startedAt: '2026-07-02T06:00:00.000Z',
+        finishedAt: '2026-07-02T06:00:00.000Z',
+        offersFound: 0,
+        snapshotsWritten: 0,
+        errorCount: 0,
+        status: 'partial',
+        errorSample: 'backoff',
+      },
+    ]);
+
+    // Current run: the block has aged out (>24h since last real failure) so the adapter is called,
+    // and it blocks again → 3rd real failure → alert.
+    const summary = await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [blockedAdapter()],
+      now: new Date('2026-07-04T10:00:00.000Z'),
+    });
+    expect(summary.perSource[0]?.status).toBe('failed');
+
+    const alerts = tg.messages.filter((m) => m.includes('🛠'));
+    expect(alerts.length).toBe(1);
+    expect(alerts[0]).toContain('blocked');
+
+    // With a 4th real prior failure in the filtered chain, this would be the 4th failure → no alert.
+    const db2 = openDb(':memory:');
+    await ensureSchema(db2);
+    const tg2 = new TelegramMock();
+    await db2.insert(sourceRuns).values([
+      {
+        source: 'blocked',
+        startedAt: '2026-06-30T00:00:00.000Z',
+        finishedAt: '2026-06-30T00:00:00.000Z',
+        offersFound: 0,
+        snapshotsWritten: 0,
+        errorCount: 1,
+        status: 'failed',
+        errorSample: 'BLOCKED:Request blocked with status 403',
+      },
+      {
+        source: 'blocked',
+        startedAt: '2026-06-30T04:00:00.000Z',
+        finishedAt: '2026-06-30T04:00:00.000Z',
+        offersFound: 0,
+        snapshotsWritten: 0,
+        errorCount: 0,
+        status: 'partial',
+        errorSample: 'backoff',
+      },
+      {
+        source: 'blocked',
+        startedAt: '2026-07-01T00:00:00.000Z',
+        finishedAt: '2026-07-01T00:00:00.000Z',
+        offersFound: 0,
+        snapshotsWritten: 0,
+        errorCount: 1,
+        status: 'failed',
+        errorSample: 'BLOCKED:Request blocked with status 403',
+      },
+      {
+        source: 'blocked',
+        startedAt: '2026-07-01T04:00:00.000Z',
+        finishedAt: '2026-07-01T04:00:00.000Z',
+        offersFound: 0,
+        snapshotsWritten: 0,
+        errorCount: 0,
+        status: 'partial',
+        errorSample: 'backoff',
+      },
+      {
+        source: 'blocked',
+        startedAt: '2026-07-02T02:00:00.000Z',
+        finishedAt: '2026-07-02T02:00:00.000Z',
+        offersFound: 0,
+        snapshotsWritten: 0,
+        errorCount: 1,
+        status: 'failed',
+        errorSample: 'BLOCKED:Request blocked with status 403',
+      },
+      {
+        source: 'blocked',
+        startedAt: '2026-07-02T06:00:00.000Z',
+        finishedAt: '2026-07-02T06:00:00.000Z',
+        offersFound: 0,
+        snapshotsWritten: 0,
+        errorCount: 0,
+        status: 'partial',
+        errorSample: 'backoff',
+      },
+    ]);
+
+    await runScan({
+      db: db2,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: tg2 as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [blockedAdapter()],
+      now: new Date('2026-07-04T10:00:00.000Z'),
+    });
+
+    const alerts2 = tg2.messages.filter((m) => m.includes('🛠'));
+    expect(alerts2.length).toBe(0);
+  });
 });

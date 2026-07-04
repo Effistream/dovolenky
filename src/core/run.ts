@@ -20,6 +20,22 @@ import { buildDigest } from './digest.js';
 const BLOCKED_PREFIX = 'BLOCKED:';
 const BACKOFF_MS = 24 * 60 * 60 * 1000;
 
+/** error_sample marker written on the benign 'partial' row inserted when a source is skipped
+ *  because it is still within its 24h block-backoff window. These rows are bookkeeping only:
+ *  they must be transparent to both the block-history scan (blockedBackoffUntil) and the
+ *  consecutive-failure chain (maybeSendHealthAlert), otherwise they mask the real state
+ *  (I2 defect). Both consumers skip rows where error_sample === BACKOFF_MARKER. */
+const BACKOFF_MARKER = 'backoff';
+
+/** How many recent runs to scan back through when skipping backoff rows to find the last
+ *  real (non-backoff) run. Generous enough to see past a long block-backoff streak. */
+const RECENT_RUN_SCAN_LIMIT = 20;
+
+/** True for a bookkeeping row inserted by the block-backoff skip (transparent to history). */
+function isBackoffRow(errorSample: string | null | undefined): boolean {
+  return errorSample === BACKOFF_MARKER;
+}
+
 export interface RunScanDeps {
   db: Db;
   cfg: AppConfig;
@@ -122,13 +138,17 @@ async function maybeSendHealthAlert(
   telegram: Telegram | null,
   dryRun: boolean,
 ): Promise<boolean> {
-  // Most recent 4 runs for this source (index 0 = current run just written).
-  const recent = await db
-    .select({ status: sourceRuns.status })
+  // Pull a generous window and drop the benign backoff-skip bookkeeping rows: a persistently
+  // blocked source alternates failed / backoff-partial rows, so counting raw rows would break the
+  // consecutive-failure chain and the alert would NEVER fire (I2 defect). The chain is computed
+  // over REAL runs only; index 0 of the filtered sequence = current run just written.
+  const rows = await db
+    .select({ status: sourceRuns.status, errorSample: sourceRuns.errorSample })
     .from(sourceRuns)
     .where(eq(sourceRuns.source, source))
     .orderBy(desc(sourceRuns.id))
-    .limit(4);
+    .limit(RECENT_RUN_SCAN_LIMIT);
+  const recent = rows.filter((r) => !isBackoffRow(r.errorSample));
 
   const failedAt = (i: number): boolean => recent[i]?.status === 'failed';
   const succeededAt = (i: number): boolean => !failedAt(i); // absent counts as success
@@ -193,18 +213,23 @@ async function maybeSendDigest(
 }
 
 /**
- * 24h backoff after a block (spec §9): if this source's most recent run ended 'failed' with a
- * BLOCKED: error_sample within the last BACKOFF_MS, returns the ISO time the backoff lifts so
- * the caller can skip the source this run; otherwise null (run normally).
+ * 24h backoff after a block (spec §9): finds the most recent REAL run (skipping the benign
+ * backoff-skip bookkeeping rows this very mechanism inserts — otherwise a persistently blocked
+ * source would see its own backoff row, decide there's no active block, and re-hammer the source
+ * every ~4h; I2 defect). If that first non-backoff run ended 'failed' with a BLOCKED: error_sample
+ * within the last BACKOFF_MS, returns the ISO time the backoff lifts so the caller can skip the
+ * source this run; otherwise null (run normally).
  */
 async function blockedBackoffUntil(db: Db, source: string, now: Date): Promise<string | null> {
-  const [last] = await db
+  const recent = await db
     .select({ status: sourceRuns.status, startedAt: sourceRuns.startedAt, errorSample: sourceRuns.errorSample })
     .from(sourceRuns)
     .where(eq(sourceRuns.source, source))
     .orderBy(desc(sourceRuns.id))
-    .limit(1);
+    .limit(RECENT_RUN_SCAN_LIMIT);
 
+  // The first non-backoff row decides. Backoff rows are our own bookkeeping and never a signal.
+  const last = recent.find((r) => !isBackoffRow(r.errorSample));
   if (!last || last.status !== 'failed' || !last.errorSample?.startsWith(BLOCKED_PREFIX)) return null;
 
   const blockedAt = new Date(last.startedAt).getTime();
@@ -247,7 +272,7 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
         snapshotsWritten: 0,
         errorCount: 0,
         status: 'partial',
-        errorSample: 'backoff',
+        errorSample: BACKOFF_MARKER,
       });
       perSource.push({ source: adapter.name, status: 'partial', offersFound: 0 });
       continue;
