@@ -1,0 +1,16 @@
+profiles:
+  leto-more:
+    enabled: true
+    countries: [Řecko]
+    board: [AI]
+    min_real_discount_pct: 15
+    unknown_field: nonsense
+notifications:
+  price_drop_pct: 10
+  renotify_drop_pct: 5
+  renotify_after_days: 7
+  max_messages_per_run: 20
+  digest_hour: 8
+scan:
+  adults: 2
+  min_request_gap_ms: 3000
