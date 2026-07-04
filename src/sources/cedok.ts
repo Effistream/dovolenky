@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import type { NormalizedOffer, SourceAdapter, SourceContext } from '../core/types.js';
 import { normalizeBoard, normalizeTransport, normalizeCountry, parseCzk, offerKeyHash } from '../core/normalize.js';
+import { SourceBlockedError } from '../core/http.js';
 
 const BASE_URL = 'https://www.cedok.cz';
 const LAST_MINUTE_PAGES = 4;
@@ -12,6 +13,12 @@ const LAST_MINUTE_PAGES = 4;
  * matched cards in the fixture — the second half is byte-for-byte the same 25 offers).
  * Both renderings expose the identical `data-testid` selectors, so we parse every card
  * node the same way and dedupe by `sourceOfferKey` at the end.
+ *
+ * `sourceOfferKey` is a hash of `[hotelCode ?? title, departureDate, nights, board]`, NOT the
+ * hotel code alone: the mobile/desktop duplicate of a given card always carries identical term
+ * data, so the hash still collapses that pair down to one offer, but two genuinely different
+ * terms for the SAME hotel (different dates, length of stay, or board) hash to different keys
+ * and both survive as distinct offers.
  */
 export function parseCedokListing(html: string): NormalizedOffer[] {
   const $ = cheerio.load(html);
@@ -58,9 +65,19 @@ function parseCard($: cheerio.CheerioAPI, card: ReturnType<cheerio.CheerioAPI>):
   const stars = card.find('[data-testid="rating-stars"] .icon-shape-star').length || null;
 
   const cardText = card.text();
-  const dateMatch = cardText.match(/(\d{2})\.(\d{2})\s*-\s*\d{2}\.\d{2}\.(\d{4})\s*\((\d+)\s*dn[yí]\)/);
-  const departureDate = dateMatch ? `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}` : null;
-  const nights = dateMatch ? Number(dateMatch[4]) - 1 : null;
+  // Captures both the start day/month AND the end month, because the source text carries a
+  // year only on the END date (e.g. "28.12 - 04.01.2027 (8 dní)"). When the trip spans a
+  // year boundary the start month (numerically) is greater than the end month, so the start
+  // date actually belongs to the PRECEDING year (2026-12-28, not 2027-12-28).
+  const dateMatch = cardText.match(/(\d{2})\.(\d{2})\s*-\s*\d{2}\.(\d{2})\.(\d{4})\s*\((\d+)\s*dn[yí]\)/);
+  let departureDate: string | null = null;
+  if (dateMatch) {
+    const [, startDay, startMonth, endMonth, endYearRaw] = dateMatch;
+    const endYear = Number(endYearRaw);
+    const departureYear = Number(startMonth) > Number(endMonth) ? endYear - 1 : endYear;
+    departureDate = `${departureYear}-${startMonth}-${startDay}`;
+  }
+  const nights = dateMatch ? Number(dateMatch[5]) - 1 : null;
 
   const transportText = card.find('.icon-car-2, .icon-plane, [class*="icon-plane"]').parent().text();
   const transport = normalizeTransport(transportText || cardText);
@@ -68,8 +85,11 @@ function parseCard($: cheerio.CheerioAPI, card: ReturnType<cheerio.CheerioAPI>):
   const boardText = card.find('.icon-cutlery-77').parent().text();
   const board = normalizeBoard(boardText || cardText);
 
+  // Keyed on hotel/title + the specific term (dates/nights/board), not the hotel alone: the
+  // same hotel can appear multiple times in a listing with different date ranges or board
+  // types, and those are genuinely different offers that must not collapse into one.
   const hotelCodeMatch = href.match(/,([A-Za-z0-9]+)\//);
-  const sourceOfferKey = hotelCodeMatch?.[1] ?? offerKeyHash([title, departureDate, nights, board]);
+  const sourceOfferKey = offerKeyHash([hotelCodeMatch?.[1] ?? title, departureDate, nights, board]);
 
   return {
     source: 'cedok',
@@ -99,8 +119,24 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
 
   for (let page = 1; page <= LAST_MINUTE_PAGES; page += 1) {
     const url = `${BASE_URL}/last-minute/?page=${page}&order=priceAsc`;
-    const html = await ctx.http.text(url);
-    const offers = parseCedokListing(html);
+    let offers: NormalizedOffer[];
+    try {
+      const html = await ctx.http.text(url);
+      offers = parseCedokListing(html);
+    } catch (err) {
+      if (err instanceof SourceBlockedError) {
+        // The site is actively blocking us: stop paging immediately (politeness) but keep
+        // whatever offers earlier pages already yielded.
+        ctx.log(`cedok: page ${page} blocked (${err.message}), stopping pagination`);
+        break;
+      }
+      // Any other per-page failure (network error, parse error, transient 5xx exhausted) should
+      // not sink the whole fetch — log and move on to the next page.
+      const message = err instanceof Error ? err.message : String(err);
+      ctx.log(`cedok: page ${page} failed (${message}), skipping`);
+      continue;
+    }
+
     for (const offer of offers) {
       if (seen.has(offer.sourceOfferKey)) continue;
       seen.add(offer.sourceOfferKey);
