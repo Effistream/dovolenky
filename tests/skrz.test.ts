@@ -155,6 +155,68 @@ describe('parseSkrz: edge cases', () => {
     expect(parseSkrz('<html><body>nothing here</body></html>')).toEqual([]);
   });
 
+  function wrapDeals(deals: unknown[]): string {
+    const payload = JSON.stringify({ deals });
+    const escaped = JSON.stringify(payload); // JSON-encode again so it round-trips through JSON.parse('"..."')
+    return `<html><body><script>self.__next_f.push([1,${escaped}])</script></body></html>`;
+  }
+
+  let dealCounter = 0;
+  function dealWithTitle(title: string): Record<string, unknown> {
+    dealCounter += 1;
+    const hash = `BRACKET${dealCounter}`;
+    return {
+      id: dealCounter,
+      hash,
+      title,
+      serverTitle: 'Test.cz',
+      priceFinal: 5000,
+      discountInPercent: 10,
+      detailUrl: `/zajezd/bracket-deal/${hash}`,
+      breadcrumbs: { links: [{ title: 'Řecko' }] },
+      board: 'all-inclusive',
+      days: 8,
+      nights: 7,
+      persons: 1,
+      transport: 'letecky',
+      deptPlace: { title: 'Praha' },
+      merchant: { title, stars: 3 },
+    };
+  }
+
+  it('parses fully when a deal title contains "]:)" (lone closing bracket in free text)', () => {
+    const html = wrapDeals([
+      dealWithTitle('Last chance ]:) do not miss it'),
+      dealWithTitle('Second deal after the bracketed one'),
+    ]);
+    const offers = parseSkrz(html);
+    expect(offers.length).toBe(2);
+    expect(offers[0]!.title).toBe('Last chance ]:) do not miss it');
+    expect(offers[1]!.title).toBe('Second deal after the bracketed one');
+  });
+
+  it('parses fully when a deal title contains a lone "[" (opening bracket in free text)', () => {
+    const html = wrapDeals([
+      dealWithTitle('Special offer [limited] spots'),
+      dealWithTitle('Second deal after the bracketed one'),
+    ]);
+    const offers = parseSkrz(html);
+    expect(offers.length).toBe(2);
+    expect(offers[0]!.title).toBe('Special offer [limited] spots');
+    expect(offers[1]!.title).toBe('Second deal after the bracketed one');
+  });
+
+  it('parses fully when a deal title contains an escaped quote immediately followed by "]"', () => {
+    const html = wrapDeals([
+      dealWithTitle('The "best" deal ever"]'),
+      dealWithTitle('Second deal after the bracketed one'),
+    ]);
+    const offers = parseSkrz(html);
+    expect(offers.length).toBe(2);
+    expect(offers[0]!.title).toBe('The "best" deal ever"]');
+    expect(offers[1]!.title).toBe('Second deal after the bracketed one');
+  });
+
   it('falls back to ld+json Product blocks when no RSC deals payload is present', () => {
     const html = `<html><body>
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Fallback Hotel","image":"https://skrz.cz/img.webp","url":"https://skrz.cz/koupit/AbC123?dt=2026-08-01","offers":{"@type":"Offer","availability":"https://schema.org/InStock","price":"9999","priceCurrency":"CZK"}}</script>

@@ -47,8 +47,10 @@ interface RawDeal {
  *   1. Collect every `push([1, "..."])` chunk's raw string literal.
  *   2. Unescape each one via `JSON.parse` (treating the chunk itself as a JSON string), then
  *      concatenate all of them back into one big text blob in document order.
- *   3. Find `"deals":[` in that blob and extract the array with balanced-bracket counting
- *      (can't just regex to the next `]` because deal objects nest arrays/objects internally).
+ *   3. Find `"deals":[` in that blob and extract the array with a string-aware balanced-bracket
+ *      scan (can't just regex to the next `]` because deal objects nest arrays/objects
+ *      internally, and a lone `[`/`]` inside a deal title's free-text marketing copy must not
+ *      affect bracket depth or the slice truncates and the whole array fails to parse).
  *   4. `JSON.parse` the extracted array text.
  *
  * Falls back to per-deal `<script type="application/ld+json">` Product blocks when no `deals`
@@ -91,12 +93,30 @@ function extractDeals(html: string): RawDeal[] {
   const arrayStart = combined.indexOf('[', dealsIdx);
   if (arrayStart < 0) return [];
 
+  // String-aware scan: `[`/`]` inside a JSON string (e.g. a deal title containing free-text
+  // marketing copy like "Last chance ]:) don't miss it") must NOT affect bracket depth, or the
+  // slice truncates mid-array, JSON.parse fails, and every deal on the page is silently dropped.
   let depth = 0;
   let end = -1;
+  let inString = false;
+  let escaped = false;
   for (let i = arrayStart; i < combined.length; i += 1) {
     const ch = combined[i];
-    if (ch === '[') depth += 1;
-    else if (ch === ']') {
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === '[') {
+      depth += 1;
+    } else if (ch === ']') {
       depth -= 1;
       if (depth === 0) {
         end = i + 1;
@@ -136,6 +156,8 @@ function extractDealsFromLdJson(html: string): RawDeal[] {
     if (!Number.isFinite(price) || price <= 0) continue;
     // ld+json only exposes the /koupit/ purchase URL, not the /zajezd|voucher|nabidka detail
     // URL — reuse it as detailUrl since we never fetch it, only read the `?dt=` param from it.
+    // Decision: robots.txt Disallow governs crawling; we never FETCH /koupit/ — storing it as
+    // the user-facing purchase link is intentional (it is the only link ld+json provides).
     out.push({
       title: parsed.name,
       priceFinal: price,
