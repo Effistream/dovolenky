@@ -253,6 +253,43 @@ describe('runScan', () => {
     expect(logs[0]?.priceAtSend).toBe(12000);
   });
 
+  it('scenario 2b: price_drop send includes the "↓ z" previous-price line', async () => {
+    const firstRun = new Date('2026-07-01T10:00:00.000Z');
+    const secondRun = new Date('2026-07-04T10:00:00.000Z');
+    const tg = new TelegramMock();
+
+    // First scan establishes a snapshot at 12000 (no notifications config needed —
+    // no profiles matched yet is fine, we only need the price history).
+    await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [happyAdapter([makeOffer({ pricePerPerson: 12000 })])],
+      now: firstRun,
+    });
+
+    // Second scan: price drops to 10000 (>=10% drop from 12000, meets priceDropPct).
+    const summary = await runScan({
+      db,
+      cfg: makeConfig(),
+      http: makeHttp(),
+      telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [happyAdapter([makeOffer({ pricePerPerson: 10000 })])],
+      now: secondRun,
+    });
+
+    expect(summary.notificationsSent).toBeGreaterThanOrEqual(1);
+    const drop = tg.messages.find((m) => m.includes('📉'));
+    expect(drop).toBeDefined();
+    expect(drop).toContain('↓ z');
+    expect(drop).toContain('12 000 Kč');
+
+    const logs = await db.select().from(notificationsLog).where(eq(notificationsLog.type, 'price_drop'));
+    expect(logs.length).toBe(1);
+    expect(logs[0]?.priceAtSend).toBe(10000);
+  });
+
   it('scenario 3: dryRun sends nothing, logs nothing, but summary counts would-sends', async () => {
     const now = new Date('2026-07-04T10:00:00.000Z');
     await seedMarketBucket(db, 8, 25000, '2026-07-04T09:00:00.000Z');

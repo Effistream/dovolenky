@@ -13,6 +13,7 @@ export interface Candidate {
   discount: DiscountResult;
   type: NotificationType;
   profile: string;
+  previousPrice: number | null;
 }
 
 export interface EvaluateOfferInput {

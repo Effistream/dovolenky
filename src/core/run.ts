@@ -169,6 +169,7 @@ async function processOffers(
           discount,
           type: outcome.type,
           profile: outcome.profile,
+          previousPrice: ingest.previousPrice,
         });
       }
     } catch (err) {
@@ -390,9 +391,11 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
 
   let notificationsSent = 0;
   for (const candidate of send) {
-    // previousPrice is not carried on the Candidate; formatOffer renders the
-    // price_drop "↓ z …" line only when given one, and omits it otherwise.
-    const html = formatOffer(candidate.type, candidate.offer, candidate.discount);
+    // formatOffer renders the price_drop "↓ z …" line only when given a
+    // previousPrice, and omits it otherwise (e.g. hot_deal/new_offer).
+    const html = formatOffer(candidate.type, candidate.offer, candidate.discount, {
+      previousPrice: candidate.previousPrice ?? undefined,
+    });
 
     if (!dryRun && telegram) {
       await telegram.send(html);

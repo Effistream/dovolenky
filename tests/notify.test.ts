@@ -270,6 +270,7 @@ describe('filterAgainstLog', () => {
       discount: makeDiscount({ realPct: 20 }),
       type: 'hot_deal',
       profile: 'summer-sea',
+      previousPrice: null,
       ...overrides,
     };
   }
@@ -420,6 +421,7 @@ describe('recordSent', () => {
       discount: makeDiscount({ realPct: 20 }),
       type: 'hot_deal',
       profile: 'summer-sea',
+      previousPrice: null,
     };
     const now = new Date('2026-07-04T12:00:00Z');
 
@@ -444,6 +446,7 @@ describe('capMessages', () => {
       discount: makeDiscount({ realPct }),
       type: 'hot_deal',
       profile: 'summer-sea',
+      previousPrice: null,
     };
   }
 
