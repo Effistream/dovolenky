@@ -3,6 +3,14 @@ import type { DiscountResult } from './discount.js';
 
 const DIGEST_LIMIT = 10;
 
+/**
+ * Telegram caps `sendMessage` text at 4096 chars. We stop appending digest
+ * items once the message would cross this safety margin, leaving headroom
+ * for the stats footer and the "… a dalších N nabídek" overflow line that
+ * follows.
+ */
+const DIGEST_MAX_CHARS = 3800;
+
 const KIND_EMOJI: Record<'hot_deal' | 'price_drop' | 'new_offer', string> = {
   hot_deal: '🔥',
   price_drop: '📉',
@@ -16,7 +24,12 @@ const REFERENCE_LABEL: Record<'own' | 'omnibus' | 'market', string> = {
 };
 
 export function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /**
@@ -73,12 +86,24 @@ function priceLine(kind: 'hot_deal' | 'price_drop' | 'new_offer', offer: Normali
   return line;
 }
 
+/**
+ * Converts an ISO `YYYY-MM-DD` date to Czech `DD.MM.YYYY` display format.
+ * If the input doesn't match the expected shape, it's returned unchanged
+ * rather than throwing (defensive against unexpected upstream data).
+ */
+function formatCzechDate(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return iso;
+  const [, year, month, day] = match;
+  return `${day}.${month}.${year}`;
+}
+
 function detailsLine(offer: NormalizedOffer): string {
   const parts: string[] = [];
   if (offer.departureDate && offer.nights != null) {
-    parts.push(`🗓 ${offer.departureDate} (${offer.nights} nocí)`);
+    parts.push(`🗓 ${formatCzechDate(offer.departureDate)} (${offer.nights} nocí)`);
   } else if (offer.departureDate) {
-    parts.push(`🗓 ${offer.departureDate}`);
+    parts.push(`🗓 ${formatCzechDate(offer.departureDate)}`);
   }
   if (offer.departureAirport) {
     parts.push(`✈️ ${escapeHtml(offer.departureAirport)}`);
@@ -129,18 +154,32 @@ export function formatDigest(
 ): string {
   const top = items.slice(0, DIGEST_LIMIT);
 
-  const lines = ['☀️ Denní přehled nabídek', ''];
+  const header = ['☀️ Denní přehled nabídek', ''];
+  const footer = ['', `📊 Aktivních nabídek: ${stats.activeOffers} · Nových za 24 h: ${stats.newLast24h}`];
+
+  const itemLines: string[] = [];
+  let rendered = 0;
 
   for (const { offer, d } of top) {
     const stars = starsLine(offer.stars);
     const pct = d.realPct != null ? signedPct(d.realPct) : 'sbírám historii';
-    lines.push(
-      `• ${escapeHtml(offer.title)}${stars} — ${formatPricePerPerson(offer.pricePerPerson)} (reálná sleva ${pct}) · <a href="${escapeHtml(offer.url)}">odkaz</a>`,
-    );
+    const line = `• ${escapeHtml(offer.title)}${stars} — ${formatPricePerPerson(offer.pricePerPerson)} (reálná sleva ${pct}) · <a href="${escapeHtml(offer.url)}">odkaz</a>`;
+
+    const candidateLength = [...header, ...itemLines, line, ...footer].join('\n').length;
+    if (candidateLength > DIGEST_MAX_CHARS) {
+      break;
+    }
+
+    itemLines.push(line);
+    rendered += 1;
   }
 
-  lines.push('');
-  lines.push(`📊 Aktivních nabídek: ${stats.activeOffers} · Nových za 24 h: ${stats.newLast24h}`);
+  const notRendered = items.length - rendered;
+  const lines = [...header, ...itemLines];
+  if (notRendered > 0) {
+    lines.push(`… a dalších ${notRendered} nabídek`);
+  }
+  lines.push(...footer);
 
   return lines.join('\n');
 }

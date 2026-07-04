@@ -48,6 +48,22 @@ describe('escapeHtml', () => {
   it('leaves plain text untouched', () => {
     expect(escapeHtml('Hotel Peniscola Plaza')).toBe('Hotel Peniscola Plaza');
   });
+
+  it('escapes " and \' (attribute-safe)', () => {
+    expect(escapeHtml(`say "hi" and 'bye'`)).toBe('say &quot;hi&quot; and &#39;bye&#39;');
+  });
+
+  it('a scraped URL containing " renders a well-formed <a href> with no raw quote inside the attribute', () => {
+    const maliciousUrl = 'https://example.com/offer?x="><script>alert(1)</script>';
+    const msg = formatOffer('hot_deal', offer({ url: maliciousUrl }), discount());
+
+    const hrefMatch = /<a href="([^"]*)">odkaz<\/a>/.exec(msg);
+    expect(hrefMatch).not.toBeNull();
+    // the captured attribute value must not contain a raw, unescaped quote
+    expect(hrefMatch![1]).not.toContain('"');
+    expect(hrefMatch![1]).toContain('&quot;');
+    expect(msg).not.toContain('<script>');
+  });
 });
 
 describe('formatOffer', () => {
@@ -144,6 +160,12 @@ describe('formatOffer', () => {
     expect(msg).not.toContain('↓ z');
   });
 
+  it('renders the departure date in Czech DD.MM.YYYY format with the nights suffix', () => {
+    const msg = formatOffer('hot_deal', offer({ departureDate: '2026-07-15', nights: 7 }), discount());
+    expect(msg).toContain('🗓 15.07.2026 (7 nocí)');
+    expect(msg).not.toContain('2026-07-15');
+  });
+
   it('renders the source URL as an HTML anchor', () => {
     const msg = formatOffer('hot_deal', offer({ url: 'https://example.com/offer/abc123' }), discount());
     expect(msg).toContain('<a href="https://example.com/offer/abc123">');
@@ -198,5 +220,39 @@ describe('formatDigest', () => {
     const msg = formatDigest([], { activeOffers: 0, newLast24h: 0 });
     expect(msg.startsWith('☀️')).toBe(true);
     expect(msg).toContain('0');
+  });
+
+  it('a normal small digest is unchanged (no overflow line)', () => {
+    const items = [
+      { offer: offer(), d: discount() },
+      { offer: offer({ title: 'Hotel Second' }), d: discount() },
+    ];
+    const msg = formatDigest(items, { activeOffers: 10, newLast24h: 2 });
+    expect(msg).not.toContain('a dalších');
+  });
+
+  it('caps total message length at 3800 + short tail when 10 items have long titles/URLs, and reports the correct overflow count', () => {
+    const marker = (i: number) => `UNIQUEMARK${i}END`;
+    const items = Array.from({ length: 10 }, (_, i) => ({
+      offer: offer({
+        title: `${marker(i)} Velmi dlouhý název hotelu s spoustou detailů a marketingových frází`.repeat(3),
+        url: `https://example.com/very/long/path/segment/that/keeps/going/${'x'.repeat(200)}/${i}`,
+      }),
+      d: discount({ realPct: i + 1 }),
+    }));
+
+    const msg = formatDigest(items, { activeOffers: 500, newLast24h: 50 });
+
+    // message must stay within the 3800 safety margin plus a short tail
+    // (the overflow line + stats footer)
+    expect(msg.length).toBeLessThanOrEqual(3800 + 200);
+
+    const renderedCount = items.filter((_, i) => msg.includes(marker(i))).length;
+    const notRendered = items.length - renderedCount;
+    expect(notRendered).toBeGreaterThan(0);
+
+    const overflowMatch = /a dalších (\d+) nabídek/.exec(msg);
+    expect(overflowMatch).not.toBeNull();
+    expect(Number(overflowMatch![1])).toBe(notRendered);
   });
 });
