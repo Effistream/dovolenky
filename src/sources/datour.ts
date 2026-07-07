@@ -56,22 +56,30 @@ import { SourceBlockedError } from '../core/http.js';
  *  - country_name       -> country, via isKnownCountry/normalizeCountry guard (null when not a
  *                          recognized canonical country — never a raw or locality string)
  *  - destination_name   -> locality (trimmed; state_name fallback; else null)
- *  - accommodation_category ("3.0"/"4.5"/null) -> stars = round(parseFloat), null when <= 0/missing
+ *  - accommodation_category ("3.0"/"4.5"/null) -> stars = round(parseFloat), null when the ROUNDED
+ *                          value is <= 0 (guard after rounding, so a raw 0.4 yields null, never 0)
  *  - board_name         -> board (normalizeBoard)
  *  - transport_name     -> transport (normalizeTransport; every live row "Letecky" → flight)
  *  - start (ISO)        -> departureDate; nights -> nights
  *  - unit_price         -> pricePerPerson (per person)
  *  - provider_name      -> tourOperator (Čedok, Coral Travel…)
- *  - item_id            -> sourceOfferKey = offerKeyHash([item_id]) (unique per term + room variant)
+ *  - sourceOfferKey     = offerKeyHash([tour_id, start, nights, board_id]) — a STABLE departure-
+ *                          term+board key, room-agnostic (matching alexandria). item_id encodes the
+ *                          room/flight variant, so hashing it would rotate the key whenever the
+ *                          cheapest room variant changes week-to-week, resetting price history and
+ *                          muting price-drop alerts. offerKeyHash([item_id]) is the fallback ONLY
+ *                          when tour_id is missing (unobserved live: tour_id is set on all 36
+ *                          fixture rows).
  *
  * departureAirport is null: `departure_location_name` is a single city (Vídeň/Praha) but the brief's
  * field list does not request it, so it is left null (parity with alexandria). omnibusLowestPrice is
  * null: no such field.
  *
  * Dedup: multiple room variants of the same term come back as separate `item_id` rows, and price-asc
- * order is NOT guaranteed, so parseDatourPackages dedupes by (tour_id, start, nights) keeping the
- * CHEAPEST unit_price explicitly (falling back to item_id as the discriminator if tour_id is missing,
- * so genuinely distinct rows are never merged). fetchOffers then dedupes across countries by
+ * order is NOT guaranteed, so parseDatourPackages buckets rows by the (tour_id, start, nights,
+ * board_id) key — i.e. by sourceOfferKey, whose item_id fallback keeps tour_id-less rows unmerged —
+ * keeping the CHEAPEST unit_price explicitly. Different boards of the same term stay distinct offers
+ * (board is part of the cross-source match identity). fetchOffers then dedupes across countries by
  * sourceOfferKey.
  */
 
@@ -107,6 +115,7 @@ interface DatourPackage {
   destination_name?: string | null;
   accommodation_category?: string | number | null;
   board_name?: string | null;
+  board_id?: string | number | null;
   transport_name?: string | null;
   start?: string | null;
   nights?: string | number | null;
@@ -179,8 +188,10 @@ function mapPackage(p: DatourPackage, fallbackUrl: string): NormalizedOffer | nu
   const claimedDiscountPct =
     discountPct !== null && discountPct > 0 && discountPct < 100 ? round(discountPct) : null;
 
+  // Stars: guard AFTER rounding so a raw 0.4 (rounds to 0) yields null, never a 0-star offer.
   const cat = toNumber(p.accommodation_category);
-  const stars = cat !== null && cat > 0 ? round(cat) : null;
+  const catRounded = cat !== null ? round(cat) : null;
+  const stars = catRounded !== null && catRounded > 0 ? catRounded : null;
 
   const board = normalizeBoard(p.board_name ?? null);
   const transport = normalizeTransport(p.transport_name ?? null);
@@ -194,9 +205,21 @@ function mapPackage(p: DatourPackage, fallbackUrl: string): NormalizedOffer | nu
 
   const nights = toNumber(p.nights);
 
+  // STABLE per-term+board key (room-agnostic, matching alexandria): item_id encodes the room/flight
+  // variant, so hashing it would rotate the key whenever the cheapest variant of a term changes,
+  // resetting the watcher's price history. item_id is the fallback ONLY when tour_id is missing.
+  const tourId =
+    p.tour_id !== null && p.tour_id !== undefined && String(p.tour_id).trim() !== ''
+      ? p.tour_id
+      : null;
+  const sourceOfferKey =
+    tourId !== null
+      ? offerKeyHash([tourId, start, nights, p.board_id])
+      : offerKeyHash([p.item_id]);
+
   return {
     source: 'datour',
-    sourceOfferKey: offerKeyHash([p.item_id]),
+    sourceOfferKey,
     title,
     country,
     locality,
@@ -218,38 +241,34 @@ function mapPackage(p: DatourPackage, fallbackUrl: string): NormalizedOffer | nu
 
 /**
  * Maps a single `web-search` response to NormalizedOffer[]. Pure function: no I/O. `fallbackUrl` is
- * used as the offer URL for any row lacking a `detail` slug. Dedupes room variants of the same term
- * by (tour_id, start, nights), keeping the CHEAPEST unit_price (order is not guaranteed). Returns []
- * for a missing/empty `packages` array rather than throwing.
+ * used as the offer URL for any row lacking a `detail` slug. Dedupes room variants of the same
+ * term+board — bucketed by sourceOfferKey, which IS the (tour_id, start, nights, board_id) hash
+ * (item_id-hash fallback keeps tour_id-less rows unmerged) — keeping the CHEAPEST unit_price
+ * explicitly (order is not guaranteed). Returns [] for a missing/empty `packages` array rather than
+ * throwing.
  */
 export function parseDatourPackages(payload: unknown, fallbackUrl: string): NormalizedOffer[] {
   const packages = (payload as DatourResponse | null | undefined)?.packages;
   if (!Array.isArray(packages)) return [];
 
-  // Key each term by (tour_id, start, nights); keep the cheapest room variant. Fall back to item_id
-  // as the discriminator when tour_id is missing so genuinely distinct rows are never merged.
-  const byTerm = new Map<string, { offer: NormalizedOffer; unitPrice: number }>();
+  const byTerm = new Map<string, NormalizedOffer>();
   const order: string[] = [];
 
   for (const p of packages) {
     const offer = mapPackage(p, fallbackUrl);
     if (!offer) continue;
-    const unitPrice = offer.pricePerPerson;
-    const termKey =
-      p.tour_id !== null && p.tour_id !== undefined && String(p.tour_id) !== ''
-        ? `${String(p.tour_id)}|${offer.departureDate}|${offer.nights}`
-        : `item:${offer.sourceOfferKey}`;
 
-    const existing = byTerm.get(termKey);
+    const key = offer.sourceOfferKey;
+    const existing = byTerm.get(key);
     if (existing === undefined) {
-      byTerm.set(termKey, { offer, unitPrice });
-      order.push(termKey);
-    } else if (unitPrice < existing.unitPrice) {
-      byTerm.set(termKey, { offer, unitPrice });
+      byTerm.set(key, offer);
+      order.push(key);
+    } else if (offer.pricePerPerson < existing.pricePerPerson) {
+      byTerm.set(key, offer);
     }
   }
 
-  return order.map((k) => byTerm.get(k)!.offer);
+  return order.map((k) => byTerm.get(k)!);
 }
 
 async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {

@@ -37,8 +37,6 @@ describe('parseDatourPackages — Maledivy fixture', () => {
 
   it('maps the first package (Pension Liberty Guest House) with hardcoded live values', () => {
     const first = offers[0]!;
-    const itemId =
-      'cedok_resabee_VITC_S99_HBX430558_2027-05-16_2027-05-22_2027-05-17_2027-05-22_5_DBL.DX_FLIGHT_VIE_VIE_f_ADL_18-99:3';
     expect(first.source).toBe('datour');
     expect(first.title).toBe('Pension Liberty Guest House');
     expect(first.country).toBe('Maledivy');
@@ -55,7 +53,9 @@ describe('parseDatourPackages — Maledivy fixture', () => {
     expect(first.omnibusLowestPrice).toBeNull();
     expect(first.tourOperator).toBe('Čedok'); // provider_name
     expect(first.departureAirport).toBeNull();
-    expect(first.sourceOfferKey).toBe(offerKeyHash([itemId]));
+    // Stable per-term+board key (room-agnostic, matching alexandria): live row has
+    // tour_id "47943147", start 2027-05-16, nights 5, board_id "4".
+    expect(first.sourceOfferKey).toBe(offerKeyHash(['47943147', '2027-05-16', 5, '4']));
     expect(first.url).toBe(
       'https://datour.cz/maledivy/ari-atoll/-ari-atol-jih-/liberty-guesthouse-maldives',
     );
@@ -130,21 +130,76 @@ describe('parseDatourPackages — mapping rules & edge cases', () => {
     expect(offers[0]!.pricePerPerson).toBe(30000);
   });
 
-  it('dedupes (tour_id, start, nights) keeping the cheapest unit_price (order not guaranteed)', () => {
-    // Two room variants of the same term, cheapest listed LAST (price-asc is not guaranteed).
+  it('dedupes (tour_id, start, nights, board_id) keeping the cheapest unit_price (order not guaranteed)', () => {
+    // Two room variants of the same term+board, cheapest listed LAST (price-asc is not guaranteed).
     const offers = parseDatourPackages(
       {
         packages: [
-          { item_id: 'room-suite', tour_id: '999', tour_name: 'Hotel Reef', start: '2026-08-01', nights: 7, unit_price: 40000, country_name: 'Zanzibar' },
-          { item_id: 'room-standard', tour_id: '999', tour_name: 'Hotel Reef', start: '2026-08-01', nights: 7, unit_price: 28000, country_name: 'Zanzibar' },
+          { item_id: 'room-suite', tour_id: '999', tour_name: 'Hotel Reef', start: '2026-08-01', nights: 7, board_id: '5', unit_price: 40000, country_name: 'Zanzibar' },
+          { item_id: 'room-standard', tour_id: '999', tour_name: 'Hotel Reef', start: '2026-08-01', nights: 7, board_id: '5', unit_price: 28000, country_name: 'Zanzibar' },
         ],
       },
       FALLBACK,
     );
     expect(offers.length).toBe(1);
     expect(offers[0]!.pricePerPerson).toBe(28000);
-    // The surviving offer keeps the cheapest variant's own item_id key.
-    expect(offers[0]!.sourceOfferKey).toBe(offerKeyHash(['room-standard']));
+    // The surviving offer carries the room-agnostic per-term+board key, NOT an item_id hash.
+    expect(offers[0]!.sourceOfferKey).toBe(offerKeyHash(['999', '2026-08-01', 7, '5']));
+  });
+
+  it('keeps the sourceOfferKey STABLE when a cheaper room variant wins the bucket (week-to-week)', () => {
+    // Week 1: only the suite variant is on sale. Week 2: a cheaper standard room (different
+    // item_id, same tour_id/start/nights/board_id) appears and wins the bucket. The key must not
+    // rotate — otherwise the watcher resets price history and misses the price-drop alert.
+    const term = { tour_id: '999', tour_name: 'Hotel Reef', start: '2026-08-01', nights: 7, board_id: '5', country_name: 'Zanzibar' };
+    const week1 = parseDatourPackages(
+      { packages: [{ ...term, item_id: 'room-suite-w1', unit_price: 40000 }] },
+      FALLBACK,
+    );
+    const week2 = parseDatourPackages(
+      {
+        packages: [
+          { ...term, item_id: 'room-suite-w2', unit_price: 40000 },
+          { ...term, item_id: 'room-standard-w2', unit_price: 28000 },
+        ],
+      },
+      FALLBACK,
+    );
+    expect(week1.length).toBe(1);
+    expect(week2.length).toBe(1);
+    expect(week2[0]!.sourceOfferKey).toBe(week1[0]!.sourceOfferKey);
+    expect(week2[0]!.pricePerPerson).toBe(28000); // ...while the price still drops to the cheapest.
+  });
+
+  it('keeps different boards of the same term as distinct offers with distinct keys', () => {
+    const offers = parseDatourPackages(
+      {
+        packages: [
+          { item_id: 'bb-room', tour_id: '999', tour_name: 'H', start: '2026-08-01', nights: 7, board_id: '4', board_name: 'Snídaně', unit_price: 30000, country_name: 'Zanzibar' },
+          { item_id: 'ai-room', tour_id: '999', tour_name: 'H', start: '2026-08-01', nights: 7, board_id: '12', board_name: 'All Inclusive', unit_price: 38000, country_name: 'Zanzibar' },
+        ],
+      },
+      FALLBACK,
+    );
+    expect(offers.length).toBe(2);
+    expect(offers[0]!.sourceOfferKey).toBe(offerKeyHash(['999', '2026-08-01', 7, '4']));
+    expect(offers[1]!.sourceOfferKey).toBe(offerKeyHash(['999', '2026-08-01', 7, '12']));
+  });
+
+  it('falls back to offerKeyHash([item_id]) ONLY when tour_id is missing (no merging)', () => {
+    const offers = parseDatourPackages(
+      {
+        packages: [
+          { item_id: 'orphan-1', tour_name: 'No tour id', start: '2026-08-01', nights: 7, board_id: '4', unit_price: 30000, country_name: 'Zanzibar' },
+          { item_id: 'orphan-2', tour_name: 'No tour id', start: '2026-08-01', nights: 7, board_id: '4', unit_price: 28000, country_name: 'Zanzibar' },
+        ],
+      },
+      FALLBACK,
+    );
+    // Without tour_id there is no safe term identity: rows stay distinct under their item_id keys.
+    expect(offers.length).toBe(2);
+    expect(offers[0]!.sourceOfferKey).toBe(offerKeyHash(['orphan-1']));
+    expect(offers[1]!.sourceOfferKey).toBe(offerKeyHash(['orphan-2']));
   });
 
   it('does NOT merge different terms of the same tour_id', () => {
@@ -266,6 +321,18 @@ describe('parseDatourPackages — mapping rules & edge cases', () => {
     expect(offers[0]!.stars).toBe(5); // round(4.5)
   });
 
+  it('nulls stars when accommodation_category rounds to 0 (guard applies AFTER rounding)', () => {
+    const offers = parseDatourPackages(
+      {
+        packages: [
+          { item_id: 'r', tour_id: '1', tour_name: 'H', start: '2026-08-01', nights: 7, unit_price: 20000, accommodation_category: '0.4', country_name: 'Maledivy' },
+        ],
+      },
+      FALLBACK,
+    );
+    expect(offers[0]!.stars).toBeNull(); // round(0.4) = 0 → null, never a 0-star offer
+  });
+
   it('returns [] for missing/empty packages', () => {
     expect(parseDatourPackages({}, FALLBACK)).toEqual([]);
     expect(parseDatourPackages({ packages: [] }, FALLBACK)).toEqual([]);
@@ -308,7 +375,8 @@ describe('datour source adapter', () => {
     for (const id of LOCATION_IDS) {
       expect(urls).toContain(`${API}?page=1&location=${id}&package=0`);
     }
-    // 18 Maledivy + 18 Zanzibar = 36 (distinct item_ids across countries).
+    // 18 Maledivy + 18 Zanzibar = 36 (distinct (tour_id,start,nights,board_id) tuples across
+    // countries — verified on the fixtures).
     expect(offers.length).toBe(36);
     expect(offers.every((o) => o.source === 'datour')).toBe(true);
     expect(offers.some((o) => o.country === 'Maledivy')).toBe(true);
