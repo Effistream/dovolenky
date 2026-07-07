@@ -546,12 +546,28 @@ const FALLBACK_TITLE_RE = /^Hotel (\d+)$/;
 
 /**
  * Fills in real hotel names for offers still on the numeric "Hotel <id>" fallback (i.e. not
- * resolved by the sitemap), via the per-hotel detail-page redirect described in the header
- * comment. Mutates `offers` in place (updates `title`). Best-effort: a failed lookup for one
- * hotel leaves its offers on the fallback and does not affect other hotels. Capped at
- * `MAX_NAME_LOOKUPS` distinct hotels per call; any beyond that are logged as skipped. A
- * `SourceBlockedError` from a lookup stops further lookups for this run (politeness) but keeps
- * whatever names were already resolved.
+ * resolved by the sitemap), via two sources, cheapest first:
+ *
+ *   1. `ctx.priorTitles` (2026-07-07 fix, spec: feed prior titles to avoid re-lookup): a
+ *      sourceOfferKey -> title map of this source's previously-resolved (non-placeholder) names,
+ *      loaded by run.ts from the DB. dovolenkovani's sourceOfferKey is per-TERM (hash of
+ *      [master_id, date_from, duration_night, boarding_id]), not per-hotel, so it can't be
+ *      reverse-mapped to a master_id directly. Instead: after `offers` are built (each one already
+ *      carries both its master_id-derived fallback title and its own sourceOfferKey), look up
+ *      `ctx.priorTitles.get(offer.sourceOfferKey)` for every still-unresolved offer. If ANY one of
+ *      a hotel's terms has a matching prior title, that resolves the WHOLE hotel (master_id) for
+ *      this run: the resolved name is applied to all of that master_id's offers, and the id is
+ *      removed from the set that would otherwise consume a detail-page lookup. This works in
+ *      practice because at least one prior term of a previously-seen hotel usually persists
+ *      across runs (dates roll forward gradually; full term turnover in a single 2h scan interval
+ *      is rare).
+ *   2. Per-hotel detail-page redirect lookup (unchanged from before), for any master_id NOT
+ *      resolved by step 1: `GET /detail-zajezdu/x/<master_id>a` (see header comment). Mutates
+ *      `offers` in place (updates `title`). Best-effort: a failed lookup for one hotel leaves its
+ *      offers on the fallback and does not affect other hotels. Capped at `MAX_NAME_LOOKUPS`
+ *      distinct hotels per call; any beyond that are logged as skipped. A `SourceBlockedError`
+ *      from a lookup stops further lookups for this run (politeness) but keeps whatever names
+ *      were already resolved.
  */
 async function resolveUnknownHotelNames(ctx: SourceContext, offers: NormalizedOffer[]): Promise<void> {
   const unresolvedIds = new Set<number>();
@@ -562,26 +578,45 @@ async function resolveUnknownHotelNames(ctx: SourceContext, offers: NormalizedOf
   }
   if (unresolvedIds.size === 0) return;
 
-  const idsToLookUp = [...unresolvedIds].slice(0, MAX_NAME_LOOKUPS);
-  const skipped = unresolvedIds.size - idsToLookUp.length;
-  if (skipped > 0) {
-    ctx.log(`dovolenkovani: ${skipped} hotel(s) beyond the ${MAX_NAME_LOOKUPS}-lookup cap skipped this run, keeping "Hotel <id>" fallback`);
+  // Step 1: resolve from ctx.priorTitles first — free, no network cost, and frees up the
+  // detail-page lookup cap for genuinely-new hotels.
+  const resolvedNames = new Map<number, string>();
+  if (ctx.priorTitles && ctx.priorTitles.size > 0) {
+    for (const offer of offers) {
+      const match = offer.title.match(FALLBACK_TITLE_RE);
+      if (!match) continue;
+      const id = Number(match[1]);
+      if (resolvedNames.has(id)) continue;
+      const prior = ctx.priorTitles.get(offer.sourceOfferKey);
+      if (prior) resolvedNames.set(id, prior);
+    }
+    for (const id of resolvedNames.keys()) {
+      unresolvedIds.delete(id);
+    }
   }
 
-  const resolvedNames = new Map<number, string>();
-  for (const id of idsToLookUp) {
-    try {
-      const html = await ctx.http.text(`${SITE_BASE_URL}/detail-zajezdu/x/${id}a`);
-      const name = parseHotelNameFromDetail(html);
-      if (name) resolvedNames.set(id, name);
-    } catch (err) {
-      if (err instanceof SourceBlockedError) {
-        ctx.log(`dovolenkovani: hotel-name detail-page lookup blocked (${err.message}), stopping further lookups`);
-        break;
+  // Step 2: detail-page lookup for whatever's still unresolved after step 1.
+  if (unresolvedIds.size > 0) {
+    const idsToLookUp = [...unresolvedIds].slice(0, MAX_NAME_LOOKUPS);
+    const skipped = unresolvedIds.size - idsToLookUp.length;
+    if (skipped > 0) {
+      ctx.log(`dovolenkovani: ${skipped} hotel(s) beyond the ${MAX_NAME_LOOKUPS}-lookup cap skipped this run, keeping "Hotel <id>" fallback`);
+    }
+
+    for (const id of idsToLookUp) {
+      try {
+        const html = await ctx.http.text(`${SITE_BASE_URL}/detail-zajezdu/x/${id}a`);
+        const name = parseHotelNameFromDetail(html);
+        if (name) resolvedNames.set(id, name);
+      } catch (err) {
+        if (err instanceof SourceBlockedError) {
+          ctx.log(`dovolenkovani: hotel-name detail-page lookup blocked (${err.message}), stopping further lookups`);
+          break;
+        }
+        const message = err instanceof Error ? err.message : String(err);
+        ctx.log(`dovolenkovani: hotel-name detail-page lookup failed for id ${id} (${message}), keeping fallback`);
+        // Not fatal: this hotel keeps its "Hotel <id>" fallback title, loop continues.
       }
-      const message = err instanceof Error ? err.message : String(err);
-      ctx.log(`dovolenkovani: hotel-name detail-page lookup failed for id ${id} (${message}), keeping fallback`);
-      // Not fatal: this hotel keeps its "Hotel <id>" fallback title, loop continues.
     }
   }
 

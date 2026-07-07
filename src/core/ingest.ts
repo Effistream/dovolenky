@@ -7,6 +7,22 @@ import { computeMatchKey } from './normalize.js';
 const HEARTBEAT_MS = 24 * 60 * 60 * 1000;
 const MAX_MISSES = 2;
 
+// Matches the numeric fallback title adapters assign when a hotel/property name can't be
+// resolved yet (e.g. dovolenkovani.ts's `Hotel <master_id>`). Shared source of truth so both the
+// ingest guard below and any adapter/run.ts caller agree on what counts as "not a real name yet".
+const PLACEHOLDER_TITLE_RE = /^Hotel\s+\d+$/;
+
+/**
+ * True iff `t` is a generic placeholder title (e.g. "Hotel 320645") rather than a real,
+ * source-resolved name. Used by the ingest update path to make once-resolved names sticky: an
+ * adapter's per-run resolution cap (e.g. dovolenkovani's 40-lookup ceiling) means a hotel name
+ * resolved in one run can legitimately come back unresolved in a later run — this guard stops
+ * that regression from clobbering the name already stored in the DB (2026-07-07 regression fix).
+ */
+export function isPlaceholderTitle(t: string): boolean {
+  return PLACEHOLDER_TITLE_RE.test(t);
+}
+
 export interface IngestResult {
   offerId: number;
   isNew: boolean;
@@ -73,10 +89,25 @@ async function ingestExistingOffer(
     });
   }
 
+  // Sticky-name guard: never let a placeholder title (e.g. "Hotel 320645") overwrite a real,
+  // already-resolved name. Adapters re-derive titles fresh every run and may only resolve a
+  // capped number of unknown hotels per run (see dovolenkovani.ts), so a hotel resolved in run N
+  // can legitimately come back as a placeholder in run N+1 — without this guard that would
+  // silently revert the stored name (2026-07-07 regression). Any other combination (real->real,
+  // placeholder->real, placeholder->placeholder) refreshes the title as before.
+  const [existingRow] = await db.select({ title: offers.title }).from(offers).where(eq(offers.id, offerId));
+  const incomingIsPlaceholder = isPlaceholderTitle(offer.title);
+  const existingIsReal = existingRow ? !isPlaceholderTitle(existingRow.title) : false;
+  const nextTitle = incomingIsPlaceholder && existingIsReal ? existingRow!.title : offer.title;
+  // Recompute match_key from the title we're actually persisting (nextTitle), not the raw
+  // incoming offer.title — otherwise a guarded-away placeholder would still poison the stored
+  // match_key with a key derived from the discarded placeholder title.
+  const offerForMatchKey = nextTitle === offer.title ? offer : { ...offer, title: nextTitle };
+
   await db
     .update(offers)
     .set({
-      title: offer.title,
+      title: nextTitle,
       country: offer.country,
       locality: offer.locality,
       stars: offer.stars,
@@ -90,7 +121,7 @@ async function ingestExistingOffer(
       lastSeenAt: nowIso,
       active: true,
       misses: 0,
-      matchKey: computeMatchKey(offer),
+      matchKey: computeMatchKey(offerForMatchKey),
     })
     .where(eq(offers.id, offerId));
 

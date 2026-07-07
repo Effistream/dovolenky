@@ -613,6 +613,75 @@ describe('dovolenkovani source adapter', () => {
       expect(offers.length).toBeGreaterThan(0);
     });
 
+    it('uses ctx.priorTitles to resolve a hotel without a detail-page lookup, and applies it to ALL of that master_id\'s offers', async () => {
+      // master_id 67752 has one offer with sourceOfferKey a67121890c3b9e18 (date_from
+      // 2026-07-15, duration_night 5, boarding_id 10) — see offerKeyHash([master_id, date_from,
+      // duration_night, boarding_id]). A prior run resolved this hotel to a real name; this run
+      // should reuse it for every one of 67752's 17 offers/terms without a detail lookup.
+      const priorTitles = new Map<string, string>([['a67121890c3b9e18', 'Prior Resolved Hotel']]);
+      let lookupCount67752 = 0;
+      const { ctx } = makeCtx(
+        async (url?: string) => {
+          if (url === detailUrl(RESOLVABLE_ID)) {
+            lookupCount67752 += 1;
+            return detailFixture;
+          }
+          if (url && /\/detail-zajezdu\/x\/\d+a$/.test(url)) return '<html><body>no name</body></html>';
+          return sitemapXml;
+        },
+        async () => datesListFixture,
+      );
+      ctx.priorTitles = priorTitles;
+
+      const offers = await dovolenkovani.fetchOffers(ctx);
+
+      // No detail-page lookup was spent on 67752 — it was resolved entirely from priorTitles.
+      expect(lookupCount67752).toBe(0);
+      const offers67752 = offers.filter((o) => o.sourceOfferKey === 'a67121890c3b9e18' || o.title === 'Prior Resolved Hotel');
+      expect(offers67752.length).toBeGreaterThan(0);
+      expect(offers.every((o) => (o.title === 'Prior Resolved Hotel') === isFrom67752(o))).toBe(true);
+
+      function isFrom67752(o: { sourceOfferKey: string }): boolean {
+        // All 17 offers for master_id 67752 in the fixture should now carry the prior title.
+        return offers67752.some((x) => x.sourceOfferKey === o.sourceOfferKey);
+      }
+    });
+
+    it('priorTitles reduces detail-page lookups spent, leaving cap headroom for genuinely-new hotels', async () => {
+      // Without priorTitles, all 4 distinct unresolved master_ids (67752, 309883, 341596, 104)
+      // would each cost one lookup. Feeding a prior title for 67752 should reduce that to 3.
+      const priorTitles = new Map<string, string>([['a67121890c3b9e18', 'Prior Resolved Hotel']]);
+      let lookupCount = 0;
+      const { ctx } = makeCtx(
+        async (url?: string) => {
+          if (url && /\/detail-zajezdu\/x\/\d+a$/.test(url)) {
+            lookupCount += 1;
+            return '<html><body>no name</body></html>';
+          }
+          return sitemapXml;
+        },
+        async () => datesListFixture,
+      );
+      ctx.priorTitles = priorTitles;
+
+      await dovolenkovani.fetchOffers(ctx);
+      expect(lookupCount).toBe(3);
+    });
+
+    it('works fine when ctx.priorTitles is undefined (optional field, backward compatible)', async () => {
+      const { ctx } = makeCtx(
+        async (url?: string) => {
+          if (url && /\/detail-zajezdu\/x\/\d+a$/.test(url)) return '<html><body>no name</body></html>';
+          return sitemapXml;
+        },
+        async () => datesListFixture,
+      );
+      expect(ctx.priorTitles).toBeUndefined();
+
+      const offers = await dovolenkovani.fetchOffers(ctx);
+      expect(offers.length).toBeGreaterThan(0);
+    });
+
     it('respects MAX_NAME_LOOKUPS: feeding many distinct unresolved ids caps lookups and logs a skip', async () => {
       const manyRows = Array.from({ length: 50 }, (_, i) => ({
         master_id: 500000 + i,
