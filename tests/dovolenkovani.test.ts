@@ -6,6 +6,7 @@ import {
   parseCesysDates,
   parseAccommodationsSitemap,
   extractAccommodationSitemapUrls,
+  parseHotelNameFromDetail,
   dovolenkovani,
 } from '../src/sources/dovolenkovani.js';
 import type { SourceContext } from '../src/core/types.js';
@@ -26,6 +27,19 @@ const datesListFixture = JSON.parse(loadFixture('dates-list.json'));
 const countriesFixture = JSON.parse(loadFixture('countries.json'));
 const sitemapXml = loadFixture('accommodations-sample.xml');
 const sitemapIndexXml = loadFixture('sitemap-index-sample.xml');
+// detail-320645.html is a trimmed live fixture (head ld+json + <h1>) captured 2026-07-07 from
+// GET https://dovolenkovani.cz/detail-zajezdu/x/320645a (redirects to the canonical
+// creek-hotel-residences-el-gouna slug) — see the file's own header comment for provenance.
+const detailFixture = loadFixture('detail-320645.html');
+const REAL_DETAIL_HOTEL_NAME = 'Creek Hotel & Residences El Gouna';
+
+/** Builds the same detail-page lookup URL fetchOffers uses, for use in test text() mocks. */
+function detailUrl(id: number): string {
+  return `https://dovolenkovani.cz/detail-zajezdu/x/${id}a`;
+}
+
+/** Matches the numeric "Hotel <id>" fallback title, mirroring FALLBACK_TITLE_RE in the source. */
+const FALLBACK_TITLE_RE_FOR_TEST = /^Hotel \d+$/;
 
 describe('parseAccommodationsSitemap', () => {
   const map = parseAccommodationsSitemap(sitemapXml);
@@ -54,6 +68,47 @@ describe('parseAccommodationsSitemap', () => {
   it('returns an empty map for malformed/empty XML', () => {
     expect(parseAccommodationsSitemap('<urlset></urlset>').size).toBe(0);
     expect(parseAccommodationsSitemap('not xml at all').size).toBe(0);
+  });
+});
+
+describe('parseHotelNameFromDetail', () => {
+  it('extracts the real hotel name from the ld+json LodgingBusiness block, entities decoded', () => {
+    expect(parseHotelNameFromDetail(detailFixture)).toBe(REAL_DETAIL_HOTEL_NAME);
+  });
+
+  it('falls back to the <h1> text when there is no ld+json block, decoding entities', () => {
+    const html = '<html><head></head><body><h1>Creek Hotel &amp; Residences El Gouna</h1></body></html>';
+    expect(parseHotelNameFromDetail(html)).toBe(REAL_DETAIL_HOTEL_NAME);
+  });
+
+  it('prefers ld+json over <h1> when both are present and disagree', () => {
+    const html = `
+      <html><head>
+      <script type="application/ld+json">{"@type":"LodgingBusiness","name":"From LD-JSON"}</script>
+      </head><body><h1>From H1</h1></body></html>`;
+    expect(parseHotelNameFromDetail(html)).toBe('From LD-JSON');
+  });
+
+  it('ignores a ld+json block whose @type does not contain "Lodging" and falls back to <h1>', () => {
+    const html = `
+      <html><head>
+      <script type="application/ld+json">{"@type":"BreadcrumbList","name":"Not a hotel"}</script>
+      </head><body><h1>Real Hotel Name</h1></body></html>`;
+    expect(parseHotelNameFromDetail(html)).toBe('Real Hotel Name');
+  });
+
+  it('returns null when neither ld+json nor <h1> is present', () => {
+    expect(parseHotelNameFromDetail('<html><head></head><body><p>nothing here</p></body></html>')).toBeNull();
+  });
+
+  it('returns null for empty/whitespace-only html or an empty name/h1', () => {
+    expect(parseHotelNameFromDetail('')).toBeNull();
+    expect(parseHotelNameFromDetail('   ')).toBeNull();
+    expect(parseHotelNameFromDetail('<html><body><h1>   </h1></body></html>')).toBeNull();
+  });
+
+  it('handles malformed HTML without throwing', () => {
+    expect(() => parseHotelNameFromDetail('<html><script type="application/ld+json">{not json</html>')).not.toThrow();
   });
 });
 
@@ -269,7 +324,10 @@ describe('parseCesysDates (fixture, dates-list.json)', () => {
 });
 
 describe('dovolenkovani source adapter', () => {
-  function makeCtx(textImpl: () => Promise<string>, jsonImpl: () => Promise<unknown>): { ctx: SourceContext; textMock: ReturnType<typeof vi.fn>; jsonMock: ReturnType<typeof vi.fn> } {
+  function makeCtx(
+    textImpl: (url?: string) => Promise<string>,
+    jsonImpl: () => Promise<unknown>,
+  ): { ctx: SourceContext; textMock: ReturnType<typeof vi.fn>; jsonMock: ReturnType<typeof vi.fn> } {
     const textMock = vi.fn().mockImplementation(textImpl);
     const jsonMock = vi.fn().mockImplementation(jsonImpl);
     const ctx: SourceContext = {
@@ -280,18 +338,31 @@ describe('dovolenkovani source adapter', () => {
     return { ctx, textMock, jsonMock };
   }
 
-  it('is named dovolenkovani and issues at most 6 requests (sitemap index + up to 2 accommodation shards + countries + 2 dates-list queries)', async () => {
+  it('is named dovolenkovani and issues 3 sitemap requests plus one detail-page lookup per distinct unresolved hotel', async () => {
+    const sitemapUrls = new Set([
+      'https://dovolenkovani.cz/sitemap.xml',
+      'https://dovolenkovani.cz/accommodations.xml',
+      'https://dovolenkovani.cz/am-accommodations.xml',
+    ]);
     const { ctx, textMock, jsonMock } = makeCtx(
-      async () => sitemapIndexXml,
+      async (url?: string) => {
+        if (url === 'https://dovolenkovani.cz/sitemap.xml') return sitemapIndexXml;
+        if (url && sitemapUrls.has(url)) return sitemapXml;
+        // Anything else is a hotel-name detail-page lookup (dates-list.json's 4 distinct
+        // master_ids are all unresolved by the tiny 3-hotel sitemap fixture) — return HTML with
+        // no parseable name so those hotels simply keep their "Hotel <id>" fallback.
+        return '<html><body>no name here</body></html>';
+      },
       async () => datesListFixture,
     );
 
     const offers = await dovolenkovani.fetchOffers(ctx);
 
     expect(dovolenkovani.name).toBe('dovolenkovani');
-    // Real sitemap index -> 2 matching accommodation URLs -> 1 (index) + 2 (shards) = 3 text() calls.
-    expect(textMock.mock.calls.length).toBe(3);
-    expect(jsonMock.mock.calls.length + textMock.mock.calls.length).toBeLessThanOrEqual(6);
+    // Real sitemap index -> 2 matching accommodation URLs -> 1 (index) + 2 (shards) = 3 text()
+    // calls, PLUS one detail-page lookup per distinct unresolved master_id in the fixture (4).
+    expect(textMock.mock.calls.length).toBe(3 + 4);
+    expect(jsonMock.mock.calls.length).toBeLessThanOrEqual(3);
     expect(offers.length).toBeGreaterThan(0);
     expect(offers.every((o) => o.source === 'dovolenkovani')).toBe(true);
   });
@@ -322,8 +393,9 @@ describe('dovolenkovani source adapter', () => {
     );
 
     const offers = await dovolenkovani.fetchOffers(ctx);
-    // Call 1 = failed index fetch, call 2 = fallback accommodations.xml fetch.
-    expect(textMock.mock.calls.length).toBe(2);
+    // Call 1 = failed index fetch, call 2 = fallback accommodations.xml fetch, calls 3-6 = one
+    // detail-page hotel-name lookup per distinct unresolved master_id in the fixture (4).
+    expect(textMock.mock.calls.length).toBe(2 + 4);
     expect(offers.length).toBeGreaterThan(0);
   });
 
@@ -472,5 +544,119 @@ describe('dovolenkovani source adapter', () => {
     const offers = await dovolenkovani.fetchOffers(ctx);
     const keys = offers.map((o) => o.sourceOfferKey);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  describe('hotel-name enrichment via detail-page redirect lookup', () => {
+    // The live dates-list.json fixture has 4 distinct master_ids (67752, 309883, 341596, 104),
+    // none of which are in the tiny 3-hotel sitemap fixture — so all 4 start on the numeric
+    // "Hotel <id>" fallback and are candidates for detail-page lookup.
+    const RESOLVABLE_ID = 67752;
+
+    it('resolves the real hotel name via the detail-page redirect for a master_id not covered by the sitemap', async () => {
+      const { ctx } = makeCtx(
+        async (url?: string) => {
+          if (url === detailUrl(RESOLVABLE_ID)) return detailFixture;
+          if (url && /\/detail-zajezdu\/x\/\d+a$/.test(url)) return '<html><body>no name</body></html>';
+          return sitemapXml;
+        },
+        async () => datesListFixture,
+      );
+
+      const offers = await dovolenkovani.fetchOffers(ctx);
+      const resolved = offers.filter((o) => o.title === REAL_DETAIL_HOTEL_NAME);
+      expect(resolved.length).toBeGreaterThan(0);
+      // Every offer that used to be "Hotel 67752" is now resolved; no offer keeps the numeric
+      // fallback for this specific id.
+      expect(offers.some((o) => o.title === `Hotel ${RESOLVABLE_ID}`)).toBe(false);
+    });
+
+    it('a failed lookup for one hotel keeps its "Hotel <id>" fallback without crashing, while other hotels still resolve', async () => {
+      const { ctx } = makeCtx(
+        async (url?: string) => {
+          if (url === detailUrl(RESOLVABLE_ID)) return detailFixture;
+          if (url && /\/detail-zajezdu\/x\/\d+a$/.test(url)) throw new Error('detail page 500');
+          return sitemapXml;
+        },
+        async () => datesListFixture,
+      );
+
+      const offers = await dovolenkovani.fetchOffers(ctx);
+      expect(offers.some((o) => o.title === REAL_DETAIL_HOTEL_NAME)).toBe(true);
+      // The other 3 distinct unresolved ids all failed their lookup -> keep the fallback.
+      const stillFallback = offers.filter((o) => FALLBACK_TITLE_RE_FOR_TEST.test(o.title));
+      expect(stillFallback.length).toBeGreaterThan(0);
+    });
+
+    it('stops issuing further lookups on SourceBlockedError but keeps names already resolved', async () => {
+      const { SourceBlockedError } = await import('../src/core/http.js');
+      const attemptedLookupUrls: string[] = [];
+      const { ctx } = makeCtx(
+        async (url?: string) => {
+          if (url === detailUrl(RESOLVABLE_ID)) {
+            attemptedLookupUrls.push(url);
+            return detailFixture;
+          }
+          if (url && /\/detail-zajezdu\/x\/\d+a$/.test(url)) {
+            attemptedLookupUrls.push(url);
+            throw new SourceBlockedError(403, 'blocked');
+          }
+          return sitemapXml;
+        },
+        async () => datesListFixture,
+      );
+
+      const offers = await dovolenkovani.fetchOffers(ctx);
+      // Once a SourceBlockedError is hit, no further lookups should be attempted — so at most
+      // one lookup happens after the resolvable one if it happens to come first, but the loop
+      // must stop as soon as the block is hit rather than trying all 4.
+      expect(attemptedLookupUrls.length).toBeLessThan(4);
+      expect(offers.length).toBeGreaterThan(0);
+    });
+
+    it('respects MAX_NAME_LOOKUPS: feeding many distinct unresolved ids caps lookups and logs a skip', async () => {
+      const manyRows = Array.from({ length: 50 }, (_, i) => ({
+        master_id: 500000 + i,
+        name: 500000 + i,
+        date_from: '2026-08-01',
+        date_to: '2026-08-08',
+        duration_night: 7,
+        boarding: 'All inclusive',
+        boarding_id: 5,
+        transport: 'Letecká',
+        transport_id: 1,
+        airport: 'Praha',
+        airport_code: 'PRG',
+        price_from: { CZK: 20000, EUR: 800 },
+        discount: null,
+        discount_percent: null,
+        country: 183,
+        destination: 999,
+        rating: 4,
+        tour_operator: { name: 'Čedok' },
+        last_minute: false,
+        package_id: 1,
+        composition: { adults: 2, children: [] },
+      }));
+      const manyIdsFixture = { status: 'success', data: { results: 50, more_exists: false, dates: manyRows } };
+
+      let lookupCount = 0;
+      const logs: string[] = [];
+      const { ctx } = makeCtx(
+        async (url?: string) => {
+          if (url && /\/detail-zajezdu\/x\/\d+a$/.test(url)) {
+            lookupCount += 1;
+            return '<html><body>no name</body></html>';
+          }
+          return sitemapXml;
+        },
+        async () => manyIdsFixture,
+      );
+      ctx.log = (msg: string) => logs.push(msg);
+
+      const offers = await dovolenkovani.fetchOffers(ctx);
+      expect(offers.length).toBeGreaterThan(0);
+      expect(lookupCount).toBeLessThanOrEqual(40);
+      expect(logs.some((m) => /skip/i.test(m) && /40/.test(m))).toBe(true);
+    });
   });
 });

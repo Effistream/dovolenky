@@ -1,0 +1,44 @@
+<!--
+  Trimmed live fixture. Captured 2026-07-07 via:
+    curl -sL --max-time 25 -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36
+    (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" \
+    "https://dovolenkovani.cz/detail-zajezdu/x/320645a"
+
+  The dummy slug "x" 301-redirected to the canonical URL
+    https://dovolenkovani.cz/detail-zajezdu/creek-hotel-residences-el-gouna/320645a
+  whose real hotel name is "Creek Hotel & Residences El Gouna". This file keeps only the
+  <script type="application/ld+json"> LodgingBusiness block and the page's <h1> element from the
+  ~50KB live response, for use by parseHotelNameFromDetail tests (a few KB instead of 50KB).
+-->
+<html>
+<head>
+<script type="application/ld+json">
+{
+    "@context": "http://schema.org",
+    "@type": "LodgingBusiness",
+    "name": "Creek Hotel & Residences El Gouna",
+    "url": "https://dovolenkovani.cz/detail-zajezdu/creek-hotel-residences-el-gouna/320645a",
+    "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Hurghada",
+        "addressCountry": {
+            "@type": "Country",
+            "name": "Egypt"
+        }
+    },
+    "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 27.376907,
+        "longitude": 33.659676
+    },
+    "starRating": {
+        "@type": "Rating",
+        "ratingValue": 5
+    }
+}
+</script>
+</head>
+<body>
+<h1 class="hotel text-secondary font-weight-bold pr-lg-3">Creek Hotel &amp; Residences El Gouna</h1>
+</body>
+</html>
