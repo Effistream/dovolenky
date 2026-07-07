@@ -259,11 +259,15 @@ function titleCaseFromSlug(slug: string): string {
 
 /**
  * Parses `accommodations.xml` (a plain sitemap.xml) into a map of hotel id -> {name, url}.
- * Pure function: no I/O. URLs are expected in the shape
- * `<siteBaseUrl>/detail-zajezdu/<slug>/<code>`, where `<code>` is a numeric hotel id followed by
- * a CESYS-internal letter suffix (e.g. "6a" -> id 6). Rows whose `<loc>` doesn't match that shape
- * are silently skipped (not fatal — this map degrades to "Hotel <id>" fallback for any master_id
- * not present here, by design).
+ * Pure function: no I/O. URLs end in `.../detail-zajezdu/<…>/<slug>/<code>`, where `<code>` is a
+ * numeric hotel id followed by a CESYS-internal letter suffix (e.g. "6a" -> id 6) and `<slug>` is
+ * the last path segment before the code. The number of segments between `detail-zajezdu` and the
+ * code varies per storefront — dovolenkovani uses one (`/detail-zajezdu/kalia-beach/6a`) while
+ * FIRO prefixes a country segment (`/detail-zajezdu/recko/porto-elounda-.../4a`, verified live
+ * 2026-07-07) — so the pattern skips any number of leading segments and always takes the segment
+ * immediately before the numeric code as the slug (byte-identical result for the single-segment
+ * shape). Rows whose `<loc>` doesn't match are silently skipped (not fatal — this map degrades to
+ * "Hotel <id>" fallback for any master_id not present here, by design).
  */
 export function parseAccommodationsSitemap(xml: string): Map<number, HotelInfo> {
   const map = new Map<number, HotelInfo>();
@@ -278,7 +282,7 @@ export function parseAccommodationsSitemap(xml: string): Map<number, HotelInfo> 
   $('url > loc').each((_, el) => {
     const url = $(el).text().trim();
     if (!url) return;
-    const match = url.match(/\/detail-zajezdu\/([^/]+)\/(\d+)[A-Za-z]*\/?$/);
+    const match = url.match(/\/detail-zajezdu\/(?:[^/]+\/)*([^/]+)\/(\d+)[A-Za-z]*\/?$/);
     if (!match) return;
     const [, slug, idRaw] = match;
     const id = Number(idRaw);
