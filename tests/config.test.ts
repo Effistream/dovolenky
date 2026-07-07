@@ -18,6 +18,20 @@ describe('loadConfig', () => {
     expect(cfg.scan.adults).toBe(2);
   });
 
+  it('parses the exotika profile (task 34)', () => {
+    const cfg = loadConfig({ configPath: CONFIG_PATH, env: {} });
+
+    const exotika = cfg.profiles['exotika'];
+    expect(exotika?.enabled).toBe(true);
+    expect(exotika?.countries).toHaveLength(17);
+    expect(exotika?.transport).toBe('flight');
+    expect(exotika?.board).toEqual([]);
+    expect(exotika?.departureMonths).toEqual([]);
+    expect(exotika?.maxPricePerPerson).toBe(60000);
+    expect(exotika?.minRealDiscountPct).toBe(15);
+    expect(exotika?.notifyNewOffers).toBe(false);
+  });
+
   it('applies sensible defaults for optional fields', () => {
     const cfg = loadConfig({ configPath: CONFIG_PATH, env: {} });
 

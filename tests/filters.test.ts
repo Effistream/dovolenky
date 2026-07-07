@@ -24,6 +24,18 @@ profiles:
     min_real_discount_pct: 25
     max_price_per_person: 20000
     notify_new_offers: true
+  exotika:
+    enabled: true
+    countries: [Thajsko, Maledivy, Mauricius, Spojené arabské emiráty,
+                Dominikánská republika, Mexiko, Kuba, Seychely, Srí Lanka,
+                Zanzibar, Tanzanie, Vietnam, Indonésie, Kapverdy, Keňa,
+                Filipíny, Réunion]
+    transport: flight
+    board: []
+    departure_months: []
+    max_price_per_person: 60000
+    min_real_discount_pct: 15
+    notify_new_offers: false
 notifications:
   price_drop_pct: 10
   renotify_drop_pct: 5
@@ -127,6 +139,22 @@ describe('matchProfiles', () => {
 
     const matches = matchProfiles(offer, profiles, new Date('2026-07-01'));
 
+    expect(matches.map((m) => m.name)).not.toContain('leto-more');
+  });
+
+  it('14. Maledivy/AI/flight/45000 Kč in January matches exotika but not leto-more', () => {
+    const profiles = loadProfiles();
+    const offer = mkOffer({
+      country: 'Maledivy',
+      board: 'AI',
+      transport: 'flight',
+      departureDate: '2027-01-15',
+      pricePerPerson: 45000,
+    });
+
+    const matches = matchProfiles(offer, profiles, new Date('2026-07-01'));
+
+    expect(matches.map((m) => m.name)).toContain('exotika');
     expect(matches.map((m) => m.name)).not.toContain('leto-more');
   });
 
