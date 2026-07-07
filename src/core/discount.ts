@@ -12,11 +12,11 @@ export interface ComputeRealDiscountInput {
   ownSnapshots: { price: number; at: string }[];
   omnibus: number | null;
   /**
-   * @deprecated Transitional alias for `marketPricesPN` (per-night market
-   * bucket prices). Kept so src/core/run.ts and src/core/digest.ts — which
-   * still pass total-per-person `marketPrices` — continue to compile until
-   * Task 32 rewires them to pass genuine per-night prices. When both
-   * `marketPrices` and `marketPricesPN` are supplied, `marketPricesPN` wins.
+   * @deprecated Plain alias for `marketPricesPN` (per-night market bucket
+   * prices). All real callers (run.ts, digest.ts, web/api.ts) now pass
+   * `marketPricesPN` + `nights` directly; this alias is retained only for
+   * backward source-compat and is read as per-night. `marketPricesPN` wins when
+   * both are supplied. Requires `nights ≥ 1` to be used, like `marketPricesPN`.
    * New callers should use `marketPricesPN`.
    */
   marketPrices?: number[];
@@ -92,8 +92,8 @@ export function computeRealDiscount(input: ComputeRealDiscountInput): DiscountRe
   let reference: DiscountResult['reference'] = null;
   let baseline: number | null = null;
   // baseForPct/currentForPct hold the pair used to compute realPct in native
-  // units for the winning tier (total for own/omnibus/legacy-market,
-  // per-night for hotel/locality/market-PN).
+  // units for the winning tier (total for own/omnibus, per-night for the
+  // hotel/locality/market rungs).
   let baseForPct: number | null = null;
   let currentForPct: number | null = null;
 
@@ -112,10 +112,9 @@ export function computeRealDiscount(input: ComputeRealDiscountInput): DiscountRe
     // Per-night tiers require a valid nights count to normalize `current`.
     const currentPN = Math.round(input.current / nights);
 
-    // marketPricesPN wins when both are supplied; marketPrices is only
-    // reinterpreted as per-night when the caller has opted into per-night
-    // semantics by also supplying `nights` (see the legacy TOTAL fallback
-    // below for callers that pass `nights: null`/omitted).
+    // marketPricesPN is the current field; `marketPrices` is accepted as a plain
+    // alias (both are per-night here — the pre-v2 total-price legacy branch was
+    // removed in Task 32 once run.ts/digest.ts/web-api all pass `nights`).
     const marketPricesPN = input.marketPricesPN ?? input.marketPrices ?? [];
 
     const hotelBasePN = perNightBaseline(hotelTermPricesPN, HOTEL_MIN_PRICES);
@@ -137,19 +136,6 @@ export function computeRealDiscount(input: ComputeRealDiscountInput): DiscountRe
       baseline = marketBasePN * nights;
       baseForPct = marketBasePN;
       currentForPct = currentPN;
-    }
-  } else if (input.marketPricesPN === undefined && input.marketPrices !== undefined) {
-    // Legacy TOTAL-price market tier (pre-Task-31 behavior), preserved for
-    // callers that don't yet pass `nights`/`marketPricesPN` (src/core/run.ts,
-    // src/core/digest.ts, src/web/api.ts — rewired in Task 32). Without a
-    // nights count we cannot normalize per-night, so `marketPrices` is read
-    // as-is (whole-stay totals) exactly like the pre-v2 implementation.
-    const marketBaseline = perNightBaseline(input.marketPrices ?? [], MARKET_MIN_PRICES);
-    if (marketBaseline !== null) {
-      reference = 'market';
-      baseline = marketBaseline;
-      baseForPct = marketBaseline;
-      currentForPct = input.current;
     }
   }
 

@@ -7,6 +7,7 @@ import type { NormalizedOffer, SourceAdapter, SourceContext } from '../src/core/
 import { HttpClient, SourceBlockedError } from '../src/core/http.js';
 import { runScan } from '../src/core/run.js';
 import { ingestOffer } from '../src/core/ingest.js';
+import { computeHotelKey } from '../src/core/normalize.js';
 
 // ---- Fixtures ----------------------------------------------------------
 
@@ -154,6 +155,51 @@ async function seedMarketBucket(db: Db, n: number, price: number, at: string): P
         lastSeenAt: at,
         active: true,
         misses: 0,
+      })
+      .returning({ id: offers.id });
+    await db.insert(priceSnapshots).values({
+      offerId: row!.id,
+      capturedAt: at,
+      pricePerPerson: price,
+      priceTotal: price * 2,
+      claimedOriginalPrice: null,
+      claimedDiscountPct: null,
+      omnibusLowestPrice: null,
+    });
+  }
+}
+
+/**
+ * Seed `n` active OTHER terms of the SAME hotel as the hot offer (same title →
+ * same hotel_key, Řecko, AI, nights within ±2, date within ±30d) at `price`, so
+ * the discount ladder's "hotel" rung (≥4 terms) resolves for the subject.
+ */
+async function seedHotelTerms(db: Db, n: number, price: number, at: string): Promise<void> {
+  const hotelKey = computeHotelKey(makeOffer());
+  for (let i = 0; i < n; i += 1) {
+    const [row] = await db
+      .insert(offers)
+      .values({
+        source: 'seed',
+        sourceOfferKey: `hotel-term-${i}`,
+        title: 'Hotel Hot Deal', // same title → same hotel_key as the subject
+        country: 'Řecko',
+        locality: 'Kréta',
+        stars: 4,
+        board: 'AI',
+        transport: 'flight',
+        departureAirport: 'PRG',
+        // vary nights within ±2 and dates within ±30d of the subject (7 nights, 2026-08-15)
+        departureDate: `2026-08-${String(10 + i).padStart(2, '0')}`,
+        nights: 7,
+        tourOperator: 'Seed',
+        url: `https://example.com/hotel-term-${i}`,
+        firstSeenAt: at,
+        lastSeenAt: at,
+        active: true,
+        misses: 0,
+        matchKey: null,
+        hotelKey,
       })
       .returning({ id: offers.id });
     await db.insert(priceSnapshots).values({
@@ -1067,5 +1113,155 @@ describe('runScan', () => {
     expect(capturedPriorTitles?.get('dv-real')).toBe('Creek Hotel');
     expect(capturedPriorTitles?.has('dv-placeholder')).toBe(false);
     expect(capturedPriorTitles?.size).toBe(1);
+  });
+
+  it('scenario 14: a subject with ≥4 same-hotel terms resolves reference="hotel" end-to-end (spec §15)', async () => {
+    const now = new Date('2026-07-04T10:00:00.000Z');
+    // 4 other terms of the SAME hotel at 21000/7 = 3000/night. The subject at
+    // 12000/7 ≈ 1714/night is well below → a big real discount on the hotel rung.
+    await seedHotelTerms(db, 4, 21000, '2026-07-04T09:00:00.000Z');
+    const tg = new TelegramMock();
+
+    // The 4 same-hotel terms qualify the "hotel" rung (≥4) but are too few for the
+    // locality (≥8) or market (≥8) rungs, so the ladder can only resolve via hotel.
+    const summary = await runScan({
+      db,
+      cfg: makeConfig(),
+      http: makeHttp(),
+      telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [happyAdapter([makeOffer()])],
+      now,
+    });
+
+    expect(summary.notificationsSent).toBe(1);
+    const hot = tg.messages.find((m) => m.includes('🔥'));
+    expect(hot).toBeDefined();
+    expect(hot).toContain('Hotel Hot Deal');
+
+    // Direct confirmation of the reference rung: recompute the discount exactly as
+    // processOffers does, over the persisted state.
+    const { hotelTermPricesPN, localityBucketPricesPN, marketBucketPrices, ownSnapshotsFor } = await import(
+      '../src/core/market.js'
+    );
+    const { computeRealDiscount } = await import('../src/core/discount.js');
+    const [subjectRow] = await db
+      .select()
+      .from(offers)
+      .where(and(eq(offers.source, 'happy'), eq(offers.sourceOfferKey, 'hotel-hot-2026-08-15')));
+    const subjectOffer = makeOffer();
+    const hotelPN = await hotelTermPricesPN(db, subjectRow!.id, subjectOffer);
+    const localityPN = await localityBucketPricesPN(db, subjectRow!.id, subjectOffer);
+    const marketPN = await marketBucketPrices(db, subjectRow!.id, subjectOffer);
+    const own = await ownSnapshotsFor(db, subjectRow!.id, now);
+    const d = computeRealDiscount({
+      current: 12000,
+      ownSnapshots: own,
+      omnibus: null,
+      nights: 7,
+      hotelTermPricesPN: hotelPN,
+      localityPricesPN: localityPN,
+      marketPricesPN: marketPN,
+      claimedPct: null,
+      now,
+    });
+    expect(hotelPN).toHaveLength(4);
+    expect(d.reference).toBe('hotel');
+    expect(d.realPct).toBe(43); // round((3000-1714)/3000*100)
+  });
+
+  it('scenario 15: the 1-night domestic-stay artifact no longer shows a bogus discount (per-night fair)', async () => {
+    const now = new Date('2026-07-04T10:00:00.000Z');
+    // The subject is a 1-night stay at 3000 total (3000/night). Its hotel has ≥4
+    // other terms whose per-night price is ~2000/night. Per-night, 3000 is a price
+    // INCREASE vs the 2000 median — NOT the old bogus discount that came from
+    // comparing a 3000 total against multi-night totals.
+    const oneNight = makeOffer({
+      title: 'Hotel One Night',
+      sourceOfferKey: 'one-night',
+      url: 'https://example.com/one-night',
+      nights: 1,
+      pricePerPerson: 3000,
+      priceTotal: 6000,
+    });
+
+    // 5 same-hotel multi-night terms at 2000/night (e.g. 7 nights × 2000 = 14000),
+    // within nights ±2? No — 7 is NOT within ±2 of 1. Use short stays (nights 2-3,
+    // within ±2 of 1) at 2000/night so they land in the hotel rung for this subject.
+    const hotelKey = computeHotelKey(oneNight);
+    for (let i = 0; i < 5; i += 1) {
+      const nights = 2 + (i % 2); // 2 or 3 nights (within ±2 of 1)
+      const [row] = await db
+        .insert(offers)
+        .values({
+          source: 'seed',
+          sourceOfferKey: `on-term-${i}`,
+          title: 'Hotel One Night',
+          country: 'Řecko',
+          locality: 'Kréta',
+          stars: 4,
+          board: 'AI',
+          transport: 'flight',
+          departureAirport: 'PRG',
+          departureDate: `2026-08-${String(12 + i).padStart(2, '0')}`,
+          nights,
+          tourOperator: 'Seed',
+          url: `https://example.com/on-term-${i}`,
+          firstSeenAt: '2026-07-04T09:00:00.000Z',
+          lastSeenAt: '2026-07-04T09:00:00.000Z',
+          active: true,
+          misses: 0,
+          matchKey: null,
+          hotelKey,
+        })
+        .returning({ id: offers.id });
+      await db.insert(priceSnapshots).values({
+        offerId: row!.id,
+        capturedAt: '2026-07-04T09:00:00.000Z',
+        pricePerPerson: nights * 2000, // 2000/night
+        priceTotal: nights * 4000,
+        claimedOriginalPrice: null,
+        claimedDiscountPct: null,
+        omnibusLowestPrice: null,
+      });
+    }
+
+    const tg = new TelegramMock();
+    const summary = await runScan({
+      db,
+      cfg: makeConfig(),
+      http: makeHttp(),
+      telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [happyAdapter([oneNight])],
+      now,
+    });
+
+    // No hot_deal: per-night, 3000 > 2000 median → realPct negative → below the
+    // 15% profile threshold. (The old total-bucket logic mis-rated it as ~-54%
+    // OR a spurious discount; either way it must NOT notify now.)
+    expect(summary.notificationsSent).toBe(0);
+    expect(tg.messages.filter((m) => m.includes('🔥'))).toHaveLength(0);
+
+    // Confirm the reference rung + sign directly.
+    const { hotelTermPricesPN } = await import('../src/core/market.js');
+    const { computeRealDiscount } = await import('../src/core/discount.js');
+    const [subjectRow] = await db
+      .select()
+      .from(offers)
+      .where(and(eq(offers.source, 'happy'), eq(offers.sourceOfferKey, 'one-night')));
+    const hotelPN = await hotelTermPricesPN(db, subjectRow!.id, oneNight);
+    const d = computeRealDiscount({
+      current: 3000,
+      ownSnapshots: [],
+      omnibus: null,
+      nights: 1,
+      hotelTermPricesPN: hotelPN,
+      localityPricesPN: [],
+      marketPricesPN: [],
+      claimedPct: null,
+      now,
+    });
+    expect(hotelPN.length).toBeGreaterThanOrEqual(4);
+    expect(d.reference).toBe('hotel');
+    expect(d.realPct).toBe(-50); // round((2000-3000)/2000*100) → a markup, not a discount
   });
 });

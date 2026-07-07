@@ -12,7 +12,7 @@ import { evaluateOffer, filterAgainstLog, recordSent, capMessages, groupCandidat
 import { computeMatchKey } from './normalize.js';
 import { formatOffer } from './format.js';
 import { pragueDayString } from './dates.js';
-import { marketBucketPrices, ownSnapshotsFor } from './market.js';
+import { hotelTermPricesPN, localityBucketPricesPN, marketBucketPrices, ownSnapshotsFor } from './market.js';
 import { buildDigest } from './digest.js';
 import { BLOCKED_PREFIX, BACKOFF_MARKER, RECENT_RUN_SCAN_LIMIT, isBackoffRow, backoffUntilFrom } from './backoff.js';
 
@@ -64,13 +64,21 @@ async function processOffers(
       if (ingest.snapshotWritten) snapshotsWritten += 1;
 
       const ownSnapshots = await ownSnapshotsFor(db, ingest.offerId, now);
-      const marketPrices = await marketBucketPrices(db, ingest.offerId, offer);
+      // Per-night reference ladder (spec §15): hotel → locality → market, each a
+      // per-night bucket; discount.ts picks the first that qualifies (own/omnibus
+      // still win above them). `nights` is required for the per-night tiers.
+      const hotelPricesPN = await hotelTermPricesPN(db, ingest.offerId, offer);
+      const localityPricesPN = await localityBucketPricesPN(db, ingest.offerId, offer);
+      const marketPricesPN = await marketBucketPrices(db, ingest.offerId, offer);
 
       const discount: DiscountResult = computeRealDiscount({
         current: offer.pricePerPerson,
         ownSnapshots,
         omnibus: offer.omnibusLowestPrice,
-        marketPrices,
+        nights: offer.nights,
+        hotelTermPricesPN: hotelPricesPN,
+        localityPricesPN,
+        marketPricesPN,
         claimedPct: offer.claimedDiscountPct,
         now,
       });

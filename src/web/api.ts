@@ -158,12 +158,18 @@ async function buildOffers(
 
     const ownSnapshots = await ownSnapshotsFor(db, rep.row.id, now);
     marketComputeCount += 1;
-    const marketPrices = await marketBucketPrices(db, rep.row.id, offer);
+    // Per-night market baseline (spec §15). marketBucketPrices now returns
+    // per-NIGHT prices, so pass them as marketPricesPN + the subject's nights so
+    // computeRealDiscount normalizes `current` per-night too. (Hotel/locality
+    // rungs are wired in run.ts/digest.ts; the web board surfaces the market
+    // rung here — the hotel/locality reference labels are a Task-33 concern.)
+    const marketPricesPN = await marketBucketPrices(db, rep.row.id, offer);
     const discount = computeRealDiscount({
       current: offer.pricePerPerson,
       ownSnapshots,
       omnibus: offer.omnibusLowestPrice,
-      marketPrices,
+      nights: offer.nights,
+      marketPricesPN,
       claimedPct: offer.claimedDiscountPct,
       now,
     });
