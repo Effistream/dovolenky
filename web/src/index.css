@@ -1,0 +1,54 @@
+@import 'tailwindcss';
+
+/* Fonts — local woff2 via @fontsource (no CDN, per design-system/MASTER.md).
+   latin + latin-ext subsets so Czech ěščřžýáíé render; weights 400 + 600. */
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-600.css';
+@import '@fontsource/ibm-plex-mono/latin-ext-400.css';
+@import '@fontsource/ibm-plex-mono/latin-ext-600.css';
+@import '@fontsource/barlow/latin-400.css';
+@import '@fontsource/barlow/latin-600.css';
+@import '@fontsource/barlow/latin-ext-400.css';
+@import '@fontsource/barlow/latin-ext-600.css';
+
+/* Design tokens (design-system/MASTER.md) wired into Tailwind's @theme, so
+   Tasks 26-27 use utilities like text-ink / bg-paper / font-mono directly. */
+@theme {
+  /* Colors */
+  --color-ink: #14161b;
+  --color-ink-2: #1c1f26;
+  --color-ink-3: #262a33;
+  --color-paper: #f2f4f6;
+  --color-card: #ffffff;
+  --color-line: #e1e5ea;
+  --color-amber: #ffc24d;
+  --color-deal: #167a52;
+  --color-deal-board: #43c48e;
+  --color-warn: #c23b2e;
+  --color-warn-board: #ff8a76;
+  --color-txt: #23272f;
+  --color-txt-muted: #5b6572;
+  --color-board-txt: #e9ecef;
+  --color-board-muted: #98a1ad;
+
+  /* Typography */
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-sans: 'Barlow', system-ui, sans-serif;
+}
+
+/* Page base: cool grey-white paper, Barlow body, tabular numerals globally so
+   prices/dates align in the mono board. */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-txt);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}

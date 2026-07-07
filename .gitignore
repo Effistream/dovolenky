@@ -3,3 +3,6 @@ data/
 logs/
 .env
 .superpowers/
+web/dist/
+web/node_modules/
+.playwright-mcp/
