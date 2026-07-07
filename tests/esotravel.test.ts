@@ -166,6 +166,19 @@ describe('parseEsoListing: dovolena-thajsko fixture (real, mixed poznávací + p
     expect(hasHa).toBe(true);
   });
 
+  it('assigns the previous year to a Dec→Jan range printed with a single trailing year', () => {
+    // Real card on this fixture: "SKRYTÁ TVÁŘ THAJSKA – od vánočního putování k silvestrovské
+    // pláži", .detail-date "22. 12. - 03. 01. 2027" (year printed ONCE, at the end, belonging to
+    // the END date). The tour departs 22.12.2026 and returns 3.1.2027 — the start month (12)
+    // being greater than the end month (1) marks the year wrap.
+    const xmas = offers.find((o) => o.url.includes('termin=2264658'));
+    expect(xmas).toBeDefined();
+    expect(xmas!.title).toContain('SKRYTÁ TVÁŘ THAJSKA');
+    expect(xmas!.departureDate).toBe('2026-12-22');
+    expect(xmas!.nights).toBe(10);
+    expect(xmas!.pricePerPerson).toBe(83690);
+  });
+
   it('assigns the country param to every offer and keeps prices sane', () => {
     for (const o of offers) {
       expect(o.country).toBe('Thajsko');

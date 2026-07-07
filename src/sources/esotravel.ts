@@ -46,12 +46,13 @@ import { SourceBlockedError } from '../core/http.js';
  *               (unrecognized ones like "USA" stay null rather than guessing).
  *  - locality   country listings: `.tour-type span` when it is NOT a recognized country (it holds
  *               an atoll/resort area there). last-minute: null (the span is a country slot).
- *  - departureDate  first day.month in the `.detail-date` first anchor + the FIRST year found in
- *               that text ("01. 05. - 31. 10. 2026" → 2026-05-01; a cross-year range prints the
- *               year with each date, so the first year still belongs to the first date).
+ *  - departureDate  first day.month in the `.detail-date` first anchor. The year is printed ONCE,
+ *               at the END of the range — even for Dec→Jan wraps ("22. 12. - 03. 01. 2027"
+ *               departs 22.12.2026) — so a wrapped range (start month > end month) gets year-1
+ *               for the start date. See parseFirstDate.
  *  - nights     `span.days` "15 dní / 12 nocí" → 12.
- *  - pricePerPerson  `div.price strong`, e.g. "54 990" — the thousands separator is a REAL
- *               U+00A0. ⚠️ parseCzk's whitespace-strip class contains only regular 0x20 spaces
+ *  - pricePerPerson  `div.price strong`, e.g. "54 990" — the HTML stores an `&nbsp;` entity
+ *               that cheerio's .text() decodes to U+00A0. ⚠️ parseCzk's whitespace-strip class contains only regular 0x20 spaces
  *               (verified by hexdump + failing probe), so NBSP variants are normalized to a plain
  *               space here BEFORE parseCzk (same pattern as deluxea). No parsable price
  *               ("na vyžádání" / empty) → SKIP the card.
@@ -114,15 +115,32 @@ function parsePrice(raw: string): number | null {
 }
 
 /**
- * Extracts the FIRST date of a `.detail-date` range as ISO. The visible text is
- * "01. 05. - 31. 10. 2026" (year only at the end for same-year ranges; printed with each date
- * when the range crosses years), so: first `d. m.` pair + first year found anywhere in the text.
+ * Extracts the FIRST (departure) date of a `.detail-date` range as ISO. Observed forms:
+ *  - "01. 05. - 31. 10. 2026" — same-year range; the single trailing year covers both dates.
+ *  - "22. 12. - 03. 01. 2027" — cross-year (Christmas/New-Year) range; the year is STILL printed
+ *    only once, at the end, and belongs to the END date (real card "SKRYTÁ TVÁŘ THAJSKA" on the
+ *    thajsko fixture departs 22.12.2026 and returns 3.1.2027). A single trailing year with
+ *    startMonth > endMonth marks the wrap → the start date gets year-1.
+ *  - Defensive: should a year ever be printed per date ("28. 12. 2026 - 10. 01. 2027"), the
+ *    first year found already belongs to the start date and is used as-is.
  */
 function parseFirstDate(text: string): string | null {
-  const dm = text.match(/(\d{1,2})\.\s*(\d{1,2})\./);
-  const year = text.match(/(\d{4})/);
-  if (!dm || !year) return null;
-  return parseCzDate(`${dm[1]}.${dm[2]}.${year[1]}`);
+  const start = text.match(/(\d{1,2})\.\s*(\d{1,2})\./);
+  const years = text.match(/\d{4}/g);
+  if (!start || !years || years.length === 0) return null;
+  if (years.length >= 2) {
+    // One year per date: the first year belongs to the first (start) date.
+    return parseCzDate(`${start[1]}.${start[2]}.${years[0]}`);
+  }
+  // Single trailing year: it belongs to the END date. When the range wraps the year boundary
+  // (start month > end month, e.g. 12 > 1), the departure happens the year before.
+  let year = Number(years[0]);
+  const rest = text.slice((start.index ?? 0) + start[0].length);
+  const end = rest.match(/(\d{1,2})\.\s*(\d{1,2})\./);
+  if (end && Number(start[2]) > Number(end[2])) {
+    year -= 1;
+  }
+  return parseCzDate(`${start[1]}.${start[2]}.${year}`);
 }
 
 /** Board from the hidden list layout: the text node right after `.popis i.fa-utensils`. */
