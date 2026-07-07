@@ -1,6 +1,10 @@
 import { createClient } from '@libsql/client';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
+import { sql } from 'drizzle-orm';
 import * as schema from './schema.js';
+import { offers } from './schema.js';
+import { computeMatchKey } from '../normalize.js';
+import type { NormalizedOffer } from '../types.js';
 
 export type Db = LibSQLDatabase<typeof schema>;
 
@@ -8,6 +12,18 @@ export function openDb(url: string): Db {
   const resolvedUrl = url === ':memory:' ? 'file::memory:' : url;
   const client = createClient({ url: resolvedUrl });
   return drizzle(client, { schema });
+}
+
+// SQLite has no `ALTER TABLE ADD COLUMN IF NOT EXISTS`, so schema evolution on
+// an existing DB file has to check PRAGMA table_info first and only issue the
+// ALTER TABLE when the column is actually missing. Safe to call repeatedly
+// (ensureSchema idempotence).
+async function ensureColumn(db: Db, table: string, column: string, columnDdl: string): Promise<void> {
+  const rows = (await db.all(`PRAGMA table_info(${table})`)) as Array<{ name: string }>;
+  const exists = rows.some(r => r.name === column);
+  if (!exists) {
+    await db.run(`ALTER TABLE ${table} ADD COLUMN ${columnDdl}`);
+  }
 }
 
 export async function ensureSchema(db: Db): Promise<void> {
@@ -75,4 +91,54 @@ export async function ensureSchema(db: Db): Promise<void> {
       error_sample TEXT
     )
   `);
+
+  // Cross-source match key (spec §13) — added after the tables above already
+  // shipped, so existing DB files need an ALTER TABLE rather than relying on
+  // CREATE TABLE IF NOT EXISTS's column list.
+  await ensureColumn(db, 'offers', 'match_key', 'match_key TEXT');
+  await ensureColumn(db, 'notifications_log', 'match_key', 'match_key TEXT');
+
+  await db.run(`
+    CREATE INDEX IF NOT EXISTS offers_match_key_idx ON offers (match_key)
+  `);
+
+  await backfillMatchKeys(db);
+}
+
+// One-off backfill for offers rows written before match_key existed (or
+// before the column had a chance to be populated). Cheap at current scale
+// (single-digit-thousands of offer rows expected for this project) — a full
+// table scan on every ensureSchema call is fine; if offers ever grows large
+// enough for this to matter, switch to tracking a "backfill done" marker.
+async function backfillMatchKeys(db: Db): Promise<void> {
+  const rows = await db
+    .select({
+      id: offers.id,
+      title: offers.title,
+      country: offers.country,
+      board: offers.board,
+      departureAirport: offers.departureAirport,
+      departureDate: offers.departureDate,
+      nights: offers.nights,
+    })
+    .from(offers)
+    .where(sql`${offers.matchKey} IS NULL`);
+
+  for (const row of rows) {
+    // Reconstruct just enough of a NormalizedOffer shape for computeMatchKey —
+    // it only reads title/country/board/departureAirport/departureDate/nights.
+    const pseudoOffer = {
+      title: row.title,
+      country: row.country,
+      board: (row.board ?? 'unknown') as NormalizedOffer['board'],
+      departureAirport: row.departureAirport,
+      departureDate: row.departureDate,
+      nights: row.nights,
+    } as NormalizedOffer;
+
+    const matchKey = computeMatchKey(pseudoOffer);
+    if (matchKey !== null) {
+      await db.update(offers).set({ matchKey }).where(sql`${offers.id} = ${row.id}`);
+    }
+  }
 }

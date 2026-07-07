@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { Board, Transport } from './types.js';
+import type { Board, Transport, NormalizedOffer } from './types.js';
 
 const strip = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
@@ -75,4 +75,78 @@ export function parseCzDate(raw: string | null | undefined): string | null {
 
 export function offerKeyHash(parts: (string | number | null | undefined)[]): string {
   return createHash('sha1').update(parts.map(p => String(p ?? '')).join('|')).digest('hex').slice(0, 16);
+}
+
+// Stopwords stripped from hotel/offer titles for cross-source name canonization
+// (spec §13): generic lodging-type words and the "&"/"and" connective that
+// differ across sources for the otherwise-same property, plus the star-rating
+// glyph some sources append to the title.
+const HOTEL_STOPWORDS = new Set(['hotel', 'resort', 'spa', 'aparthotel', 'apartments', 'wellness', 'and']);
+
+/**
+ * Canonical form of a hotel/offer title for cross-source matching (spec §13):
+ * lowercase, diacritics stripped, "&"/star glyphs and generic lodging
+ * stopwords removed, whitespace collapsed. Not meant to be human-readable —
+ * only used as an input to computeMatchKey's hash.
+ */
+export function normalizeHotelName(raw: string): string {
+  const s = strip(raw)
+    .replace(/★/g, ' ')
+    .replace(/&/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ');
+  const tokens = s.split(/\s+/).filter(t => t.length > 0 && !HOTEL_STOPWORDS.has(t));
+  return tokens.join(' ');
+}
+
+// City name / airport-code -> IATA lookup for cross-source matching (spec §13).
+// Keys are `strip()`-ed (lowercase, no diacritics) so both Czech and non-Czech
+// spellings of the city name resolve to the same code.
+const AIRPORT_BY_KEY = new Map<string, string>([
+  ['praha', 'PRG'],
+  ['brno', 'BRQ'],
+  ['ostrava', 'OSR'],
+  ['pardubice', 'PED'],
+  ['viden', 'VIE'],       // Vídeň
+  ['bratislava', 'BTS'],
+  ['budapest', 'BUD'],    // Budapešť (diacritics-stripped)
+  ['katovice', 'KTW'],
+  ['krakov', 'KRK'],
+  ['wroclaw', 'WRO'],
+]);
+
+/**
+ * Normalize a departure-airport city name or IATA code to its 3-letter IATA
+ * code for cross-source matching (spec §13). Existing 3-letter codes pass
+ * through uppercased; unrecognized input (including empty/nullish) -> null,
+ * which computeMatchKey buckets under a literal '*' rather than merging with
+ * genuinely different airports.
+ */
+export function normalizeAirport(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (/^[a-zA-Z]{3}$/.test(trimmed)) return trimmed.toUpperCase();
+  const hit = AIRPORT_BY_KEY.get(strip(trimmed));
+  return hit ?? null;
+}
+
+/**
+ * Cross-source identity key for a normalized offer (spec §13): sha1 of
+ * [canonName, country, departureDate, nights, board, airportNorm ?? '*'].
+ * Lives here (rather than ingest.ts) because it only needs normalize.ts's own
+ * helpers (normalizeHotelName, normalizeAirport, offerKeyHash) plus the
+ * NormalizedOffer type — no dependency on db/ingest machinery, and it keeps
+ * all offer-canonicalization logic in one module.
+ *
+ * Returns null — deliberately opting the offer out of cross-source matching —
+ * when departureDate is null, board is 'unknown', or country is null: any of
+ * these makes the offer under-specified enough that a wrong merge (treating
+ * two different physical tours as the same one) is a worse outcome than no
+ * merge at all.
+ */
+export function computeMatchKey(o: NormalizedOffer): string | null {
+  if (o.departureDate === null || o.board === 'unknown' || o.country === null) return null;
+  const canonName = normalizeHotelName(o.title);
+  const airportNorm = normalizeAirport(o.departureAirport);
+  return offerKeyHash([canonName, o.country, o.departureDate, o.nights, o.board, airportNorm ?? '*']);
 }

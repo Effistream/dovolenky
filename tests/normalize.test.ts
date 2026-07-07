@@ -1,5 +1,30 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeBoard, normalizeTransport, normalizeCountry, isKnownCountry, parseCzk, parseCzDate, offerKeyHash } from '../src/core/normalize.js';
+import { normalizeBoard, normalizeTransport, normalizeCountry, isKnownCountry, parseCzk, parseCzDate, offerKeyHash, normalizeHotelName, normalizeAirport, computeMatchKey } from '../src/core/normalize.js';
+import type { NormalizedOffer } from '../src/core/types.js';
+
+function makeOffer(overrides: Partial<NormalizedOffer> = {}): NormalizedOffer {
+  return {
+    source: 'invia',
+    sourceOfferKey: 'hotel-x-2026-07-15',
+    title: 'Blue Aegean Resort & Spa',
+    country: 'Řecko',
+    locality: 'Kréta',
+    stars: 4,
+    board: 'AI',
+    transport: 'flight',
+    departureAirport: 'Praha',
+    departureDate: '2026-07-15',
+    nights: 7,
+    pricePerPerson: 16781,
+    priceTotal: 33562,
+    claimedOriginalPrice: 20000,
+    claimedDiscountPct: 16.1,
+    omnibusLowestPrice: 15000,
+    tourOperator: 'Invia',
+    url: 'https://example.com/offer',
+    ...overrides,
+  };
+}
 
 describe('normalize', () => {
   it('board', () => {
@@ -64,5 +89,56 @@ describe('normalize', () => {
     expect(a).toBe(offerKeyHash(['Hotel X', '2026-07-15', 7, 'AI']));
     expect(a).not.toBe(offerKeyHash(['Hotel Y', '2026-07-15', 7, 'AI']));
     expect(a).toMatch(/^[a-f0-9]{16}$/);
+  });
+  it('normalizeHotelName', () => {
+    expect(normalizeHotelName('Blue Aegean Resort & Spa')).toBe('blue aegean');
+    expect(normalizeHotelName('HOTEL Seaden Corolla ★★★★★')).toBe('seaden corolla');
+    expect(normalizeHotelName('Wellness Hotel Vista')).toBe('vista');
+    expect(normalizeHotelName('Jelení Dvůr')).toBe('jeleni dvur');
+  });
+  it('normalizeAirport', () => {
+    expect(normalizeAirport('Praha')).toBe('PRG');
+    expect(normalizeAirport('PRG')).toBe('PRG');
+    expect(normalizeAirport('prg')).toBe('PRG');
+    expect(normalizeAirport('Vídeň')).toBe('VIE');
+    expect(normalizeAirport('Neznámé Město')).toBeNull();
+    expect(normalizeAirport(null)).toBeNull();
+    expect(normalizeAirport(undefined)).toBeNull();
+  });
+  it('computeMatchKey: same canonical fields across sources -> same key', () => {
+    const invia = makeOffer({ source: 'invia', sourceOfferKey: 'invia-1', title: 'Blue Aegean Resort & Spa' });
+    const dovolenkovani = makeOffer({
+      source: 'dovolenkovani',
+      sourceOfferKey: 'dov-1',
+      title: 'HOTEL Blue Aegean ★★★★',
+      departureAirport: 'PRG',
+    });
+    const keyA = computeMatchKey(invia);
+    const keyB = computeMatchKey(dovolenkovani);
+    expect(keyA).not.toBeNull();
+    expect(keyA).toBe(keyB);
+  });
+  it('computeMatchKey: board unknown -> null', () => {
+    expect(computeMatchKey(makeOffer({ board: 'unknown' }))).toBeNull();
+  });
+  it('computeMatchKey: departureDate null -> null', () => {
+    expect(computeMatchKey(makeOffer({ departureDate: null }))).toBeNull();
+  });
+  it('computeMatchKey: country null -> null', () => {
+    expect(computeMatchKey(makeOffer({ country: null }))).toBeNull();
+  });
+  it('computeMatchKey: different airport -> different key', () => {
+    const prg = computeMatchKey(makeOffer({ departureAirport: 'Praha' }));
+    const brq = computeMatchKey(makeOffer({ departureAirport: 'Brno' }));
+    expect(prg).not.toBeNull();
+    expect(brq).not.toBeNull();
+    expect(prg).not.toBe(brq);
+  });
+  it('computeMatchKey: airport null vs PRG -> different key (null buckets under *)', () => {
+    const nullAirport = computeMatchKey(makeOffer({ departureAirport: null }));
+    const prg = computeMatchKey(makeOffer({ departureAirport: 'PRG' }));
+    expect(nullAirport).not.toBeNull();
+    expect(prg).not.toBeNull();
+    expect(nullAirport).not.toBe(prg);
   });
 });
