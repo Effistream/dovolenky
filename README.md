@@ -2,7 +2,7 @@
 
 ## Co to je
 
-Osobní hlídač zájezdů. Každé 2 hodiny stahuje nabídky z 9 českých cestovních zdrojů,
+Osobní hlídač zájezdů. Každé 2 hodiny stahuje nabídky z 10 českých cestovních zdrojů,
 ukládá cenovou historii a počítá **reálnou slevu**: skutečný rozdíl proti vlastní
 historii nabídky nebo proti trhu, ne přeškrtnutou cenu, kterou napíše zdroj. Když
 nabídka splní prahy nastavené v `config/watch.yaml`, pošle zprávu na Telegram;
@@ -20,6 +20,7 @@ jednou denně navíc souhrnný digest top 10 nabídek.
 | Zajezdy.cz | `window.searchData` JSON z sady destinačních stránek, jen v okně 08–24 h (robots) |
 | Dovolena.cz | `tripListing` API (provozuje Student Agency); hotel-level ceny, bez konkrétních termínů |
 | eTravel | `getsearchresult` API; jediný zdroj s oficiálním Omnibus 30denním minimem (`lowestPrice`) |
+| Dovolenkovani.cz | CESYS white-label API (`dates-list`) — termíny, ceny za osobu i uváděné slevy; jména hotelů dopočtená ze sitemapy (`accommodations.xml`) |
 | Slevomat | přímo neběží (Cloudflare) — nabídky bereme přes **Skrz.cz**, který je agreguje |
 
 ## Setup krok za krokem

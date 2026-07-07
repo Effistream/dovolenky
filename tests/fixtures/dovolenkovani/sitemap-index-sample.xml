@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+	<sitemap>
+		<loc>https://dovolenkovani.cz/pages.xml</loc>
+	</sitemap>
+	<sitemap>
+		<loc>https://dovolenkovani.cz/accommodations.xml</loc>
+	</sitemap>
+			<sitemap>
+			<loc>https://dovolenkovani.cz/am-accommodations.xml</loc>
+		</sitemap>
+	</sitemapindex>

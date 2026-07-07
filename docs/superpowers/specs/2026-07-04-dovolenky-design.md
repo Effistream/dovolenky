@@ -78,6 +78,7 @@ přímý adapter případně později.
 | 7 | **Dovolena.cz** | GET `https://dovolena.cz/api/trip-listing/tripListing?destination=<id>&adult=2&page=N…` (10/str.; provozuje Student Agency) | `hotels[].priceInfo.regular.amount` (za os.) + `.group.amount`; strava/doprava v additionalInfo; sleva jen label `discounticon` — původní cena neexistuje. ⚠️ robots.txt zakazuje `/api/` — akceptováno pro osobní použití při 1×/2 h a malém počtu dotazů (vědomé rozhodnutí, viz §9). |
 | 8 | **eTravel** | GET `/api/searchapi/getsearchresult?d=<id>&dd=&rd=&nn=&ac1=2&ilm=1…`; číselníky destinací z `/api/searchfilter/getfilter` | `tours[]`: hotel.name, breadcrumbs (země/destinace), date.from/to, price.total, price.adultPrice, price.discount, **price.lowestPrice = Omnibus 30denní minimum**, discountPill. Bez auth, robots permisivní. |
 | 9 | **Skrz** | GET fixní sada listing URL (`/dovolena-more/destinace:<slug>`, `/pobyty/destinace:<slug>` ze sitemap.xml); parsovat escaped `"deals":[…]` JSON z RSC payloadu | Pole: title, **serverTitle (zdrojový portál, vč. „Slevomat")**, priceFinal, discountInPercent, breadcrumbs (země>region>město), board, days/nights, persons, transport, deptPlace, merchant{title=hotel, stars}, detailUrl (`?dt=` = datum odjezdu u zájezdů). 24 nabídek/URL, offset nefunguje → pokrytí šířkou URL. Vyhnout se `/koupit/`, sort/filter variantám (robots). |
+| 10 | **Dovolenkovani.cz** (přidáno 2026-07-07) | White-label platformy **CESYS** (TRAVEL Group s.r.o.). Hybrid: (a) GET `https://dovolenkovani.cz/accommodations.xml` → mapa hotel id→{slug, URL} (kód `6a` → id 6); (b) GET `https://api-ng.cesys.eu/online/v1.4/cs/mapping/countries?client_id=12274&lang=cs` → id→země; (c) POST `https://api-ng.cesys.eu/online/v1.4/cs/cesys/dates-list?client_id=12274&lang=cs` (Content-Type application/json, **bez auth** — ověřeno curl) s body {page, date{from,to}, duration{from,to}, composition{adults:2,children:[]}, price{from,to}, transport_id:["1"], rows_on_page:30, sort:["price asc","date_from asc"], client_id:"12274", customer_id:"2119"} — funguje i bez hotel_id (cross-hotel). | Odpověď `data.dates[]`: master_id (hotel id), date_from/date_to (ISO), duration_night, boarding ("All inclusive"), boarding_id, transport ("Letecká"), airport/airport_code (PRG), price_from.CZK (float — **ověřit per-person vs total pro adults:2!**), discount + discount_percent (ve vzorcích null — guard), country (číselné id → mapping), destination (id, ve v1 nemapovat), rating (hvězdy float), tour_operator.name (agreguje Čedok aj.), last_minute (bool), package_id. Jméno hotelu jen číselně → doplnit ze sitemap mapy, jinak „Hotel <id>". ⚠️ robots.txt dovolenkovani.cz jmenovitě blokuje ClaudeBot aj. — používat výhradně standardní Chrome UA projektu; api-ng.cesys.eu je interní API třetí strany → vědomá odchylka dle §9, max ~6 requestů/běh. |
 
 Politeness pravidla společná: ≥3 s mezi requesty na tentýž host (Zajezdy 5 s), Chrome UA,
 1 běh / 2 h, cíl ~50–150 requestů/běh celkem. Fischer/Exim/eTravel sdílejí platformu
@@ -240,3 +241,31 @@ scan:
 - Cross-source dedup (týž hotel+termín u více zdrojů) — v1 je každý zdroj samostatná nabídka.
 - Vercel deploy (cron routes + Turso) — architektura na to připravena.
 - Telegram příkazy (/top, /pause), web UI, více uživatelů.
+
+## 13. Cross-source dedup (přidáno 2026-07-07)
+
+Stejný fyzický zájezd (hotel × termín × strava × odlet) prodává více zdrojů (Invia, Dovolenkovani,
+Skrz… agregují tytéž CK). Bez dedupu hrozí vícenásobné notifikace, duplicitní digest a nadvážení
+tržního mediánu.
+
+**Match key** (uložen jako `offers.match_key`):
+`sha1[canonName, country, departureDate, nights, board, airportNorm]` kde
+- `canonName` = normalizeHotelName(title): lowercase, bez diakritiky, odstranit stopslova
+  (hotel, resort, spa, aparthotel, apartments, wellness, &, and, „★"), zkolabovat mezery;
+- `airportNorm` = normalizeAirport(departureAirport): město/kód → IATA (Praha→PRG, Brno→BRQ,
+  Ostrava→OSR, Pardubice→PED, Vídeň→VIE, Bratislava→BTS, Budapešť→BUD, Katovice→KTW,
+  Krakov→KRK, Wroclaw→WRO), null → `*`;
+- pokud `departureDate` null nebo `board` unknown → match_key = null (žádné cross-source
+  párování; konzervativní: chybné sloučení je horší než nesloučení).
+
+**Konzumenti:**
+1. **Notifikace**: kandidáti se před odesláním seskupí podle match_key; posílá se jeden
+   (nejlevnější) s řádkem „Také: <zdroj> <cena> Kč" pro alternativy (max 3, seřazené).
+   Dedup v `notifications_log` přechází z (offerId, type) na (match_key ?? offerId, type) —
+   nový sloupec `match_key` v logu; re-notify pravidla (−5 % / 7 dní) platí pro skupinu.
+2. **Digest**: top-10 po seskupení podle match_key (reprezentant = nejlevnější).
+3. **Tržní baseline**: v koši se bere MIN(cena) na match_key skupinu (nenadvažovat
+   agregovaný inventář).
+
+Fuzzy matching jmen (Levenshtein/token overlap) je mimo scope — jen kanonizace + exact match;
+zdokumentovat míru sloučení v testu na reálných fixtures.
