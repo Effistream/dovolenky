@@ -4,7 +4,7 @@
  * run under node with no DOM. Formatting follows design-system/MASTER.md: Czech
  * copy, concrete numbers, no exclamations.
  */
-import type { Offer, ProfileFilter } from './types.js';
+import type { ProfileFilter } from './types.js';
 
 /** Non-breaking space so "9 990 Kč" never wraps between digits and unit. */
 const NBSP = ' ';
@@ -66,46 +66,10 @@ export function formatDiscount(realPct: number | null): string {
 }
 
 /**
- * Board default order: real discount descending, nulls last (offers still
- * collecting history sink to the bottom). Stable and non-mutating so callers can
- * feed React state directly. Mirrors buildOffers' server-side sort so the client
- * order is identical after client-side country filtering removes rows.
- */
-export function sortOffers(offers: Offer[]): Offer[] {
-  return [...offers].sort((a, b) => {
-    if (a.realPct == null && b.realPct == null) return 0;
-    if (a.realPct == null) return 1;
-    if (b.realPct == null) return -1;
-    return b.realPct - a.realPct;
-  });
-}
-
-export interface OfferFilter {
-  /** Selected countries (multi-select). Empty = all countries. */
-  countries: string[];
-}
-
-/**
- * Client-side country filter. Profiles are applied server-side (the API owns the
- * exact profile-match logic via matchProfiles), so this only narrows by the
- * country multi-select derived from the loaded rows. Empty selection = pass-all.
- */
-export function filterOffers(offers: Offer[], filter: OfferFilter): Offer[] {
-  if (filter.countries.length === 0) return offers;
-  const wanted = new Set(filter.countries);
-  return offers.filter((o) => o.country != null && wanted.has(o.country));
-}
-
-/** Distinct, alphabetically sorted country list from the loaded offers. */
-export function countriesOf(offers: Offer[]): string[] {
-  const set = new Set<string>();
-  for (const o of offers) if (o.country) set.add(o.country);
-  return [...set].sort((a, b) => a.localeCompare(b, 'cs'));
-}
-
-/**
  * Maps a profile chip to the /api/offers `profile=` query value. 'all' → no
- * param (undefined); the other two pass their config key verbatim.
+ * param (undefined); the other two pass their config key verbatim. Board sorting
+ * and filtering now live in lib/filters.ts (Task 29); this module keeps only the
+ * cell formatters + profile mapping still used by BoardRow/App.
  */
 export function profileParam(profile: ProfileFilter): string | undefined {
   return profile === 'all' ? undefined : profile;

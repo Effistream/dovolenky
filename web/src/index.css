@@ -106,11 +106,8 @@ body {
 .dot.partial { background: var(--amber); }
 .dot.warn { background: var(--warn); }
 
-/* ── Filtry ─────────────────────────────── */
-.filters {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding: 6px 0 16px;
-}
+/* ── Filtry (FilterBar, Task 29) ────────── */
+.filterbar { padding: 6px 0 16px; }
 .chip {
   font-family: var(--sans); font-size: 14px; font-weight: 600;
   padding: 7px 14px; border-radius: 999px; cursor: pointer;
@@ -122,11 +119,77 @@ body {
 .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
 .chip--country { font-weight: 400; padding: 6px 12px; font-size: 13.5px; }
 .chip--country[aria-pressed="true"] { background: var(--ink-3); border-color: var(--ink-3); }
-.filters .gap { width: 10px; }
-.threshold {
-  margin-left: auto; font-family: var(--mono); font-size: 12px;
-  color: var(--txt-muted); letter-spacing: 0.04em;
+
+/* Rows: a labelled group per facet, chips wrapping under a mono caps legend. */
+.fb-row, .fb-secondary {
+  display: flex; align-items: flex-start; gap: 8px 18px; flex-wrap: wrap;
 }
+.fb-secondary {
+  margin-top: 12px; padding-top: 14px; border-top: 1px solid var(--line);
+}
+.fb-group {
+  border: 0; margin: 0; padding: 0;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.fb-label {
+  font-family: var(--mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.12em; color: var(--txt-muted);
+  padding: 0; margin-right: 4px; align-self: center;
+}
+.fb-sort { margin-left: auto; }
+
+/* „+ dalších N" country reveal — a quiet link-style toggle, not a chip. */
+.fb-more-countries {
+  font-family: var(--sans); font-size: 13px; font-weight: 600;
+  color: var(--txt-muted); background: transparent; border: 0; cursor: pointer;
+  padding: 6px 4px; text-decoration: underline; text-underline-offset: 3px;
+}
+.fb-more-countries:hover { color: var(--txt); }
+.fb-more-countries:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+
+/* Controls line: „Více filtrů (N)" + „Vymazat vše". */
+.fb-controls {
+  display: flex; align-items: center; gap: 14px; margin-top: 12px;
+}
+.fb-toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--sans); font-size: 13.5px; font-weight: 600;
+  color: var(--txt); background: transparent;
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 14px; cursor: pointer;
+  transition: border-color 150ms ease-out;
+}
+.fb-toggle:hover { border-color: #b9c1ca; }
+.fb-toggle:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.fb-count {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--ink); color: #fff; font-variant-numeric: tabular-nums;
+}
+.fb-clear {
+  font-family: var(--sans); font-size: 13.5px; font-weight: 600;
+  color: var(--txt-muted); background: transparent; border: 0; cursor: pointer;
+  padding: 6px 4px; text-decoration: underline; text-underline-offset: 3px;
+}
+.fb-clear:hover { color: var(--warn); }
+.fb-clear:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
+
+/* Inputs: native number/date styled to tokens (no heavy dropdown libs). */
+.fb-input {
+  font-family: var(--mono); font-size: 13px; color: var(--txt);
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 10px; width: 96px;
+  font-variant-numeric: tabular-nums;
+}
+.fb-input:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.fb-date { width: auto; }
+.fb-datelbl {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
+  color: var(--txt-muted);
+}
+.fb-dates { gap: 6px 14px; }
 
 /* ── Tabule ─────────────────────────────── */
 .board {
@@ -360,5 +423,6 @@ footer.note {
   .detail { grid-template-columns: 1fr; }
   .cards { grid-template-columns: 1fr; }
   .sources { grid-template-columns: 1fr 1fr; }
-  .threshold { display: none; }
+  /* On mobile the sort group drops to the next line instead of hugging right. */
+  .fb-sort { margin-left: 0; }
 }

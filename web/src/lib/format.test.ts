@@ -4,43 +4,9 @@ import {
   formatNumber,
   discountTone,
   formatDiscount,
-  sortOffers,
-  filterOffers,
-  countriesOf,
   profileParam,
   sparklinePath,
 } from './format.js';
-import type { Offer } from './types.js';
-
-// A minimal offer factory — only the fields a given test asserts on matter.
-function offer(over: Partial<Offer> = {}): Offer {
-  return {
-    id: 1,
-    source: 'invia',
-    title: 'Hotel',
-    country: 'Řecko',
-    locality: 'Kréta',
-    stars: 4,
-    board: 'AI',
-    transport: 'flight',
-    departureAirport: 'PRG',
-    departureDate: '2026-08-15',
-    nights: 7,
-    pricePerPerson: 12000,
-    priceTotal: 24000,
-    claimedOriginalPrice: null,
-    claimedDiscountPct: null,
-    tourOperator: null,
-    url: 'https://x/1',
-    realPct: 20,
-    reference: 'market',
-    baseline: 15000,
-    fake: false,
-    alternatives: [],
-    sparkline: [],
-    ...over,
-  };
-}
 
 describe('formatCzk', () => {
   it('groups thousands with a non-breaking space and Kč suffix', () => {
@@ -97,58 +63,6 @@ describe('formatDiscount', () => {
   });
   it('null → empty', () => {
     expect(formatDiscount(null)).toBe('');
-  });
-});
-
-describe('sortOffers', () => {
-  it('sorts by realPct desc with nulls last, without mutating', () => {
-    const input = [
-      offer({ id: 1, realPct: 10 }),
-      offer({ id: 2, realPct: null }),
-      offer({ id: 3, realPct: 31 }),
-      offer({ id: 4, realPct: 15 }),
-    ];
-    const out = sortOffers(input);
-    expect(out.map((o) => o.id)).toEqual([3, 4, 1, 2]);
-    // original untouched
-    expect(input.map((o) => o.id)).toEqual([1, 2, 3, 4]);
-  });
-  it('keeps both-null pairs stable', () => {
-    const input = [offer({ id: 1, realPct: null }), offer({ id: 2, realPct: null })];
-    expect(sortOffers(input).map((o) => o.id)).toEqual([1, 2]);
-  });
-});
-
-describe('filterOffers', () => {
-  const offers = [
-    offer({ id: 1, country: 'Řecko' }),
-    offer({ id: 2, country: 'Turecko' }),
-    offer({ id: 3, country: null }),
-  ];
-  it('empty selection passes everything through', () => {
-    expect(filterOffers(offers, { countries: [] }).map((o) => o.id)).toEqual([1, 2, 3]);
-  });
-  it('keeps only selected countries', () => {
-    expect(filterOffers(offers, { countries: ['Řecko'] }).map((o) => o.id)).toEqual([1]);
-    expect(
-      filterOffers(offers, { countries: ['Řecko', 'Turecko'] }).map((o) => o.id),
-    ).toEqual([1, 2]);
-  });
-  it('drops null-country rows when a filter is active', () => {
-    expect(filterOffers(offers, { countries: ['Turecko'] }).map((o) => o.id)).toEqual([2]);
-  });
-});
-
-describe('countriesOf', () => {
-  it('returns distinct, cs-sorted, non-null countries', () => {
-    const offers = [
-      offer({ country: 'Turecko' }),
-      offer({ country: 'Řecko' }),
-      offer({ country: 'Řecko' }),
-      offer({ country: null }),
-      offer({ country: 'Egypt' }),
-    ];
-    expect(countriesOf(offers)).toEqual(['Egypt', 'Řecko', 'Turecko']);
   });
 });
 

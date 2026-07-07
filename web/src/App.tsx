@@ -1,29 +1,47 @@
 /**
- * Terminál shell (Task 26): header + status line, filter chips, the departure
+ * Terminál shell. Header + status line, the FilterBar (Task 29), the departure
  * board, and the two light cards. State lives here:
  *  - profile (single-select) → drives the server-side /api/offers?profile= query
- *  - activeCountries (multi-select) → client-side country filter over the result
- *  - expandedId → which row's detail slot is open (Task 27 fills the slot)
- * Offers refetch when the profile changes; countries filter/sort in the browser.
+ *  - filters (FilterState) → the full client-side filter/sort panel, applied over
+ *    the loaded offer set and mirrored into the URL query (shareable/bookmarkable)
+ *  - expandedId → which row's detail slot is open
+ * Offers refetch only when the profile changes; every other filter and the sort
+ * run in the browser over that loaded set (the API returns the full active set).
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StatusLine } from './components/StatusLine.js';
-import { FilterChips } from './components/FilterChips.js';
+import { FilterBar } from './components/FilterBar.js';
 import { Board } from './components/Board.js';
 import { OfferDetail } from './components/OfferDetail.js';
 import { MarketCards } from './components/MarketCards.js';
 import { fetchOffers, fetchSources, fetchStats, useAsync } from './lib/api.js';
+import { profileParam } from './lib/format.js';
 import {
-  countriesOf,
-  filterOffers,
-  profileParam,
-  sortOffers,
-} from './lib/format.js';
+  applyFilterAndSort,
+  emptyFilterState,
+  parseFilterState,
+  serializeFilterQuery,
+  type FilterState,
+} from './lib/filters.js';
 import type { ProfileFilter } from './lib/types.js';
+
+/** Read the current window query into a FilterState (SSR-safe guard for tests). */
+function stateFromUrl(): FilterState {
+  if (typeof window === 'undefined') return emptyFilterState();
+  return parseFilterState(window.location.search.replace(/^\?/, ''));
+}
+
+/** Mirror the state into the address bar without a history entry. */
+function syncUrl(state: FilterState): void {
+  if (typeof window === 'undefined') return;
+  const query = serializeFilterQuery(state);
+  const url = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+  window.history.replaceState(null, '', url);
+}
 
 export function App() {
   const [profile, setProfile] = useState<ProfileFilter>('all');
-  const [activeCountries, setActiveCountries] = useState<string[]>([]);
+  const [filters, setFilters] = useState<FilterState>(stateFromUrl);
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   // Offers refetch on profile change; sources/stats load once (they don't depend
@@ -36,19 +54,24 @@ export function App() {
   const statsState = useAsync((signal) => fetchStats(signal), []);
 
   const allOffers = offersState.data?.offers ?? [];
-  const countries = useMemo(() => countriesOf(allOffers), [allOffers]);
 
-  // Client-side: keep only selected countries, then re-apply the board's sort.
+  // Client-side: apply the full filter panel, then the chosen sort.
   const visibleOffers = useMemo(
-    () => sortOffers(filterOffers(allOffers, { countries: activeCountries })),
-    [allOffers, activeCountries],
+    () => applyFilterAndSort(allOffers, filters),
+    [allOffers, filters],
   );
 
-  const toggleCountry = (c: string): void => {
-    setActiveCountries((prev) =>
-      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c],
-    );
+  // Keep the URL in step with the filter state (replaceState — no history spam).
+  useEffect(() => {
+    syncUrl(filters);
+  }, [filters]);
+
+  const onFilters = (next: FilterState): void => {
+    setFilters(next);
+    setExpandedId(null); // a filter change invalidates the open detail
   };
+
+  const onClear = (): void => onFilters(emptyFilterState());
 
   const onProfile = (p: ProfileFilter): void => {
     setProfile(p);
@@ -68,12 +91,13 @@ export function App() {
         <StatusLine sources={sourcesState.data?.sources ?? null} loading={sourcesState.loading} />
       </header>
 
-      <FilterChips
+      <FilterBar
+        offers={allOffers}
         profile={profile}
         onProfile={onProfile}
-        countries={countries}
-        activeCountries={activeCountries}
-        onToggleCountry={toggleCountry}
+        state={filters}
+        onChange={onFilters}
+        onClear={onClear}
       />
 
       <Board

@@ -55,10 +55,11 @@ test('(b) country chip filters rows and updates the count', async ({ page }) => 
   const rowsBefore = await page.locator('button.row').count();
   expect(rowsBefore).toBe(11);
 
-  // Řecko chip → only Řecko rows remain. Seeded Řecko offers: Poseidon Beach,
-  // Aegean Star, Rhodos Bay → 3 rows.
+  // FilterBar country chips carry a count suffix ("Řecko 3"). The Řecko chip →
+  // only Řecko rows remain: Poseidon Beach, Aegean Star, Rhodos Bay → 3 rows.
   const recko = page.locator('button.chip--country', { hasText: 'Řecko' });
   await expect(recko).toBeVisible();
+  await expect(recko).toContainText('Řecko 3'); // count derived from data
   await recko.click();
 
   await expect(recko).toHaveAttribute('aria-pressed', 'true');
@@ -68,10 +69,65 @@ test('(b) country chip filters rows and updates the count', async ({ page }) => 
   // A non-Řecko offer must be gone.
   await expect(page.getByText('Hotel Sunrise Garden')).toHaveCount(0);
 
-  // Toggle back off → all rows return.
+  // The active-filter badge shows 1 and „Vymazat vše" appears.
+  await expect(page.locator('.fb-toggle .fb-count')).toHaveText('1');
+  await expect(page.locator('button.fb-clear')).toBeVisible();
+
+  // Toggle back off → all rows return, badge and clear disappear.
   await recko.click();
   await expect(recko).toHaveAttribute('aria-pressed', 'false');
   await expect(page.locator('button.row')).toHaveCount(11);
+  await expect(page.locator('.fb-toggle .fb-count')).toHaveCount(0);
+  await expect(page.locator('button.fb-clear')).toHaveCount(0);
+});
+
+test('(b2) combined filters (země + noci pásmo + cena) narrow to the seeded subset', async ({ page }) => {
+  await waitForBoard(page);
+
+  // Open the secondary rows to reach noci / cena.
+  await page.locator('button.fb-toggle').click();
+
+  // Turecko (3 seeded: Blue Lagoon 18 400, Lara Palace 21 400, Marmaris 12 400).
+  const turecko = page.locator('button.chip--country', { hasText: 'Turecko' });
+  await turecko.click();
+  await expect(page.locator('button.row')).toHaveCount(3);
+
+  // + noci 6–8 (all seeded offers are 7 nights → keeps all three).
+  await page.locator('.fb-group', { hasText: 'NOCI' }).locator('button.chip', { hasText: '6–8' }).click();
+  await expect(page.locator('button.row')).toHaveCount(3);
+
+  // + cena max 15 tis. → only Marmaris Deal (12 400) survives.
+  await page.locator('.fb-group', { hasText: 'CENA MAX' }).locator('button.chip', { hasText: '15 tis.' }).click();
+  await expect(page.locator('button.row')).toHaveCount(1);
+  await expect(page.getByText('Hotel Marmaris Deal')).toBeVisible();
+  await expect(page.getByText('Hotel Blue Lagoon')).toHaveCount(0);
+
+  // Three dimensions active → badge reads 3.
+  await expect(page.locator('.fb-toggle .fb-count')).toHaveText('3');
+
+  // „Vymazat vše" returns the full set and clears the badge.
+  await page.locator('button.fb-clear').click();
+  await expect(page.locator('button.row')).toHaveCount(11);
+  await expect(page.locator('.fb-toggle .fb-count')).toHaveCount(0);
+});
+
+test('(b3) a pre-set URL query restores the filtered board on load', async ({ page }) => {
+  // Deep-link straight to a Turecko + max-15k board (same subset as b2's end).
+  await page.goto('/?country=Turecko&maxPrice=15000');
+  await expect(page.locator('button.row').first()).toBeVisible();
+
+  await expect(page.locator('button.row')).toHaveCount(1);
+  await expect(page.getByText('Hotel Marmaris Deal')).toBeVisible();
+  // The Turecko chip is restored to the pressed state from the URL.
+  const turecko = page.locator('button.chip--country', { hasText: 'Turecko' });
+  await expect(turecko).toHaveAttribute('aria-pressed', 'true');
+  // Two dimensions encoded in the URL → badge reads 2.
+  await expect(page.locator('.fb-toggle .fb-count')).toHaveText('2');
+
+  // Clearing wipes the query back to a bare path.
+  await page.locator('button.fb-clear').click();
+  await expect(page.locator('button.row')).toHaveCount(11);
+  expect(new URL(page.url()).search).toBe('');
 });
 
 test('(c) profile chip refetches and changes the offer set', async ({ page }) => {
