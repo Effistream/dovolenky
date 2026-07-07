@@ -8,6 +8,7 @@ import { etravel } from './etravel.js';
 import { fischer } from './fischer.js';
 import { eximtours } from './eximtours.js';
 import { dovolena } from './dovolena.js';
+import { dovolenkovani } from './dovolenkovani.js';
 
 /** All production source adapters, in scan order. */
 export const adapters: SourceAdapter[] = [
@@ -20,4 +21,5 @@ export const adapters: SourceAdapter[] = [
   fischer,
   eximtours,
   dovolena,
+  dovolenkovani,
 ];
