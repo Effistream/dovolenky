@@ -352,3 +352,79 @@ hotel → „tento hotel", locality → „<lokalita>" (např. „Kréta"), mark
 Board buňka i detail-verdikt vždy uvedou, se kterým stupněm se srovnává, aby uživatel viděl sílu.
 
 Mimo scope v2: fuzzy matching jmen hotelů (jen kanonizace + exact hotel_key).
+
+## 16. Exotika — 6 nových zdrojů + rozšíření dotazů + profil (přidáno 2026-07-07, na požadavek uživatele)
+
+Uživatel: „A taky mi tam chybí nějaká víc exotika… bylo by potřeba přidat další kolo cestovek
+a agentur." Schváleno (AskUserQuestion): všech 6 kandidátů z reconu + rozšíření dotazů
+stávajících zdrojů + nový watch profil `exotika`. Recon 2026-07-07 (10 paralelních agentů,
+plný výstup v transkriptu): **zamítnuti** marcopolo.cz (mrtvá/parkovaná doména),
+kilroy.cz (přesměrování na anglický kilroy.net, konzultativní model bez ceníků),
+blueskytravel.cz (marginální katalog ~20-60 nabídek, MagicWare/ASP.NET — backlog).
+exotika.cz je 301 alias esotravel.cz (jeden adapter).
+
+### 16.1 Nové zdroje (řádky 11–16 tabulky §3)
+
+| # | Zdroj | Strategie | Klíčové detaily |
+|---|-------|-----------|-----------------|
+| 11 | **FIRO Travel** (www.firotravel.cz; firotour.cz je mrtvá doména) | Klon CESYS platformy řádku 10 přes sdílenou factory: POST `https://api-ng.cesys.eu/online/v1.4/cs/cesys/dates-list?client_id=12352&lang=cs`, body jako řádek 10 s client_id "12352", customer_id "3593"; GET `/mapping/countries?client_id=12352`; sitemap `https://www.firotravel.cz/accommodations.xml`; detail-redirect fallback jmen hotelů (ověřit URL pattern živě — CESYS variant 11). | Ověřeno živě: price_from.CZK = per-person (adults:1 == adults:2 pro týž master_id). `country_id:["220",…]` v body FILTRUJE server-side; exotické CESYS ids (globální napříč klienty): Thajsko 220, Maledivy 131, Mauricius 138, SAE 198, Dominikánská 46, Mexiko 142, Seychely 192, Srí Lanka 215, Tanzanie 219, Kuba 112, Vietnam 239, Kapverdy 102, Egypt 48. Agreguje Coral Travel, Čedok, TUI, Fischer CK, Rainbow Tours. ⚠️ `sort:["discount desc"]` → server 500, jen price/date_from sorty. discount_percent zpravidla null → guard jako řádek 10. ⚠️ robots.txt jmenovitě blokuje ClaudeBot → výhradně standardní Chrome UA (vědomá odchylka §9, stejná jako řádek 10). |
+| 12 | **Alexandria** (alexandria.cz) | Čisté JSON API bez HTML: GET `https://bck-new.alexandria.cz/web-search?page=N[&location=<id>]` → `{packages[], total}`; ~18/str. Exotika je sezónní (zima) → dotazovat exotické location ids + default feed. Location ids ověřené živě: Bali 453246, Maledivy 3175, Emiráty 8288, Dominikánská 3030, Seychely 5899, Mexiko 3163, Srí Lanka 453555. Strom destinací: GET `https://bck.alexandria.cz/filter-location` (jednorázově, ids hardcodovat). | `packages[]`: tour_name (hotel), detail (slug pro URL), country_name/state_name/destination_name, start/end (ISO), days/nights, board_name, transport_name, departure_location_name, accommodation_category (hvězdy), rooms[], persons. **package_price = celková cena za skupinu (2 os.), original_price = přeškrtnutá** → pricePerPerson = package_price/persons; sleva z original_price (0/null → guard). Žádný anti-bot, robots permisivní, otevřené CORS. Bespoke backend (žádná platforma k reuse). |
+| 13 | **Deluxea** (deluxea.cz) | SSR Nette: GET country listingy (`/hotely-<slug>/`, slugs ověřit živě ze sitemap; ~8-12 exotických stránek/scan, 8 hotelů/str.). Karta nese **kompletní offer JSON v atributu `data-json`** na `<form class="offline-data hotel-comparator-form">` — HTML-entity-unescape → JSON.parse. Viditelné ceny v DOM jsou „-" placeholdery (hydratace client-side z data-json) → NIKDY neparsovat text DOM. | data-json: price = per-person od-cena klíčovaná nights (`{"7":"37 690"}`, mezera = tisíce), total, total_per_night, old_price/old_total (přeškrtnutá; == price když bez slevy), diff_total (CZK delta, 0 = bez slevy), meal (Snídaně/Polopenze/All Inclusive), full_date („10. 09. - 19. 09. 2026")/date_from/date_to, tickets_company_name (aerolinka). Sleva % dopočtem diff_total/old_price. Jméno hotelu, hvězdy (span.beutystar), země (span.destination-name), lokalita — ze statického HTML karty. Sitemap 1760 URL, drtivě long-haul (Maledivy 113, Emiráty 110, Mauricius 68…). robots: ClaudeBot NEblokován, cílové cesty povolené. |
+| 14 | **ESO travel** (esotravel.cz; exotika.cz = 301 alias) | SSR PHP: GET `/dovolena/{country}/zajezdy/` pro exotické země + `/last-minute/zajezdy/` (~10-15 stránek/scan, 15-30 karet/str.; „Načíst další" jen odkrývá už-přítomné `.hidden` karty — žádný další request). | Karta: h2 = název (okruh/hotel), .tour-type span = země, .detail-date = termín, span.days = „15 dní / 12 nocí", div.price strong = od-cena/os. (oddělovač U+00A0!), a[href] s `?termin={id}` = klíč+URL. **Žádná přeškrtnutá cena ani sleva % nikde na webu** (ESO staví na absolutních „od X Kč") → claimed* vždy null; price-drop tracking čistě z našich snapshotů. Board na listingu není → 'unknown'. robots plně permisivní (`Disallow:` prázdné). |
+| 15 | **Adventura** (adventura.cz) | SSR PHP+AngularJS (hydratováno server-side): (a) GET `/sitemap.xml` → 969 `/zajezdy/{id}-{slug}/` detail URL; filtr exotických slugů (tokeny zemí) → deterministický bounded výběr; (b) GET až **25 detail stránek/scan**; parsovat `table.date-list` — jeden řádek = jeden termín. ⚠️ NIKDY nepoužívat `?druh=`/`?destinace=` filtr URL (client-side only + částečně robots-blocked `Disallow: /zajezdy/?*&*`). | Detail řádek: td.range span.term („11. 11. – 23. 11. 2026"), td.length („13 dní"), span.price-value strong (aktuální CZK), span.discount-percentage („-2%"), small.line-through.original-price (přeškrtnutá), td.code (kód zájezdu → sourceOfferKey). Země z titulku/p.sub přes isKnownCountry (multi-country okruhy „Réunion a Mauricius" → konzervativně první známá/null). Doprava/strava regex z prózy div.graybox.terms (letecky/snídaně…). Cloudflare pasivní (200 na Chrome UA). ⚠️ robots jmenovitě blokuje ClaudeBot + Content-Signal ai-train=no → výhradně Chrome UA, nízká kadence (odchylka §9). |
+| 16 | **Datour** (datour.cz; anchoice.cz whitelabel, agency_id 88) | Čisté JSON API: **GET `https://search.anchoice.cz/web-search?page=N&location=<id>&package=0`** (+ header `Referer: https://datour.cz/`) → `{total, total_docs, packages[]}`, 18/str. Param `location` odchycen živě z frontendu 2026-07-07 (Playwright; URL `/vyhledavani?page=1&location=30182`). Country location ids ověřené živě: Maledivy 30182, Thajsko 29828, Zanzibar 452587, Mauricius 451780, Dominikánská 28824, SAE 30594, Kuba 28796, Vietnam 29920, Seychely 28075, Srí Lanka 450831, Indonésie 29632, Mexiko 29011, Keňa 27990, Filipíny 29724. (POST `/search` z reconu má nefunkční filtr — nepoužívat.) | `packages[]`: tour_name, country_name/country_id, state_name, destination_name, start/end (ISO), nights/days, board_name, transport_name, **unit_price = za osobu** (package_price bývá 0.0 → nepoužívat), original_price + package_discount (často 0 → guard→null), accommodation_category ("3.0" → int hvězdy), provider_name (Čedok, Coral…→ tourOperator), trip_advisor, detail (slug), item_id. Agreguje 23k+ nabídek napříč CK. ⚠️ robots jmenovitě blokuje „claudebot" → výhradně Chrome UA (odchylka §9). ⚠️⚠️ Klientský bundle leakuje Elastic Cloud credentials (index anchoice_live151_2 + heslo) — **IGNOROVAT, nikdy nepoužít**; jediná legitimní plocha je REST API výše. |
+
+Politeness: každý nový zdroj = jiný host → per-host 3s gap platí; rozpočty/scan: FIRO ~4-6
+requestů (jako ř. 10), Alexandria ~8-10, Deluxea ~10-12, ESO ~10-15, Adventura ~26 (1 sitemap +
+25 detailů), Datour ~8-14. Celkem projekt zůstává v cíli ~50-250 requestů/běh.
+
+### 16.2 Rozšíření dotazů stávajících zdrojů
+
+Exotika je u stávajících zdrojů dostupná, jen se na ni neptáme. Okno dotazů: exotická sezóna
+je zima → `date.to` +270 dní (ne +60):
+
+- **zajezdy.cz**: do `SLUGS` přidat živě ověřené exotické slugy (kandidáti: `exotika`,
+  `spojene-arabske-emiraty`, `thajsko`, `maledivy`, `zanzibar`, `dominikanska-republika`,
+  `mauricius`, `kapverdy`); strop celkem ~12 slugů (5s gap → ~60 s/scan).
+- **eximtours**: `TARGET_DESTINATIONS` += SAE, Zanzibar, Maledivy, Thajsko, Dominikánská
+  republika, Mauricius, Kuba, Mexiko, Kapverdy (graceful skip „no seed found" už existuje).
+- **etravel**: `TARGET_COUNTRIES` += exotické názvy dle číselníku getfilter (discovery by name,
+  graceful skip existuje).
+- **dovolena.cz**: `DESTINATIONS` += živě ověřená exotická id (metoda discovery v module doc);
+  neověřené id NEshipovat (precedens invia).
+- **skrz**: `LISTING_PATHS` += `/exoticka-dovolena` a/nebo `destinace:` exotické slugy — jen
+  živě ověřené.
+- **dovolenkovani**: třetí dates-list query `exotika` přes CESYS factory (country_id exotický
+  seznam ř. 11, okno +270 d, duration 7-22, minNights 6).
+- **Vynecháno** (zdůvodnění): invia (country ids nelze bez rizika ověřit, last-minute query už
+  je country-agnostická), fischer (vlastní /last-minute feed; exotiku od Fischer CK agreguje
+  FIRO ř. 11), cedok (last-minute stránky jsou country-agnostické, exotika projde sama),
+  bluestyle (katalog ~10 nabídek).
+
+### 16.3 Watch profil `exotika` (config/watch.yaml)
+
+```yaml
+exotika:
+  enabled: true
+  countries: [Thajsko, Maledivy, Mauricius, Spojené arabské emiráty,
+              Dominikánská republika, Mexiko, Kuba, Seychely, Srí Lanka,
+              Zanzibar, Tanzanie, Vietnam, Indonésie, Kapverdy, Keňa,
+              Filipíny, Réunion]
+  transport: flight
+  board: []               # exotika: BB u Malediv běžná, nefiltrovat stravu
+  departure_months: []    # celoročně — hlavní sezóna je zima
+  max_price_per_person: 60000
+  min_real_discount_pct: 15
+  notify_new_offers: false
+```
+
+Nové kanonické země v `COUNTRIES` (normalize.ts): Tanzanie, Keňa, Réunion, Filipíny, Kambodža,
+Nepál, Peru, Japonsko, Jihoafrická republika, Madagaskar, Namibie. Nové aliasy:
+`bali` → Indonésie, `dominikana` → Dominikánská republika.
+
+### 16.4 Compliance shrnutí (doplněk §9)
+
+firotravel.cz, adventura.cz a datour.cz jmenovitě blokují ClaudeBot v robots.txt (deluxea,
+esotravel a alexandria nikoliv). Projekt vědomě pokračuje se standardním Chrome UA na
+interních JSON API / SSR stránkách při kadenci 1×/2 h (stejná odchylka jako ř. 10, osobní
+použití). Datour Elastic credentials z bundle se NIKDY nepoužijí.
