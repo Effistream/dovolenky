@@ -1,6 +1,7 @@
-import { and, desc, eq, gte, isNull, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, ne, or, sql } from 'drizzle-orm';
 import type { Db } from './db/index.js';
 import { offers, priceSnapshots } from './db/schema.js';
+import { computeMatchKey } from './normalize.js';
 import type { NormalizedOffer } from './types.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -31,6 +32,13 @@ function departureMonth(departureDate: string | null): string | null {
 export async function marketBucketPrices(db: Db, offerId: number, offer: NormalizedOffer): Promise<number[]> {
   const month = departureMonth(offer.departureDate);
   const band = nightsBand(offer.nights);
+  // Cross-source dedup fix: computeMatchKey is pure, so we recompute the
+  // subject's own key here (rather than trusting a caller-supplied value) to
+  // exclude its cross-listed twin from the bucket too — otherwise the twin's
+  // (≈ the subject's own) price survives group-MIN and biases the baseline
+  // toward "no discount". A NULL subject key opts out of this (matches
+  // computeMatchKey's own null semantics), leaving prior behavior unchanged.
+  const subjectKey = computeMatchKey(offer);
 
   const conditions = [
     ne(offers.id, offerId),
@@ -39,6 +47,9 @@ export async function marketBucketPrices(db: Db, offerId: number, offer: Normali
     offer.board == null ? isNull(offers.board) : eq(offers.board, offer.board),
     offer.stars == null ? isNull(offers.stars) : eq(offers.stars, offer.stars),
   ];
+  // (or() with two concrete args never actually returns undefined; the `!` just
+  // satisfies drizzle's overly-permissive SQL<unknown> | undefined return type.)
+  if (subjectKey != null) conditions.push(or(isNull(offers.matchKey), ne(offers.matchKey, subjectKey))!);
 
   // Nights band range.
   if (band.lo == null) {
