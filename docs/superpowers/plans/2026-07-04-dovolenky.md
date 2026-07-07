@@ -606,3 +606,25 @@ Ověř `customData.boxes` obsahuje offer karty. Pokud endpoint odmítne (změna 
 - **Spec coverage:** §2 architektura→T1–4,18; §3 zdroje→T9–17 (9 adapterů ✓); §4 typy→T1; §5 DB→T3; §6 sleva→T5 (market koš v T18 SQL); §7 notifikace→T7,8,19 + setup T20; §8 config→T2; §9 politeness→T4 (gaps), T12 (okno), Global Constraints; §10 errors→T4 (SourceBlockedError), T18 (izolace, health alerty); §11 testy→všechny tasky TDD + fixtures; §12 backlog→README (T21). Fischer původní cena vědomě odložena (T15) — zapsat do backlogu v README.
 - **Placeholders:** fixture-dependent hodnoty jsou označené jako „doplň reálné hodnoty z fixture" s přesným postupem — to je záměr (data neexistují před capture), ne TBD.
 - **Type consistency:** `SourceAdapter.fetchOffers(ctx)` jednotné; `parse*` čisté funkce jednotný vzor; `Db` typ z T3 užíván v T8/18/19; `NotifCfg`/`Profile` názvy konzistentní T2↔T6↔T8.
+
+---
+
+### Task 22: Adapter Dovolenkovani.cz (CESYS platforma)
+
+**Files:**
+- Create: `src/sources/dovolenkovani.ts`
+- Modify: `src/sources/index.ts` (registrace), `README.md` (tabulka zdrojů: 10. řádek)
+- Test: `tests/dovolenkovani.test.ts`, fixtures `tests/fixtures/dovolenkovani/{dates-list.json,countries.json,accommodations-sample.xml}`
+
+**Interfaces:**
+- Consumes: `SourceAdapter`, `SourceContext`, `HttpClient` (`json` s init pro POST, `text` pro XML), normalize helpery (`normalizeBoard`, `normalizeCountry`, `isKnownCountry`, `offerKeyHash`).
+- Produces: `export const dovolenkovani: SourceAdapter` (`name: 'dovolenkovani'`), `export function parseCesysDates(payload, maps): NormalizedOffer[]` (čistá), `export function parseAccommodationsSitemap(xml): Map<number, {name: string; url: string}>` (kód `6a` → id 6; jméno ze slugu: `kalia-beach` → `Kalia Beach`).
+
+Strategie a všechny endpointy/pole: spec §3 řádek 10 (ověřeno živě 2026-07-07 přes Playwright + curl).
+
+- [ ] **Step 1: Fixtures** — curl (standardní Chrome UA projektu, NIKDY Claude-identifikující — robots blokuje ClaudeBot jmenovitě): (a) POST dates-list s body ze spec (date from dnes, to +60d, rows_on_page 30) → dates-list.json; (b) GET mapping/countries → countries.json; (c) GET accommodations.xml → uložit PRVNÍCH ~50 `<url>` bloků jako accommodations-sample.xml (celý soubor necommitovat). Ověřit empiricky per-person vs. total u price_from.CZK: vzít jeden řádek s master_id, otevřít jeho detail URL (ze sitemapy) curl-em a porovnat s SSR „od X Kč" na kartě/detailu, případně porovnat dva dotazy adults:2 vs adults:1 na stejný hotel_id+termín (2 extra requesty povoleny). Zdokumentovat závěr.
+- [ ] **Step 2: Failing testy** — parseAccommodationsSitemap: mapa id→{name,url} (reálné hodnoty z fixture, `6a`→6, jméno z slugu title-case); parseCesysDates: počet řádků, první offer reálné hodnoty (title z mapy nebo `Hotel <id>`, country přes mapping+isKnownCountry guard — nikdy syrové id, departureDate ISO, nights=duration_night, board, airport_code, pricePerPerson dle empirického závěru, source 'dovolenkovani'), discount_percent null-guard (0<pct<100), invarianty.
+- [ ] **Step 3: Implementace** — `fetchOffers`: accommodations.xml (1 GET, ctx.http.text) → mapa; mapping/countries (1 GET) → mapa zemí; dates-list ×2 (POST přes ctx.http.json s init: query A léto-moře transport 1 + 60 dní, query B last-minute okno dnes→+14 dní; obě sort price asc, rows 30). Per-request izolace (SourceBlockedError stop; selhání sitemapy/mappingu NENÍ fatální — pokračovat s `Hotel <id>`/country null, ale selhání OBOU dates-list dotazů → rethrow dle vzoru fischer). Dedup: sourceOfferKey = offerKeyHash([master_id, date_from, duration_night, boarding_id]). url z mapy hotelů, fallback `https://dovolenkovani.cz/vyhledavani-zajezdu/`. transport: id 1 → 'flight', jinak normalizeTransport(transport). claimedDiscountPct z discount_percent + dopočet original; oboje null při mimo (0,100).
+- [ ] **Step 4: Registrace + README** — přidat do `adapters` v src/sources/index.ts; README tabulka zdrojů +1 řádek (CESYS white-label, co dává: termíny+ceny+slevy přes API, jména hotelů ze sitemapy).
+- [ ] **Step 5: Live smoke** — max 6 requestů, vypsat počty + 2 offery.
+- [ ] **Step 6: Zelené testy + commit** — plný `npx vitest run` (286 stávajících zůstává zelených) + `npx tsc --noEmit`; commit `feat: dovolenkovani adapter (CESYS dates-list API)` vč. fixtures.
