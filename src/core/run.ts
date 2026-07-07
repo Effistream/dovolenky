@@ -14,32 +14,7 @@ import { formatOffer } from './format.js';
 import { pragueDayString } from './dates.js';
 import { marketBucketPrices, ownSnapshotsFor } from './market.js';
 import { buildDigest } from './digest.js';
-
-/** error_sample prefix marking a run that ended 'failed' because the source blocked us
- *  (403/429). Used by the 24h backoff (spec §9): a source blocked within the last 24h is
- *  skipped rather than re-hammered. */
-const BLOCKED_PREFIX = 'BLOCKED:';
-const BACKOFF_MS = 24 * 60 * 60 * 1000;
-
-/** error_sample marker written on the benign 'partial' row inserted when a source is skipped
- *  because it is still within its 24h block-backoff window. These rows are bookkeeping only:
- *  they must be transparent to both the block-history scan (blockedBackoffUntil) and the
- *  consecutive-failure chain (maybeSendHealthAlert), otherwise they mask the real state
- *  (I2 defect). Both consumers skip rows where error_sample === BACKOFF_MARKER. */
-const BACKOFF_MARKER = 'backoff';
-
-/** How many recent runs to scan back through when skipping backoff rows to find the last
- *  real (non-backoff) run. Generous enough to see past a long block-backoff streak at the
- *  scheduled 2h cadence (max ~12 backoff rows per 24h block window). Known limitation:
- *  frequent MANUAL reruns during an active block can push the blocked row past this window —
- *  backoff then fails safe (re-attempts early) but the health alert stays silent until the
- *  manual runs stop. */
-const RECENT_RUN_SCAN_LIMIT = 20;
-
-/** True for a bookkeeping row inserted by the block-backoff skip (transparent to history). */
-function isBackoffRow(errorSample: string | null | undefined): boolean {
-  return errorSample === BACKOFF_MARKER;
-}
+import { BLOCKED_PREFIX, BACKOFF_MARKER, RECENT_RUN_SCAN_LIMIT, isBackoffRow, backoffUntilFrom } from './backoff.js';
 
 export interface RunScanDeps {
   db: Db;
@@ -228,7 +203,8 @@ async function maybeSendDigest(
  * source would see its own backoff row, decide there's no active block, and re-hammer the source
  * every ~4h; I2 defect). If that first non-backoff run ended 'failed' with a BLOCKED: error_sample
  * within the last BACKOFF_MS, returns the ISO time the backoff lifts so the caller can skip the
- * source this run; otherwise null (run normally).
+ * source this run; otherwise null (run normally). Delegates the pure decision to
+ * backoff.ts#backoffUntilFrom (shared with the /api/sources backoff flag).
  */
 async function blockedBackoffUntil(db: Db, source: string, now: Date): Promise<string | null> {
   const recent = await db
@@ -238,15 +214,8 @@ async function blockedBackoffUntil(db: Db, source: string, now: Date): Promise<s
     .orderBy(desc(sourceRuns.id))
     .limit(RECENT_RUN_SCAN_LIMIT);
 
-  // The first non-backoff row decides. Backoff rows are our own bookkeeping and never a signal.
-  const last = recent.find((r) => !isBackoffRow(r.errorSample));
-  if (!last || last.status !== 'failed' || !last.errorSample?.startsWith(BLOCKED_PREFIX)) return null;
-
-  const blockedAt = new Date(last.startedAt).getTime();
-  if (Number.isNaN(blockedAt)) return null;
-
-  const liftsAt = blockedAt + BACKOFF_MS;
-  return now.getTime() < liftsAt ? new Date(liftsAt).toISOString() : null;
+  const liftsAt = backoffUntilFrom(recent, now.getTime());
+  return liftsAt != null ? new Date(liftsAt).toISOString() : null;
 }
 
 export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {

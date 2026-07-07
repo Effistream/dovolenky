@@ -678,3 +678,26 @@ Strategie a všechny endpointy/pole: spec §3 řádek 10 (ověřeno živě 2026-
 
 **Files:** `tests/e2e/terminal.spec.ts` (Playwright: seed DB skriptem, start serveru, board render, filtr, detail expand, žádné console errors), README sekce „Dashboard", `.gitignore` web build.
 - [ ] Smoke zelený lokálně; plný suite + tsc; whole-branch review fable → fix vlna → merge do main; commit `feat: terminal e2e smoke and docs`.
+
+---
+
+### Task 29: Filtr panel (propracované filtrování tabule)
+
+Zadání od uživatele 2026-07-07: „Proč se tam nahoře dají vybrat jen některé destinace? Chybí mi propracované filtrování."
+
+**Files:** web/src (FilterBar nahrazuje FilterChips; lib/filters.ts čisté predikáty; App URL-state sync), tests: web unit + úprava tests/e2e/terminal.spec.ts (filtr scénáře).
+
+**Design (dle MASTER.md estetiky — chips + mono labely, žádné těžké dropdown knihovny):**
+- **Země**: chips VŠECH zemí přítomných v datech s počty („Řecko 41"), řazené dle počtu, zobrazeno prvních ~8 + „+ dalších N" rozbalovací řádek (důvod dnešního omezení: chips se derivují z dat a řadí — doplnit počty a overflow).
+- **Cena max/os.**: preset chips (10/15/20/25 tis. + vlastní input).
+- **Noci**: pásma ≤5 · 6–8 · 9–12 · 13+ (multi).
+- **Strava**: AI · HB · BB · bez stravy (multi).
+- **Odlet**: letiště z dat (PRG/BRQ/OSR/…, multi) + „vlastní doprava".
+- **Termín**: od–do date inputy.
+- **Min. reálná sleva**: chips 0/10/15/25 %.
+- **Zdroj**: multi z dat.
+- **Řazení**: reálná sleva ↓ (default) · cena ↑ · odlet ↑.
+- Aktivní filtry: počítadlo + „Vymazat vše"; stav synchronizovaný do URL query (sdílitelné/bookmarkovatelné); profil chip zůstává server-side param.
+- Vše ostatní client-side nad načteným setem (API vrací kompletní aktivní set — ověřit, žádný cap).
+
+- [ ] Čisté predikáty + testy (každý filtr + kombinace + URL round-trip); FilterBar UI dle tokenů; e2e: kombinace filtrů zúží tabuli + URL restore; plný suite + build zelené; commit `feat: terminal filter panel`.

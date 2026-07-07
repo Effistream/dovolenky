@@ -129,9 +129,37 @@ helper `src/sources/der.ts` místo psaní parseru od nuly.
   o přepnutí `DATABASE_URL` a přidání route.
 - **Telegram příkazy** (`/top`, `/pause`), web UI, více uživatelů — mimo scope v1.
 
-## Frontend „Terminál"
+## Dashboard „Terminál"
 
-Vizuální design pro budoucí webové UI je hotový (design tokeny a pravidla v
-`design-system/MASTER.md`, mockup v `docs/design/terminal-mockup.html`), ale
-implementace není součástí v1 — v1 běží čistě jako scan worker s Telegram výstupem.
-Frontend je plánovaný jako další fáze po v1.
+Lokální webový přehled nabídek — odletová tabule s reálnou slevou, cenový graf
+v detailu řádku a dvě souhrnné karty (TRH DNES, ZDROJE). Čte přímo ze stejné
+SQLite DB, kterou plní scan; sám nic nestahuje ani neposílá (read-only, spec §14).
+
+**Spuštění (produkční režim):**
+
+1. `npm run web:build` — sestaví frontend do `web/dist` (vite build v `web/`).
+2. `npm run web` — nastartuje Hono server na portu **4141**; obsluhuje API
+   (`/api/offers`, `/api/offers/:id/history`, `/api/sources`, `/api/stats`)
+   i sestavený SPA ze stejného originu. Port lze přepsat přes `PORT`. Server
+   poslouchá jen na `127.0.0.1` (localhost), ne na všech rozhraních; přepsat
+   lze přes `HOST`.
+3. Otevři `http://localhost:4141`.
+
+Když `web/dist` neexistuje, server místo SPA vrátí textovou hlášku „spusť
+`npm run web:build`", takže chybějící build selže hlasitě, ne 404.
+
+**Vývoj frontendu:** `npm run web:dev` spustí Vite dev server (port 5173)
+s hot-reloadem; ten proxuje `/api` na `:4141`, takže vedle sebe běží
+`npm run web` (API) a `npm run web:dev` (UI) bez CORS.
+
+**E2E smoke:** `npm run test:e2e` (Playwright, chromium). Config
+`playwright.config.ts` si sám sestaví frontend, naseeduje throwaway SQLite DB
+(`tests/e2e/seed.ts`, deterministická data přes reálný ingest pipeline),
+nastartuje server a projede board render, filtry (země/profil), rozbalení
+detailu s grafem, cross-source alternativy a stav karet — plus kontrolu, že
+během běhu nespadne žádná console chyba. Prohlížeč se instaluje jednorázově:
+`npx playwright install chromium`. Root unit testy (`npm test`) e2e adresář
+nesbírají (jiný runner).
+
+Design tokeny a pravidla copy jsou v `design-system/MASTER.md`, referenční
+mockup v `docs/design/terminal-mockup.html`.
