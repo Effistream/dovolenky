@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<!--
+  Curated excerpt of the live https://www.adventura.cz/sitemap.xml (2026-07-07), preserving the
+  real URL shapes filterExoticTourUrls must distinguish. Full sitemap = 2570 <loc>, of which 972
+  are clean /zajezdy/{id}-{slug}/ tour detail pages (64 exotic by token after the `jar`
+  word-boundary rule). The cases below are all verbatim from the live file.
+-->
+
+<!-- Exotic tour detail pages: /zajezdy/{id}-{slug}/ whose slug contains an EXOTIC_SLUG_TOKENS token. SELECTED. -->
+<url><loc>https://www.adventura.cz/zajezdy/11836-nepal-treking-udolim-serpu-az-k-everestu/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.adventura.cz/zajezdy/12666-reunion-a-mauricius-turistika-a-koupani/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.adventura.cz/zajezdy/11967-sri-lanka-na-kole/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.adventura.cz/zajezdy/12931-kuba-autenticka/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.adventura.cz/zajezdy/11974-kambodza-na-kole/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.adventura.cz/zajezdy/11888-dominikanska-republika-turistika-a-koupani/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.adventura.cz/zajezdy/12088-tibetem-do-nepalu/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+<!-- JAR (Jihoafrická republika) — token `jar` as a whole hyphen-delimited word. SELECTED. -->
+<url><loc>https://www.adventura.cz/zajezdy/12469-jar-kapske-mesto-vino-a-narodni-parky/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+
+<!-- Non-exotic tour detail pages: valid /zajezdy/{id}-{slug}/ but no token. NOT selected. -->
+<url><loc>https://www.adventura.cz/zajezdy/11980-provence-na-kole-v-pohode/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.adventura.cz/zajezdy/10411-bretan-na-kole/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+<!-- FALSE-POSITIVE TRAP: slug "jarni-andalusie" contains the substring "jar" (jarní = spring).
+     The `jar` word-boundary rule must EXCLUDE this Andalusia (Spain) cycling tour. NOT selected. -->
+<url><loc>https://www.adventura.cz/zajezdy/12317-hory-a-pobrezi-jarni-andalusie/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+
+<!-- Detail sub-pages (extra path segment). Contain exotic tokens but are NOT tour detail pages. NOT selected. -->
+<url><loc>https://www.adventura.cz/zajezdy/11836-nepal-treking-udolim-serpu-az-k-everestu/galerie/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.adventura.cz/zajezdy/11836-nepal-treking-udolim-serpu-az-k-everestu/dalsi-fotky/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+
+<!-- Category / theme pages: /zajezdy/dle-tematu/{id}-{slug}/ (extra path segment). NOT selected. -->
+<url><loc>https://www.adventura.cz/zajezdy/dle-tematu/1334-cina-a-tibet/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+
+<!-- Client-side filter URLs (?druh= / ?kontinenty=). SPEC FORBIDS these. NOT selected. -->
+<url><loc>https://www.adventura.cz/zajezdy/?druh=first-minute</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.adventura.cz/zajezdy/?druh=last-minute</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.adventura.cz/zajezdy/?kontinenty=afrika</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+
+<!-- Other-section pages containing exotic tokens (country pages, travelogues). NOT /zajezdy/{id}-. NOT selected. -->
+<url><loc>https://www.adventura.cz/zeme/nepal/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.adventura.cz/zeme/kuba/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+<url><loc>https://www.adventura.cz/cestopisy/jizni-vietnam-na-kole/</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+</urlset>
