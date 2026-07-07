@@ -45,14 +45,14 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
  */
 async function seedOffer(
   db: Db,
-  opts: { key: string; price: number; firstSeenAt: string; capturedAt: string },
+  opts: { key: string; price: number; firstSeenAt: string; capturedAt: string; matchKey?: string | null; title?: string },
 ): Promise<number> {
   const [row] = await db
     .insert(offers)
     .values({
       source: 'seed',
       sourceOfferKey: opts.key,
-      title: `Seed Hotel ${opts.key}`,
+      title: opts.title ?? `Seed Hotel ${opts.key}`,
       country: 'Řecko',
       locality: 'Kréta',
       stars: 4,
@@ -67,6 +67,7 @@ async function seedOffer(
       lastSeenAt: opts.capturedAt,
       active: true,
       misses: 0,
+      matchKey: opts.matchKey ?? null,
     })
     .returning({ id: offers.id });
   await db.insert(priceSnapshots).values({
@@ -127,5 +128,28 @@ describe('buildDigest', () => {
     // Stats line: 15 active offers, 1 new in the last 24h.
     expect(html).toContain('Aktivních nabídek: 15');
     expect(html).toContain('Nových za 24 h: 1');
+  });
+
+  it('cross-source dedup: a same-match_key duplicate pair appears once, showing the cheaper representative (spec §13)', async () => {
+    const now = new Date('2026-07-04T10:00:00.000Z');
+    const at = '2026-06-01T09:00:00.000Z';
+
+    // Two sources of the SAME physical tour (matchKey 'DUP'): the pricier "Expensive"
+    // and the cheaper "Cheap". Only the cheaper representative should appear.
+    await seedOffer(db, { key: 'dup-expensive', title: 'Dup Expensive', price: 18000, matchKey: 'DUP', firstSeenAt: at, capturedAt: at });
+    await seedOffer(db, { key: 'dup-cheap', title: 'Dup Cheap', price: 12000, matchKey: 'DUP', firstSeenAt: at, capturedAt: at });
+
+    // A few distinct NULL-match_key offers so a market baseline can form.
+    for (let i = 0; i < 8; i += 1) {
+      await seedOffer(db, { key: `null-${i}`, title: `Null ${i}`, price: 20000 + i, matchKey: null, firstSeenAt: at, capturedAt: at });
+    }
+
+    const result = await buildDigest(db, makeConfig(), now);
+    expect(result).not.toBeNull();
+    const { html } = result!;
+
+    // The cheaper representative is shown; the pricier duplicate is not.
+    expect(html).toContain('Dup Cheap');
+    expect(html).not.toContain('Dup Expensive');
   });
 });

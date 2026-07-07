@@ -2,6 +2,7 @@ import { and, eq, notInArray, desc } from 'drizzle-orm';
 import type { Db } from './db/index.js';
 import { offers, priceSnapshots } from './db/schema.js';
 import type { NormalizedOffer } from './types.js';
+import { computeMatchKey } from './normalize.js';
 
 const HEARTBEAT_MS = 24 * 60 * 60 * 1000;
 const MAX_MISSES = 2;
@@ -89,6 +90,7 @@ async function ingestExistingOffer(
       lastSeenAt: nowIso,
       active: true,
       misses: 0,
+      matchKey: computeMatchKey(offer),
     })
     .where(eq(offers.id, offerId));
 
@@ -133,6 +135,7 @@ export async function ingestOffer(db: Db, offer: NormalizedOffer, now: Date = ne
           lastSeenAt: nowIso,
           active: true,
           misses: 0,
+          matchKey: computeMatchKey(offer),
         })
         .returning({ id: offers.id });
 

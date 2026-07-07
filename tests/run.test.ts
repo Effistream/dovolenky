@@ -94,6 +94,18 @@ function happyAdapter(returned: NormalizedOffer[]): SourceAdapter {
   };
 }
 
+// A named adapter yielding a fixed offer set (for cross-source dedup scenarios
+// where the source/adapter name is what distinguishes two copies of the same
+// physical tour).
+function namedAdapter(name: string, returned: NormalizedOffer[]): SourceAdapter {
+  return {
+    name,
+    async fetchOffers(): Promise<NormalizedOffer[]> {
+      return returned;
+    },
+  };
+}
+
 function throwingAdapter(): SourceAdapter {
   return {
     name: 'broken',
@@ -520,10 +532,11 @@ describe('runScan', () => {
     await seedMarketBucket(db, 8, 25000, '2026-07-04T09:00:00.000Z');
     const tg = new TelegramMock();
 
-    // Three distinct hot offers, cap of 2 → one overflow.
-    const o1 = makeOffer({ sourceOfferKey: 'k1', url: 'https://e.com/1', pricePerPerson: 10000 });
-    const o2 = makeOffer({ sourceOfferKey: 'k2', url: 'https://e.com/2', pricePerPerson: 11000 });
-    const o3 = makeOffer({ sourceOfferKey: 'k3', url: 'https://e.com/3', pricePerPerson: 12000 });
+    // Three distinct hot offers (distinct hotels → distinct match_keys, so cross-source
+    // dedup does NOT collapse them), cap of 2 → one overflow.
+    const o1 = makeOffer({ title: 'Hotel One', sourceOfferKey: 'k1', url: 'https://e.com/1', pricePerPerson: 10000 });
+    const o2 = makeOffer({ title: 'Hotel Two', sourceOfferKey: 'k2', url: 'https://e.com/2', pricePerPerson: 11000 });
+    const o3 = makeOffer({ title: 'Hotel Three', sourceOfferKey: 'k3', url: 'https://e.com/3', pricePerPerson: 12000 });
 
     const summary = await runScan({
       db,
@@ -937,5 +950,75 @@ describe('runScan', () => {
 
     const alerts2 = tg2.messages.filter((m) => m.includes('🛠'));
     expect(alerts2.length).toBe(0);
+  });
+
+  it('scenario 12: two sources of the same physical tour → ONE message with "Také:" and a match_key-carrying log row (spec §13)', async () => {
+    const now = new Date('2026-07-04T10:00:00.000Z');
+    // Seed a market bucket so both copies show a big real discount and become hot_deals.
+    await seedMarketBucket(db, 8, 25000, '2026-07-04T09:00:00.000Z');
+    const tg = new TelegramMock();
+
+    // Same physical tour (same title/country/date/nights/board/airport → same match_key)
+    // from two different sources at different prices. The cheaper (invia, 12000) is the
+    // representative; the pricier (skrz, 13500) becomes an alternative.
+    const physical = {
+      title: 'Hotel Hot Deal',
+      country: 'Řecko',
+      departureDate: '2026-08-15',
+      nights: 7,
+      board: 'AI' as const,
+      departureAirport: 'PRG',
+    };
+    const inviaOffer = makeOffer({
+      ...physical,
+      source: 'invia',
+      sourceOfferKey: 'invia-key',
+      url: 'https://invia.example/deal',
+      pricePerPerson: 12000,
+    });
+    const skrzOffer = makeOffer({
+      ...physical,
+      source: 'skrz',
+      sourceOfferKey: 'skrz-key',
+      url: 'https://skrz.example/deal',
+      pricePerPerson: 13500,
+    });
+
+    const summary = await runScan({
+      db,
+      cfg: makeConfig(),
+      http: makeHttp(),
+      telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [namedAdapter('invia', [inviaOffer]), namedAdapter('skrz', [skrzOffer])],
+      now,
+    });
+
+    // Exactly one notification, mentioning the cheaper representative and the pricier alternative.
+    const hotMsgs = tg.messages.filter((m) => m.includes('🔥'));
+    expect(hotMsgs).toHaveLength(1);
+    expect(summary.notificationsSent).toBe(1);
+    const msg = hotMsgs[0]!;
+    expect(msg).toContain('12 000 Kč'); // representative price
+    expect(msg).toContain('Také:');
+    expect(msg).toContain('Skrz'); // the pricier alternative source, capitalized
+    expect(msg).toContain('13 500 Kč');
+
+    // The log row carries a non-null match_key (so the second source can't re-notify next run).
+    const logs = await db.select().from(notificationsLog).where(eq(notificationsLog.type, 'hot_deal'));
+    expect(logs).toHaveLength(1);
+    expect(logs[0]?.matchKey).not.toBeNull();
+
+    // A second identical run must NOT re-notify (blocked by the group's match_key log row).
+    const tg2 = new TelegramMock();
+    const summary2 = await runScan({
+      db,
+      cfg: makeConfig(),
+      http: makeHttp(),
+      telegram: tg2 as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [namedAdapter('invia', [inviaOffer]), namedAdapter('skrz', [skrzOffer])],
+      now: new Date('2026-07-04T11:00:00.000Z'),
+    });
+    expect(summary2.notificationsSent).toBe(0);
+    expect(tg2.messages.filter((m) => m.includes('🔥'))).toHaveLength(0);
   });
 });

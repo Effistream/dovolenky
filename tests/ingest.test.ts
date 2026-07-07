@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { openDb, ensureSchema, type Db } from '../src/core/db/index.js';
 import { offers, priceSnapshots } from '../src/core/db/schema.js';
 import { ingestOffer, markMissedOffers } from '../src/core/ingest.js';
+import { computeMatchKey } from '../src/core/normalize.js';
 import type { NormalizedOffer } from '../src/core/types.js';
 
 function makeOffer(overrides: Partial<NormalizedOffer> = {}): NormalizedOffer {
@@ -227,5 +228,97 @@ describe('ingestOffer', () => {
     expect(rows[0]?.misses).toBe(0);
     expect(rows[0]?.active).toBe(true);
     expect(rows[0]?.lastSeenAt).toBe(t1.toISOString());
+  });
+
+  it('match_key is computed and stored on insert', async () => {
+    const now = new Date('2026-07-04T10:00:00.000Z');
+    const offer = makeOffer();
+    const result = await ingestOffer(db, offer, now);
+
+    const [row] = await db.select().from(offers).where(sql`${offers.id} = ${result.offerId}`);
+    expect(row?.matchKey).toBe(computeMatchKey(offer));
+    expect(row?.matchKey).not.toBeNull();
+  });
+
+  it('match_key is refreshed on update (e.g. title/board change alters the key)', async () => {
+    const t0 = new Date('2026-07-04T10:00:00.000Z');
+    const first = await ingestOffer(db, makeOffer(), t0);
+
+    const t1 = new Date('2026-07-04T12:00:00.000Z');
+    const updatedOffer = makeOffer({ title: 'Hotel X Renamed' });
+    await ingestOffer(db, updatedOffer, t1);
+
+    const [row] = await db.select().from(offers).where(sql`${offers.id} = ${first.offerId}`);
+    expect(row?.matchKey).toBe(computeMatchKey(updatedOffer));
+    expect(row?.matchKey).not.toBe(computeMatchKey(makeOffer()));
+  });
+
+  it('match_key is null when board is unknown, and stays null on update', async () => {
+    const now = new Date('2026-07-04T10:00:00.000Z');
+    const offer = makeOffer({ board: 'unknown' });
+    const result = await ingestOffer(db, offer, now);
+
+    const [row] = await db.select().from(offers).where(sql`${offers.id} = ${result.offerId}`);
+    expect(row?.matchKey).toBeNull();
+  });
+
+  it('backfill: pre-existing row without match_key gets populated by ensureSchema', async () => {
+    // Simulate a DB written before match_key existed: insert a raw row via SQL
+    // that never goes through ingestOffer, leaving match_key NULL.
+    const nowIso = new Date('2026-07-04T10:00:00.000Z').toISOString();
+    await db.run(`
+      INSERT INTO offers (
+        source, source_offer_key, title, country, locality, stars, board, transport,
+        departure_airport, departure_date, nights, tour_operator, url,
+        first_seen_at, last_seen_at, active, misses
+      ) VALUES (
+        'invia', 'legacy-key', 'Hotel X', 'Řecko', 'Kréta', 4, 'AI', 'flight',
+        'PRG', '2026-07-15', 7, 'Invia', 'https://example.com/legacy',
+        '${nowIso}', '${nowIso}', 1, 0
+      )
+    `);
+
+    const [before] = await db.select().from(offers).where(sql`${offers.sourceOfferKey} = 'legacy-key'`);
+    expect(before?.matchKey).toBeNull();
+
+    // Re-running ensureSchema triggers the backfill pass.
+    await ensureSchema(db);
+
+    const [after] = await db.select().from(offers).where(sql`${offers.sourceOfferKey} = 'legacy-key'`);
+    expect(after?.matchKey).not.toBeNull();
+    expect(after?.matchKey).toBe(computeMatchKey(makeOffer({ source: 'invia', sourceOfferKey: 'legacy-key', url: 'https://example.com/legacy' })));
+  });
+
+  it('backfill: legacy row that resolves to null match_key rules (e.g. missing country) stays null', async () => {
+    const nowIso = new Date('2026-07-04T10:00:00.000Z').toISOString();
+    await db.run(`
+      INSERT INTO offers (
+        source, source_offer_key, title, country, locality, stars, board, transport,
+        departure_airport, departure_date, nights, tour_operator, url,
+        first_seen_at, last_seen_at, active, misses
+      ) VALUES (
+        'invia', 'legacy-key-no-country', 'Hotel Y', NULL, 'Kréta', 4, 'AI', 'flight',
+        'PRG', '2026-07-15', 7, 'Invia', 'https://example.com/legacy2',
+        '${nowIso}', '${nowIso}', 1, 0
+      )
+    `);
+
+    await ensureSchema(db);
+
+    const [after] = await db.select().from(offers).where(sql`${offers.sourceOfferKey} = 'legacy-key-no-country'`);
+    expect(after?.matchKey).toBeNull();
+  });
+
+  it('ensureSchema is idempotent: running it twice does not error and does not duplicate columns', async () => {
+    await ensureSchema(db);
+    await ensureSchema(db);
+
+    const cols = (await db.all(`PRAGMA table_info(offers)`)) as Array<{ name: string }>;
+    const matchKeyCols = cols.filter(c => c.name === 'match_key');
+    expect(matchKeyCols.length).toBe(1);
+
+    const notifCols = (await db.all(`PRAGMA table_info(notifications_log)`)) as Array<{ name: string }>;
+    const notifMatchKeyCols = notifCols.filter(c => c.name === 'match_key');
+    expect(notifMatchKeyCols.length).toBe(1);
   });
 });

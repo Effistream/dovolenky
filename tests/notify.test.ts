@@ -9,6 +9,7 @@ import {
   filterAgainstLog,
   recordSent,
   capMessages,
+  groupCandidates,
   type Candidate,
 } from '../src/core/notify.js';
 
@@ -255,6 +256,101 @@ describe('evaluateOffer', () => {
   });
 });
 
+describe('groupCandidates', () => {
+  function cand(overrides: Partial<Candidate> & { source?: string; price?: number; url?: string }): Candidate {
+    const { source, price, url, ...rest } = overrides;
+    return {
+      offerId: 1,
+      offer: makeOffer({
+        ...(source !== undefined ? { source } : {}),
+        ...(price !== undefined ? { pricePerPerson: price } : {}),
+        ...(url !== undefined ? { url } : {}),
+      }),
+      discount: makeDiscount({ realPct: 20 }),
+      type: 'hot_deal',
+      profile: 'summer-sea',
+      previousPrice: null,
+      matchKey: null,
+      alternatives: [],
+      ...rest,
+    };
+  }
+
+  it('3 candidates with the same matchKey collapse to one cheapest representative with 2 ascending alternatives', () => {
+    const cands = [
+      cand({ offerId: 1, matchKey: 'M', source: 'invia', price: 14000, url: 'https://e.com/invia' }),
+      cand({ offerId: 2, matchKey: 'M', source: 'skrz', price: 13000, url: 'https://e.com/skrz' }),
+      cand({ offerId: 3, matchKey: 'M', source: 'dovolenkovani', price: 12000, url: 'https://e.com/dov' }),
+    ];
+    const grouped = groupCandidates(cands);
+    expect(grouped).toHaveLength(1);
+    const rep = grouped[0]!;
+    expect(rep.offer.pricePerPerson).toBe(12000);
+    expect(rep.offer.source).toBe('dovolenkovani');
+    // alternatives: the two pricier peers, ascending by price
+    expect(rep.alternatives).toEqual([
+      { source: 'skrz', pricePerPerson: 13000, url: 'https://e.com/skrz' },
+      { source: 'invia', pricePerPerson: 14000, url: 'https://e.com/invia' },
+    ]);
+  });
+
+  it('same matchKey but different type are NOT merged', () => {
+    const cands = [
+      cand({ offerId: 1, matchKey: 'M', type: 'hot_deal', source: 'invia', price: 14000 }),
+      cand({ offerId: 2, matchKey: 'M', type: 'price_drop', source: 'skrz', price: 13000 }),
+    ];
+    const grouped = groupCandidates(cands);
+    expect(grouped).toHaveLength(2);
+    for (const g of grouped) expect(g.alternatives).toEqual([]);
+  });
+
+  it('null matchKeys are never merged, even when otherwise identical', () => {
+    const cands = [
+      cand({ offerId: 1, matchKey: null, source: 'invia', price: 14000 }),
+      cand({ offerId: 2, matchKey: null, source: 'skrz', price: 13000 }),
+    ];
+    const grouped = groupCandidates(cands);
+    expect(grouped).toHaveLength(2);
+    for (const g of grouped) expect(g.alternatives).toEqual([]);
+  });
+
+  it('caps alternatives at 3 for a group larger than 4', () => {
+    const cands = [
+      cand({ offerId: 1, matchKey: 'M', source: 's1', price: 10000 }),
+      cand({ offerId: 2, matchKey: 'M', source: 's2', price: 11000 }),
+      cand({ offerId: 3, matchKey: 'M', source: 's3', price: 12000 }),
+      cand({ offerId: 4, matchKey: 'M', source: 's4', price: 13000 }),
+      cand({ offerId: 5, matchKey: 'M', source: 's5', price: 14000 }),
+    ];
+    const grouped = groupCandidates(cands);
+    expect(grouped).toHaveLength(1);
+    const rep = grouped[0]!;
+    expect(rep.offer.pricePerPerson).toBe(10000); // cheapest is representative
+    expect(rep.alternatives).toHaveLength(3);
+    // the three cheapest of the remaining four, ascending
+    expect(rep.alternatives.map((a) => a.pricePerPerson)).toEqual([11000, 12000, 13000]);
+  });
+
+  it('a solo candidate (unique matchKey) passes through with empty alternatives', () => {
+    const grouped = groupCandidates([cand({ offerId: 1, matchKey: 'ONLY', price: 12000 })]);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]!.alternatives).toEqual([]);
+  });
+
+  it('preserves first-seen group order across independent groups', () => {
+    const cands = [
+      cand({ offerId: 1, matchKey: 'A', source: 'a1', price: 9000 }),
+      cand({ offerId: 2, matchKey: 'B', source: 'b1', price: 8000 }),
+      cand({ offerId: 3, matchKey: 'A', source: 'a2', price: 7000 }),
+    ];
+    const grouped = groupCandidates(cands);
+    expect(grouped).toHaveLength(2);
+    // group A first (seen first), then group B
+    expect(grouped[0]!.offer.pricePerPerson).toBe(7000); // A's cheapest
+    expect(grouped[1]!.offer.pricePerPerson).toBe(8000); // B's only
+  });
+});
+
 describe('filterAgainstLog', () => {
   let db: Db;
 
@@ -271,6 +367,8 @@ describe('filterAgainstLog', () => {
       type: 'hot_deal',
       profile: 'summer-sea',
       previousPrice: null,
+      matchKey: null,
+      alternatives: [],
       ...overrides,
     };
   }
@@ -404,6 +502,70 @@ describe('filterAgainstLog', () => {
     const result = await filterAgainstLog(db, candidates, CFG, new Date('2026-07-04T12:00:00Z'));
     expect(result).toHaveLength(1);
   });
+
+  // ---- Cross-source dedup on match_key (spec §13) ----------------------
+
+  it('cross-source: a second source with the same matchKey is filtered out (already sent as the group)', async () => {
+    // Source 1 (offerId 1) was sent and logged under matchKey M at 10000.
+    await db.insert(notificationsLog).values({
+      offerId: 1,
+      type: 'hot_deal',
+      sentAt: new Date('2026-07-04T00:00:00Z').toISOString(),
+      priceAtSend: 10000,
+      matchKey: 'M',
+    });
+
+    // Source 2 (different offerId) but same physical tour (matchKey M), similar
+    // price → must NOT re-notify (matched by match_key, not offerId).
+    const candidates = [
+      makeCandidate({
+        offerId: 2,
+        type: 'hot_deal',
+        matchKey: 'M',
+        offer: makeOffer({ source: 'skrz', pricePerPerson: 9900 }), // 1% drop, under renotifyDropPct
+      }),
+    ];
+    const result = await filterAgainstLog(db, candidates, CFG, new Date('2026-07-04T12:00:00Z'));
+    expect(result).toHaveLength(0);
+  });
+
+  it('cross-source: a price drop >= renotifyDropPct on the second source passes despite the group log', async () => {
+    await db.insert(notificationsLog).values({
+      offerId: 1,
+      type: 'hot_deal',
+      sentAt: new Date('2026-07-04T00:00:00Z').toISOString(),
+      priceAtSend: 10000,
+      matchKey: 'M',
+    });
+
+    // Second source at 9500 → 5% drop from the group's last priceAtSend, meets renotifyDropPct.
+    const candidates = [
+      makeCandidate({
+        offerId: 2,
+        type: 'hot_deal',
+        matchKey: 'M',
+        offer: makeOffer({ source: 'skrz', pricePerPerson: 9500 }),
+      }),
+    ];
+    const result = await filterAgainstLog(db, candidates, CFG, new Date('2026-07-04T12:00:00Z'));
+    expect(result).toHaveLength(1);
+  });
+
+  it('cross-source: a null-matchKey candidate ignores a same-offerId log row written with a match_key of a different offer', async () => {
+    // A log row for a DIFFERENT offer under matchKey M. A null-matchKey candidate
+    // for offerId 2 must fall back to per-offer matching and be unaffected by it.
+    await db.insert(notificationsLog).values({
+      offerId: 1,
+      type: 'new_offer',
+      sentAt: new Date('2026-07-04T00:00:00Z').toISOString(),
+      priceAtSend: 10000,
+      matchKey: 'M',
+    });
+
+    const candidates = [makeCandidate({ offerId: 2, type: 'new_offer', matchKey: null })];
+    const result = await filterAgainstLog(db, candidates, CFG, new Date('2026-07-04T12:00:00Z'));
+    expect(result).toHaveLength(1);
+  });
 });
 
 describe('recordSent', () => {
@@ -422,6 +584,8 @@ describe('recordSent', () => {
       type: 'hot_deal',
       profile: 'summer-sea',
       previousPrice: null,
+      matchKey: null,
+      alternatives: [],
     };
     const now = new Date('2026-07-04T12:00:00Z');
 
@@ -436,6 +600,23 @@ describe('recordSent', () => {
       priceAtSend: 12345,
     });
   });
+
+  it('writes the candidate matchKey into the log row (cross-source dedup, spec §13)', async () => {
+    const candidate: Candidate = {
+      offerId: 7,
+      offer: makeOffer({ pricePerPerson: 12345 }),
+      discount: makeDiscount({ realPct: 20 }),
+      type: 'hot_deal',
+      profile: 'summer-sea',
+      previousPrice: null,
+      matchKey: 'MATCH123',
+      alternatives: [],
+    };
+    await recordSent(db, candidate, new Date('2026-07-04T12:00:00Z'));
+
+    const [row] = await db.select().from(notificationsLog);
+    expect(row?.matchKey).toBe('MATCH123');
+  });
 });
 
 describe('capMessages', () => {
@@ -447,6 +628,8 @@ describe('capMessages', () => {
       type: 'hot_deal',
       profile: 'summer-sea',
       previousPrice: null,
+      matchKey: null,
+      alternatives: [],
     };
   }
 

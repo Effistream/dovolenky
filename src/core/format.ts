@@ -128,11 +128,27 @@ function linkLine(offer: NormalizedOffer): string {
   return `🔗 <a href="${escapeHtml(offer.url)}">odkaz</a> · zdroj: ${escapeHtml(source)}`;
 }
 
+/**
+ * Cross-source alternatives line (spec §13): when the same physical tour was
+ * found at other sources, list them after the representative's price line as
+ * `Také: <Source> <price> Kč · <Source2> <price2> Kč`. Source names are shown
+ * as stored (only the first letter upper-cased, since sources are stored as
+ * bare lowercase slugs like `invia`); every interpolated value is HTML-escaped.
+ */
+function alternativesLine(alternatives: { source: string; pricePerPerson: number }[]): string {
+  const parts = alternatives.map((a) => `${escapeHtml(capitalize(a.source))} ${formatCzk(a.pricePerPerson)}`);
+  return `Také: ${parts.join(' · ')}`;
+}
+
+function capitalize(s: string): string {
+  return s.length > 0 ? s[0]!.toUpperCase() + s.slice(1) : s;
+}
+
 export function formatOffer(
   kind: 'hot_deal' | 'price_drop' | 'new_offer',
   offer: NormalizedOffer,
   d: DiscountResult,
-  extra?: { previousPrice?: number },
+  extra?: { previousPrice?: number; alternatives?: { source: string; pricePerPerson: number; url: string }[] },
 ): string {
   const emoji = KIND_EMOJI[kind];
   const title = `${emoji} ${escapeHtml(offer.title)}${starsLine(offer.stars)}${locationLine(offer)}`;
@@ -142,6 +158,9 @@ export function formatOffer(
   if (details) lines.push(details);
 
   lines.push(priceLine(kind, offer, extra));
+  if (extra?.alternatives && extra.alternatives.length > 0) {
+    lines.push(alternativesLine(extra.alternatives));
+  }
   lines.push(realDiscountLine(d));
   lines.push(linkLine(offer));
 

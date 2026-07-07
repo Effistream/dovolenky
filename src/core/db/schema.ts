@@ -19,6 +19,7 @@ export const offers = sqliteTable('offers', {
   lastSeenAt: text('last_seen_at').notNull(),
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
   misses: integer('misses').notNull().default(0),
+  matchKey: text('match_key'),
 }, (table) => [
   uniqueIndex('offers_source_source_offer_key_idx').on(table.source, table.sourceOfferKey),
 ]);
@@ -40,6 +41,7 @@ export const notificationsLog = sqliteTable('notifications_log', {
   type: text('type').notNull(),
   sentAt: text('sent_at').notNull(),
   priceAtSend: integer('price_at_send'),
+  matchKey: text('match_key'),
 });
 
 export const sourceRuns = sqliteTable('source_runs', {
