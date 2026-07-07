@@ -78,6 +78,9 @@ describe('sourceDisplayName', () => {
     expect(sourceDisplayName('eximtours')).toBe('Exim');
     expect(sourceDisplayName('invia')).toBe('Invia');
     expect(sourceDisplayName('bluestyle')).toBe('Blue Style');
+    // exotic-batch sources (2026-07-07): explicit names, not the title-case fallback
+    expect(sourceDisplayName('esotravel')).toBe('ESO travel');
+    expect(sourceDisplayName('firo')).toBe('FIRO Travel');
   });
   it('falls back to a capitalised slug for unknown sources', () => {
     expect(sourceDisplayName('foo')).toBe('Foo');
@@ -98,6 +101,9 @@ describe('offerCtaLabel', () => {
     expect(offerCtaLabel('dovolena')).toBe('Otevřít na Dovolena.cz');
     expect(offerCtaLabel('skrz')).toBe('Otevřít na Skrz.cz');
     expect(offerCtaLabel('dovolenkovani')).toBe('Otevřít na Dovolenkovani.cz');
+    // exotic-batch sources (2026-07-07)
+    expect(offerCtaLabel('firo')).toBe('Otevřít u FIRO Travel');
+    expect(offerCtaLabel('adventura')).toBe('Otevřít u Adventury');
   });
 
   it('falls back to a generic label for an unknown source', () => {
@@ -122,6 +128,12 @@ const REGISTRY_SLUGS = [
   'eximtours',
   'dovolena',
   'dovolenkovani',
+  'firo',
+  'alexandria',
+  'deluxea',
+  'esotravel',
+  'adventura',
+  'datour',
 ] as const;
 
 describe('registry slugs have real copy (no fallback)', () => {

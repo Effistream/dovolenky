@@ -1,0 +1,38 @@
+<!--
+  Trimmed live fixture captured 2026-07-07 from
+  GET https://www.firotravel.cz/detail-zajezdu/x/6564a
+  which 301-redirects to the canonical
+  /detail-zajezdu/spojene-arabske-emiraty/sheraton-jumeirah-beach-resort-towers/6564a
+  (verified live: the dovolenkovani 2-segment detail-redirect shape works unchanged for FIRO —
+  CESYS routes on the numeric master_id and ignores the dummy slug segment(s), so no custom
+  detailPathTemplate is needed). The real page is ~92 KB; only the <head> ld+json LodgingBusiness
+  block and the page <h1> are kept here — those are the two sources parseHotelNameFromDetail reads
+  (ld+json preferred, <h1> fallback). Both carry the same name, "Sheraton Jumeirah Beach Resort &
+  Towers".
+-->
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <title>Sheraton Jumeirah Beach Resort &amp; Towers</title>
+  <script type="application/ld+json">
+{
+    "@context": "http://schema.org",
+    "@type": "LodgingBusiness",
+    "name": "Sheraton Jumeirah Beach Resort & Towers",
+    "url": "https://www.firotravel.cz/detail-zajezdu/spojene-arabske-emiraty/sheraton-jumeirah-beach-resort-towers/6564a",
+    "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Dubaj",
+        "addressCountry": {
+            "@type": "Country",
+            "name": "Spojené arabské emiráty"
+        }
+    }
+}
+  </script>
+</head>
+<body>
+  <h1 id="heading">Sheraton Jumeirah Beach Resort &amp; Towers</h1>
+</body>
+</html>

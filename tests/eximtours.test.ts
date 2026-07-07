@@ -116,7 +116,7 @@ describe('parseEximSearch (fixture)', () => {
 });
 
 describe('eximtours source adapter', () => {
-  it('is named eximtours and issues bounded requests (1 seed GET + up to 3 destination GETs)', async () => {
+  it('is named eximtours and issues bounded requests (1 seed GET + up to 12 destination GETs)', async () => {
     const textMock = vi.fn().mockResolvedValue(lastMinuteHtml);
     const jsonMock = vi.fn().mockResolvedValue(searchFixture);
 
@@ -131,7 +131,9 @@ describe('eximtours source adapter', () => {
     expect(eximtours.name).toBe('eximtours');
     expect(textMock).toHaveBeenCalledTimes(1);
     expect(jsonMock.mock.calls.length).toBeGreaterThan(0);
-    expect(jsonMock.mock.calls.length).toBeLessThanOrEqual(3);
+    // TARGET_DESTINATIONS grew to 12 (spec §16.2 exotic broadening); the seed GET is 1 text call
+    // and each destination that resolves to a seed is one json GET, capped at the target count.
+    expect(jsonMock.mock.calls.length).toBeLessThanOrEqual(12);
     expect(offers.length).toBeGreaterThan(0);
     expect(offers.every((o) => o.source === 'eximtours')).toBe(true);
   });

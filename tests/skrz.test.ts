@@ -288,6 +288,11 @@ describe('skrz.fetchOffers: per-listing-URL error isolation', () => {
     return `<html><body><script>self.__next_f.push([1,${escaped}])</script></body></html>`;
   }
 
+  function emptyDealsPayload(): string {
+    const escaped = JSON.stringify(JSON.stringify({ deals: [] }));
+    return `<html><body><script>self.__next_f.push([1,${escaped}])</script></body></html>`;
+  }
+
   it('continues past a generic error on one listing URL and returns offers from the others', async () => {
     const http = {
       text: vi.fn(async (url: string) => {
@@ -297,6 +302,12 @@ describe('skrz.fetchOffers: per-listing-URL error isolation', () => {
         if (url.includes('destinace:bulharsko')) return dealPayload('BULH0001', 'Bulharsko Hotel');
         if (url.includes('destinace:chorvatsko')) return dealPayload('CHORV001', 'Chorvatsko Hotel');
         if (url.endsWith('/pobyty')) return dealPayload('POBYTY01', 'Pobyty Hotel');
+        // Exotic listing paths added in spec §16.2 (all live-verified non-empty); here they return
+        // an empty deals payload so the assertion below stays focused on the error-isolation set
+        // while still exercising the full 9-path iteration and call count.
+        if (url.endsWith('/exoticka-dovolena')) return emptyDealsPayload();
+        if (url.includes('destinace:thajsko')) return emptyDealsPayload();
+        if (url.includes('destinace:maledivy')) return emptyDealsPayload();
         throw new Error(`unexpected url ${url}`);
       }),
       json: vi.fn(),
@@ -308,7 +319,7 @@ describe('skrz.fetchOffers: per-listing-URL error isolation', () => {
     expect(offers.map((o) => o.title).sort()).toEqual(
       ['Recko Hotel', 'Egypt Hotel', 'Bulharsko Hotel', 'Chorvatsko Hotel', 'Pobyty Hotel'].sort(),
     );
-    expect(http.text).toHaveBeenCalledTimes(6);
+    expect(http.text).toHaveBeenCalledTimes(9);
     expect(ctx.log).toHaveBeenCalledWith(expect.stringContaining('turecko'));
   });
 

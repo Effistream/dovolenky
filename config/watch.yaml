@@ -15,6 +15,21 @@ profiles:
     min_real_discount_pct: 25
     max_price_per_person: 20000
     notify_new_offers: true
+  exotika:
+    enabled: true
+    countries: [Thajsko, Maledivy, Mauricius, Spojené arabské emiráty,
+                Dominikánská republika, Mexiko, Kuba, Seychely, Srí Lanka,
+                Zanzibar, Tanzanie, Vietnam, Indonésie, Kapverdy, Keňa,
+                Filipíny, Réunion, Nepál, Peru, Japonsko, Kambodža,
+                Madagaskar, Namibie, Jihoafrická republika]
+    # transport filtr záměrně vynechán — exotické země jsou z podstaty letecké
+    # a exact-match filtr by vyřazoval zdroje s transport 'unknown' (ESO travel,
+    # část Adventury). Revize 2026-07-07 (finální review).
+    board: []               # exotika: BB u Malediv běžná, nefiltrovat stravu
+    departure_months: []    # celoročně — hlavní sezóna je zima
+    max_price_per_person: 60000
+    min_real_discount_pct: 15
+    notify_new_offers: false
 notifications:
   price_drop_pct: 10
   renotify_drop_pct: 5

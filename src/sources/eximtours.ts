@@ -4,7 +4,28 @@ import { normalizeBoard, normalizeCountry, isKnownCountry, parseCzk, offerKeyHas
 import { SourceBlockedError } from '../core/http.js';
 
 const BASE_URL = 'https://www.eximtours.cz';
-const TARGET_DESTINATIONS = ['Řecko', 'Egypt', 'Turecko'];
+// Destination names must match the site's OWN GroupSearch2 `locations[].name` labels exactly, or
+// `seedByName.get(name)` misses and the destination is gracefully skipped ("no seed found for X").
+// Exotic names (spec §16.2) live-verified 2026-07-07 (Chrome UA) against the real /last-minute
+// GroupSearch2 payload (20 locations): present with these exact labels → Spojené arabské emiráty,
+// Zanzibar, Maledivy, Thajsko, Dominikánská republika, Mauricius, Mexiko, and 'Kapverdské ostrovy'
+// (NOT 'Kapverdy' — the site's label carries " ostrovy", the brief's bare 'Kapverdy' would skip).
+// 'Kuba' was NOT in the live last-minute inventory this run; kept optimistically since the seed set
+// is dynamic last-minute stock and the graceful skip costs nothing when it is absent.
+const TARGET_DESTINATIONS = [
+  'Řecko',
+  'Egypt',
+  'Turecko',
+  'Spojené arabské emiráty',
+  'Zanzibar',
+  'Maledivy',
+  'Thajsko',
+  'Dominikánská republika',
+  'Mauricius',
+  'Kuba',
+  'Mexiko',
+  'Kapverdské ostrovy',
+];
 
 /**
  * Exim tours runs on the DER Touristik/Kentico platform (like eTravel/Fischer, see der.ts), but

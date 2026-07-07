@@ -79,11 +79,21 @@ interface DovolenaTripListingResponse {
   hotels?: DovolenaHotel[];
 }
 
-// Destination ids verified live 2026-07-04 (see module doc comment for the discovery method).
+// Destination ids verified live (see module doc comment for the discovery method: SSR page
+// __NEXT_DATA__ → destinationId, then a tripListing call to confirm the id actually returns
+// offers). Řecko/Turecko/Egypt verified 2026-07-04. Exotic addition (spec §16.2), verified
+// 2026-07-07 (Chrome UA): Maledivy id 4830 — `GET /maledivy` __NEXT_DATA__ resolved
+// destinationId=4830 (destinationName "Maledivy"), and `GET /api/trip-listing/tripListing?
+// destination=4830&adult=2&page=1` returned totalHotels=382 (10 hotels on page 1, e.g. "Nest By
+// Hawks", destinations[0]="Maledivy", 25 860 CZK). Only ONE exotic id was added because the
+// ≤3-request discovery budget (spec §16.2) covers exactly one full verify per destination (1 SSR
+// request for the id + 1 tripListing request to confirm offers); per the invia precedent, no
+// further exotic id is shipped without that live offers-returned confirmation.
 const DESTINATIONS: { name: string; id: number }[] = [
   { name: 'Řecko', id: 4826 },
   { name: 'Turecko', id: 4813 },
   { name: 'Egypt', id: 4810 },
+  { name: 'Maledivy', id: 4830 },
 ];
 
 function round(n: number): number {

@@ -15,7 +15,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // Source display names — title-case for prose ("Exim počítá…"), distinct from
 // term.ts#sourceLabel which uppercases for the board's mono ZDROJ cell. Keyed
 // on the production registry slugs (src/sources/index.ts): cedok, bluestyle,
-// skrz, zajezdy, invia, etravel, fischer, eximtours, dovolena, dovolenkovani.
+// skrz, zajezdy, invia, etravel, fischer, eximtours, dovolena, dovolenkovani,
+// firo, alexandria, deluxea, esotravel, adventura, datour.
 // ---------------------------------------------------------------------------
 export const SOURCE_NAMES: Record<string, string> = {
   invia: 'Invia',
@@ -28,6 +29,12 @@ export const SOURCE_NAMES: Record<string, string> = {
   dovolenkovani: 'Dovolenkovani.cz',
   etravel: 'eTravel',
   skrz: 'Skrz',
+  firo: 'FIRO Travel',
+  alexandria: 'Alexandria',
+  deluxea: 'Deluxea',
+  esotravel: 'ESO travel',
+  adventura: 'Adventura',
+  datour: 'Datour',
 };
 
 /** "exim" → "Exim" for prose. Unknown slugs get a capitalised first letter. */
@@ -61,6 +68,12 @@ const CTA_LABELS: Record<string, string> = {
   dovolena: 'Otevřít na Dovolena.cz',
   skrz: 'Otevřít na Skrz.cz',
   dovolenkovani: 'Otevřít na Dovolenkovani.cz',
+  firo: 'Otevřít u FIRO Travel',
+  alexandria: 'Otevřít na Alexandria.cz',
+  deluxea: 'Otevřít u Deluxea',
+  esotravel: 'Otevřít u ESO travel',
+  adventura: 'Otevřít u Adventury',
+  datour: 'Otevřít u Datour',
 };
 
 /** The primary CTA label for a source, with correct Czech grammar. */

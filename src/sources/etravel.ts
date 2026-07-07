@@ -4,7 +4,28 @@ import { mapDerTours } from './der.js';
 const BASE_URL = 'https://www.etravel.cz';
 const WINDOW_DAYS = 60;
 const NIGHTS = '7|8|9|10|11|12|13|14';
-const TARGET_COUNTRIES = ['Řecko', 'Turecko', 'Egypt'];
+// A TARGET country only produces offers if `discoverDestinationIds` (the categories response of
+// `getsearchresult?tt=1`) returns a `destinations[]` entry whose `name` matches exactly and whose
+// `destinationIds` is non-empty; otherwise it is gracefully skipped ("no destination ids found").
+// Exotic names (spec §16.2) live-verified 2026-07-07 (Chrome UA) directly against that categories
+// response — all 9 below were present with a non-empty destinationIds string (e.g. Maledivy=220441,
+// Mauricius=63738, Srí Lanka=64077, Kuba=222769, SAE/Thajsko/Mexiko/Vietnam multi-region). Zanzibar
+// was deliberately NOT added: it is not a country-level category on eTravel (rolled into Tanzánie),
+// so it would only ever skip; its exotic inventory is covered by Datour/FIRO/eximtours instead.
+const TARGET_COUNTRIES = [
+  'Řecko',
+  'Turecko',
+  'Egypt',
+  'Spojené arabské emiráty',
+  'Maledivy',
+  'Thajsko',
+  'Dominikánská republika',
+  'Mauricius',
+  'Kuba',
+  'Mexiko',
+  'Srí Lanka',
+  'Vietnam',
+];
 
 /**
  * eTravel runs on the DER Touristik platform (shared with Fischer/Exim — see der.ts) and is

@@ -18,6 +18,28 @@ describe('loadConfig', () => {
     expect(cfg.scan.adults).toBe(2);
   });
 
+  it('parses the exotika profile (task 34; countries extended to 24 per spec §16.3 rev)', () => {
+    const cfg = loadConfig({ configPath: CONFIG_PATH, env: {} });
+
+    const exotika = cfg.profiles['exotika'];
+    expect(exotika?.enabled).toBe(true);
+    // Extended from 17 to 24 (spec §16.3 revision after Task 39 review): +Nepál, Peru, Japonsko,
+    // Kambodža, Madagaskar, Namibie, Jihoafrická republika (Adventura's expedition countries).
+    expect(exotika?.countries).toHaveLength(24);
+    expect(exotika?.countries).toEqual(
+      expect.arrayContaining(['Nepál', 'Peru', 'Japonsko', 'Kambodža', 'Madagaskar', 'Namibie', 'Jihoafrická republika']),
+    );
+    // transport filter removed (spec §16.3 rev 2026-07-07 final review): exotika
+    // countries are long-haul (flight implied) and exact-match transport would
+    // exclude sources emitting 'unknown' (ESO travel, part of Adventura).
+    expect(exotika?.transport).toBeUndefined();
+    expect(exotika?.board).toEqual([]);
+    expect(exotika?.departureMonths).toEqual([]);
+    expect(exotika?.maxPricePerPerson).toBe(60000);
+    expect(exotika?.minRealDiscountPct).toBe(15);
+    expect(exotika?.notifyNewOffers).toBe(false);
+  });
+
   it('applies sensible defaults for optional fields', () => {
     const cfg = loadConfig({ configPath: CONFIG_PATH, env: {} });
 

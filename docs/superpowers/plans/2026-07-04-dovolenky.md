@@ -723,3 +723,98 @@ Zadání od uživatele 2026-07-07: „Proč se tam nahoře dají vybrat jen něk
 
 **Files:** format.ts (referenceLabel per stupeň + baseline jako ekvivalent), web/src (board REÁLNÁ buňka + detail verdikt: „vs. tento hotel" / „vs. Kréta" / „vs. Řecko"), api.ts pokud vrací reference (vrací — jen doplnit label mapu na FE). Test: format.test.ts, web unit.
 - [ ] format.ts: `referenceLabel(reference, offer): string` (own „30denní medián", omnibus „Omnibus 30denní min.", hotel „tento hotel", locality → offer.locality, market → offer.country). Board buňka „−22 % vs. <label> <ekvivalent Kč>". Detail verdikt zmíní stupeň. Telegram formatOffer taktéž. Testy všech větví. Poté: whole-branch review (fable) → fix vlna → merge do main. Commit `feat: reference-tier labels in notifications and dashboard`.
+
+---
+
+## Fáze Exotika (Tasky 34–41, spec §16, recon 2026-07-07)
+
+Branch `feature/exotika`. Všechna živá ověření (slugy, ids, redirect patterny) dělá implementer
+curl-em se standardním Chrome UA projektu; neověřený seed se NEshipuje (precedens invia).
+Kadence testovacích requestů: max ~5 na host, ≥3 s rozestup.
+
+### Task 34: Core příprava — země + profil exotika
+
+**Files:** src/core/normalize.ts (COUNTRIES + aliasy), config/watch.yaml (+profil), tests/normalize.test.ts, tests/config.test.ts, tests/filters.test.ts.
+
+**Interfaces:** Produces: kanonické země `Tanzanie, Keňa, Réunion, Filipíny, Kambodža, Nepál, Peru, Japonsko, Jihoafrická republika, Madagaskar, Namibie` v COUNTRIES; aliasy `bali`→`Indonésie`, `dominikana`→`Dominikánská republika`; profil `exotika` přesně dle spec §16.3. Žádná změna signatur.
+
+- [ ] Failing testy: normalizeCountry('Tanzanie')==='Tanzanie', isKnownCountry('Keňa')===true, normalizeCountry('Bali')==='Indonésie', normalizeCountry('Dominikána')==='Dominikánská republika'; loadConfig fixture s profilem exotika parsuje (countries 17 zemí, transport flight, board [], maxPricePerPerson 60000, minRealDiscountPct 15); matchProfiles: Maledivy/AI/flight/45000 Kč/leden matchne exotika a nematchne leto-more.
+- [ ] Implementace: COUNTRIES += 11 zemí, COUNTRY_BY_KEY aliasy bali/dominikana; watch.yaml += profil exotika dle spec §16.3 doslova.
+- [ ] Plný suite zelený → commit `feat: exotic countries + exotika watch profile`.
+
+### Task 35: CESYS factory + adapter FIRO (spec §16.1 ř. 11)
+
+**Files:** Create: src/sources/cesys.ts (factory), src/sources/firo.ts. Modify: src/sources/dovolenkovani.ts (→ tenká instance factory), src/sources/index.ts (+firo). Test: tests/firo.test.ts (nový), tests/dovolenkovani.test.ts (importy path-update, jinak beze změny chování), fixtures tests/fixtures/firo/.
+
+**Interfaces:** Produces: `makeCesysAdapter(opts: CesysStorefrontOpts): SourceAdapter` kde `CesysStorefrontOpts = { name: string; siteBaseUrl: string; clientId: string; customerId: string; fallbackUrl: string; queries: DatesListQuery[] }`; `DatesListQuery` rozšířeno o `countryIds?: string[]` (→ body `country_id: countryIds`) a `toDaysOverride`/plné datumové okno per query. Všechny pure funkce (parseCesysDates, parseAccommodationsSitemap, extractAccommodationSitemapUrls, parseHotelNameFromDetail) se stěhují do cesys.ts a exportují odtud; dovolenkovani.ts je re-exportuje (kompatibilita) A je instancí factory se SVÝMI dnešními 2 queries (chování dovolenkovani se v tomto tasku NEMĚNÍ — exotika query pro něj přidá Task 41).
+- [ ] Refactor krok: extrahuj celé tělo dovolenkovani.ts do cesys.ts parametrizované přes opts (SITE_BASE_URL, CLIENT_ID, CUSTOMER_ID, FALLBACK_URL, prefix logů = opts.name, QUERIES = opts.queries; source v mapRow = opts.name). Spusť JEN stávající suite — musí zůstat zelená beze změn fixture (důkaz čistého refactoru). Commit `refactor: extract CESYS storefront factory from dovolenkovani`.
+- [ ] Živá ověření FIRO (curl, ≤5 requestů): (a) dates-list client_id 12352 + customer_id 3593 vrací status success; (b) country_id:["131"] skutečně filtruje (vrátí jen Maledivy rows — ověř přes mapping/countries 12352); (c) accommodations.xml na www.firotravel.cz existuje a má stejný tvar; (d) detail-redirect pattern: GET `https://www.firotravel.cz/detail-zajezdu/x/<master_id>a` → 301 na kanonickou URL s h1/ld+json jménem — pokud pattern jiný (CESYS variant 11), zdokumentuj skutečný a přidej do opts `detailPathTemplate: (id) => string` s defaultem dovolenkovani tvaru. Ulož fixtures (dates-list exotika stránka, countries, sitemap).
+- [ ] Failing testy firo.test.ts nad fixtures: parsuje exotické nabídky (Thajsko od 19315, Maledivy od 41059 — dle živé fixture), source==='firo', country_id query v body, sort NIKDY 'discount desc'.
+- [ ] firo.ts = makeCesysAdapter({name:'firo', siteBaseUrl:'https://www.firotravel.cz', clientId:'12352', customerId:'3593', queries: [leto-more (+60d, dur 7-22, minNights 6), last-minute (+14d, dur 1-21), exotika (+270d, dur 7-22, minNights 6, countryIds: ['220','131','138','198','46','142','192','215','219','112','239','102'])]}). Registrace v index.ts za dovolenkovani.
+- [ ] Plný suite zelený → commit `feat: FIRO Travel adapter via CESYS factory (exotic long-haul)`.
+
+### Task 36: Adapter Alexandria (spec §16.1 ř. 12)
+
+**Files:** Create: src/sources/alexandria.ts. Modify: src/sources/index.ts. Test: tests/alexandria.test.ts, fixtures tests/fixtures/alexandria/.
+
+**Interfaces:** Consumes: normalizeBoard/normalizeTransport/normalizeCountry/isKnownCountry/offerKeyHash, SourceBlockedError. Produces: `export const alexandria: SourceAdapter` (name 'alexandria').
+- [ ] Živá ověření (curl ≤5): GET `https://bck-new.alexandria.cz/web-search?page=1` (default feed) a `?page=1&location=3175` (Maledivy — sezónně může být 0, pak zkus 453246 Bali); ulož fixtures obou. Ověř: package_price je za celou skupinu (persons pole), original_price přítomná/0, tvar detail slugu → funkční URL `https://www.alexandria.cz/hotel/{detail}` (ověř 200, jinak fallback `https://www.alexandria.cz/vyhledavani`).
+- [ ] Failing testy nad fixtures: mapping packages→NormalizedOffer (pricePerPerson = round(package_price/persons.length), priceTotal = package_price, claimedOriginalPrice z original_price>package_price (per-person přepočet + claimedDiscountPct dopočet), stars z accommodation_category float→round, board/transport normalizace, country přes isKnownCountry guard, sourceOfferKey = offerKeyHash([tour_id, start, nights, board_id]), dedup, invalidní řádky (chybějící price/start) přeskočeny).
+- [ ] fetchOffers: QUERIES = [{label:'default', page 1..2}, {label:'exotika', location ids ['3175','8288','3030','5899','3163','453555','453246'], page 1 per id}]; per-query error isolation (skip+log), SourceBlockedError → stop, all-failed → rethrow (fischer pattern), dedup přes sourceOfferKey, log `alexandria: fetched N offers across M queries`.
+- [ ] Plný suite zelený → commit `feat: Alexandria adapter (bck-new JSON API, exotic location queries)`.
+
+### Task 37: Adapter Deluxea (spec §16.1 ř. 13)
+
+**Files:** Create: src/sources/deluxea.ts. Modify: src/sources/index.ts. Test: tests/deluxea.test.ts, fixtures tests/fixtures/deluxea/ (min. 1 country listing HTML).
+
+**Interfaces:** Produces: `export const deluxea: SourceAdapter` (name 'deluxea'); pure `parseDeluxeaListing(html: string, listingUrl: string): NormalizedOffer[]` exportovaná pro testy.
+- [ ] Živá ověření (curl ≤5): stáhni sitemap.xml → potvrď listing slugy pro ~10 exotických zemí (kandidáti /hotely-maledivy/, /hotely-spojene-arabske-emiraty/, /hotely-mauricius/, /hotely-seychely/, /hotely-zanzibar/, /hotely-thajsko/, /hotely-bali/, /hotely-sri-lanka/, /hotely-dominikanska-republika/, /hotely-vietnam/ — skutečné tvary vezmi ze sitemap); stáhni 1-2 listingy jako fixtures. Ověř data-json na `form.offline-data.hotel-comparator-form` (HTML-entity-encoded).
+- [ ] Failing testy nad fixture: parseDeluxeaListing extrahuje z každé karty: title (jméno hotelu ze statického HTML), stars (span.beutystar počet ★), country (span.destination-name přes isKnownCountry — deluxea používá slug země i v URL listingu → fallback z listingUrl), locality, data-json → nights (klíč price dictu), pricePerPerson (parse „37 690" s mezerami), priceTotal (total), claimedOriginalPrice (old_price > price ? old_price : null; diff_total 0 → null), claimedDiscountPct dopočet, board (meal → normalizeBoard), transport 'flight' když tickets pole neprázdné jinak 'unknown', departureDate z date_from, url z karty (a[href] detail), sourceOfferKey = offerKeyHash([url|slug, date_from, nights]). NIKDY nečíst viditelné .comparator-total texty (jsou „-").
+- [ ] fetchOffers: GET listingů (ověřené slugy, ~10), per-URL error isolation, SourceBlockedError stop, all-failed rethrow, dedup, log.
+- [ ] Plný suite zelený → commit `feat: Deluxea adapter (Nette data-json embedded offers)`.
+
+### Task 38: Adapter ESO travel (spec §16.1 ř. 14)
+
+**Files:** Create: src/sources/esotravel.ts. Modify: src/sources/index.ts. Test: tests/esotravel.test.ts, fixtures tests/fixtures/esotravel/.
+
+**Interfaces:** Produces: `export const esotravel: SourceAdapter` (name 'esotravel'); pure `parseEsoListing(html: string, country: string|null, baseUrl: string): NormalizedOffer[]`.
+- [ ] Živá ověření (curl ≤5): potvrď listing URL `/dovolena/{slug}/zajezdy/` pro exotické země (thajsko, maledivy, mauricius, zanzibar, dominikanska-republika, sri-lanka, vietnam, kuba, mexiko, seychely — tvary z navigace/sitemap) + `/last-minute/zajezdy/`; ulož 1-2 fixtures (ideálně Maledivy — pobytové karty).
+- [ ] Failing testy nad fixtures: karta → title (h2), country (parametr country z listingu; u last-minute z .tour-type span přes isKnownCountry), departureDate (.detail-date první datum + rok, parseCzDate), nights (span.days „15 dní / 12 nocí" → 12), pricePerPerson (div.price strong, **U+00A0 oddělovač** — parseCzk ho zvládá, ověř testem), url + sourceOfferKey z a[href] `?termin={id}` (fallback offerKeyHash([slug, date, price])), claimed* VŽDY null (web nemá slevy), board 'unknown', transport: 'flight' pokud karta/sekce letecky, jinak 'unknown'. Karty bez ceny („na vyžádání") přeskočit.
+- [ ] fetchOffers: ~10 country listingů + last-minute, izolace/blocked/rethrow/dedup/log jako výše.
+- [ ] Plný suite zelený → commit `feat: ESO travel adapter (SSR listings, no-discount source)`.
+
+### Task 39: Adapter Adventura (spec §16.1 ř. 15)
+
+**Files:** Create: src/sources/adventura.ts. Modify: src/sources/index.ts. Test: tests/adventura.test.ts, fixtures tests/fixtures/adventura/ (sitemap výřez + 1-2 detaily).
+
+**Interfaces:** Produces: `export const adventura: SourceAdapter` (name 'adventura'); pure `filterExoticTourUrls(sitemapXml: string): string[]` a `parseAdventuraDetail(html: string, url: string): NormalizedOffer[]`.
+- [ ] Konstanty: `MAX_DETAILS = 25`; `EXOTIC_SLUG_TOKENS` = ['nepal','vietnam','sri-lanka','srilanka','tanzanie','zanzibar','kambodz','kuba','filipiny','peru','kena','keni','thajsko','seychely','reunion','mexiko','galapagy','dominik','indonesie','bali','mauricius','maledivy','kapverdy','japonsko','madagaskar','namibie','jar','ekvador','havaj','kostarika','panama'].
+- [ ] Failing testy: filterExoticTourUrls vybírá jen /zajezdy/{id}-{slug}/ jejichž slug obsahuje token, deterministicky seřazené, cap aplikuje volající; parseAdventuraDetail: z table.date-list řádků → title (h1), country (tokeny title/p.sub přes isKnownCountry; multi-country „Réunion a Mauricius" → první známá), departureDate (span.term „11. 11. – 23. 11. 2026" → 2026-11-11), nights (td.length „13 dní" → 12 nocí = dní−1), pricePerPerson (span.price-value strong), claimedOriginalPrice (small.line-through.original-price), claimedDiscountPct (span.discount-percentage „-2%" → 2), sourceOfferKey (td.code), transport/board regexy z div.graybox.terms (letecky/autobus; snídan/polopenz/plná penz/bez strav), url = detail URL. Řádky bez ceny přeskočit.
+- [ ] fetchOffers: 1× sitemap.xml → filterExoticTourUrls → prvních MAX_DETAILS → GET detaily (izolace per-URL, SourceBlockedError stop, sitemap fail → rethrow), log počtu skipnutých nad cap. ⚠️ nikdy ?druh=/?destinace= URL.
+- [ ] Plný suite zelený → commit `feat: Adventura adapter (sitemap-bounded exotic tour details)`.
+
+### Task 40: Adapter Datour (spec §16.1 ř. 16)
+
+**Files:** Create: src/sources/datour.ts. Modify: src/sources/index.ts. Test: tests/datour.test.ts, fixtures tests/fixtures/datour/.
+
+**Interfaces:** Produces: `export const datour: SourceAdapter` (name 'datour'); pure `parseDatourPackages(payload: unknown, fallbackUrl: string): NormalizedOffer[]`.
+- [ ] Konstanty: `API = 'https://search.anchoice.cz/web-search'`; `LOCATION_IDS` (country → id, spec ř. 16 — Maledivy 30182, Thajsko 29828, Zanzibar 452587, Mauricius 451780, Dominikánská 28824, SAE 30594, Kuba 28796, Vietnam 29920, Seychely 28075, Srí Lanka 450831, Indonésie 29632, Mexiko 29011); requesty s headerem `Referer: https://datour.cz/`. ⚠️ Elastic credentials z bundle NIKDY (spec §16.4). POST /search NEpoužívat (filtr nefunkční).
+- [ ] Živá ověření (curl ≤4): GET `?page=1&location=30182&package=0` → ulož fixture; ověř detail slug → funkční deep-link tvar na datour.cz (zkus `https://datour.cz/{detail}` a `https://datour.cz/dovolena/{detail}`; když nic → fallback `https://datour.cz/vyhledavani?location=<id>`).
+- [ ] Failing testy nad fixture: packages → NormalizedOffer: title=tour_name, country=country_name (isKnownCountry guard), locality=destination_name.trim() || state_name, stars=round(parseFloat(accommodation_category)) || null, board=normalizeBoard(board_name), transport=normalizeTransport(transport_name), departureDate=start, nights, **pricePerPerson=round(unit_price)** (unit_price<=0 → skip; package_price NEpoužívat), claimedOriginalPrice: original_price>unit_price → per-person guard (pozor: ověř na fixture, zda original_price je per-person či total — rozhodni dle poměru k unit_price/package_price a zdokumentuj), claimedDiscountPct z package_discount>0<100, tourOperator=provider_name, sourceOfferKey=offerKeyHash([tour_id, start, nights, board_id]) (stabilní per termín+strava, room-agnostický — precedens alexandria; PŮVODNĚ plán říkal [item_id], ale item_id kóduje pokoj/let → klíč by rotoval s nejlevnější variantou a resetoval cenovou historii — revize 2026-07-07 po review Tasku 40; fallback [item_id] jen když tour_id chybí), dedup na tour_id+start+nights+board_id (nejlevnější unit_price v bucketu — price asc řazení není garantované, vybírej min).
+- [ ] fetchOffers: page 1 pro každý LOCATION_IDS (12 requestů, jeden host — 3s gap = ~36 s OK), izolace/blocked/rethrow/dedup/log.
+- [ ] Plný suite zelený → commit `feat: Datour adapter (anchoice web-search API, exotic countries)`.
+
+### Task 41: Rozšíření dotazů stávajících zdrojů (spec §16.2)
+
+**Files:** Modify: src/sources/zajezdy.ts (SLUGS), src/sources/eximtours.ts (TARGET_DESTINATIONS), src/sources/etravel.ts (TARGET_COUNTRIES), src/sources/dovolena.ts (DESTINATIONS — jen živě ověřená id), src/sources/skrz.ts (LISTING_PATHS — jen živě ověřené), src/sources/dovolenkovani.ts (třetí query exotika přes factory opts). Testy: příslušné *.test.ts (počty seedů/queries, exotika query body).
+
+- [ ] Živá ověření (curl, max ~3/host): zajezdy exotické slugy (kandidáti spec §16.2 — použij jen ty, co vrátí listing s tourResults), skrz `/exoticka-dovolena` příp. `destinace:` exotické, dovolena.cz exotická destination id (metoda z module doc; neověřené neshipovat), etravel/exim jména dle číselníků (graceful skip existuje — přidej optimisticky celý seznam ze spec §16.2).
+- [ ] dovolenkovani: queries += exotika (+270 d, dur 7-22, minNights 6, countryIds jako FIRO Task 35). Test: 3. query v body má country_id.
+- [ ] Testy: aktualizuj asserty počtů (např. zajezdy `across N slugs`), přidej test že exotický slug/dest je v seznamu; žádná změna parsování.
+- [ ] Plný suite zelený → commit `feat: broaden existing source queries with exotic destinations`.
+
+### Poznámka k finále fáze
+
+Po Task 41: whole-branch review (SDD konvence), fix vlna, merge `feature/exotika` do main,
+poté plný `npm run scan` (uživatelův požadavek „nový scan včetně nových exotik — ať je to full")
+a ověření dashboardu (exotické země ve filtrech, profil exotika).

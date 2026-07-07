@@ -24,11 +24,13 @@ export function normalizeTransport(raw: string | null | undefined): Transport {
 }
 
 // Kanonické názvy zemí; klíč = stripped varianta/slug.
-const COUNTRIES = ['Řecko','Turecko','Egypt','Španělsko','Kypr','Bulharsko','Chorvatsko','Itálie','Tunisko','Malta','Portugalsko','Albánie','Černá Hora','Maroko','Spojené arabské emiráty','Thajsko','Zanzibar','Kapverdy','Dominikánská republika','Mexiko','Kuba','Maledivy','Mauricius','Seychely','Srí Lanka','Indonésie','Vietnam','Madeira','Kanárské ostrovy','Slovinsko','Francie','Rakousko','Maďarsko','Slovensko','Česká republika','Gruzie','Jordánsko','Izrael','Omán','Katar','Polsko'];
+const COUNTRIES = ['Řecko','Turecko','Egypt','Španělsko','Kypr','Bulharsko','Chorvatsko','Itálie','Tunisko','Malta','Portugalsko','Albánie','Černá Hora','Maroko','Spojené arabské emiráty','Thajsko','Zanzibar','Kapverdy','Dominikánská republika','Mexiko','Kuba','Maledivy','Mauricius','Seychely','Srí Lanka','Indonésie','Vietnam','Madeira','Kanárské ostrovy','Slovinsko','Francie','Rakousko','Maďarsko','Slovensko','Česká republika','Gruzie','Jordánsko','Izrael','Omán','Katar','Polsko','Tanzanie','Keňa','Réunion','Filipíny','Kambodža','Nepál','Peru','Japonsko','Jihoafrická republika','Madagaskar','Namibie'];
 const COUNTRY_BY_KEY = new Map(COUNTRIES.map(c => [strip(c), c]));
 COUNTRY_BY_KEY.set('sae', 'Spojené arabské emiráty');
 COUNTRY_BY_KEY.set('emiraty', 'Spojené arabské emiráty');
 COUNTRY_BY_KEY.set('cerna hora', 'Černá Hora');
+COUNTRY_BY_KEY.set('bali', 'Indonésie');
+COUNTRY_BY_KEY.set('dominikana', 'Dominikánská republika');
 
 export function normalizeCountry(raw: string | null | undefined): string | null {
   if (!raw) return null;

@@ -72,6 +72,36 @@ describe('normalize', () => {
     expect(isKnownCountry(undefined)).toBe(false);
     expect(isKnownCountry('totally-unknown-place')).toBe(false);
   });
+  it('exotika phase: new canonical countries recognized (task 34)', () => {
+    expect(normalizeCountry('Tanzanie')).toBe('Tanzanie');
+    expect(isKnownCountry('Keňa')).toBe(true);
+    // All 11 new exotic-phase countries (spec §16.3) must resolve as known.
+    const newCountries = [
+      'Tanzanie',
+      'Keňa',
+      'Réunion',
+      'Filipíny',
+      'Kambodža',
+      'Nepál',
+      'Peru',
+      'Japonsko',
+      'Jihoafrická republika',
+      'Madagaskar',
+      'Namibie',
+    ];
+    for (const c of newCountries) {
+      expect(isKnownCountry(c)).toBe(true);
+      expect(normalizeCountry(c)).toBe(c);
+    }
+  });
+  it('exotika phase: bali/dominikana aliases (task 34)', () => {
+    expect(normalizeCountry('Bali')).toBe('Indonésie');
+    expect(normalizeCountry('bali')).toBe('Indonésie');
+    expect(normalizeCountry('Dominikána')).toBe('Dominikánská republika');
+    expect(normalizeCountry('dominikana')).toBe('Dominikánská republika');
+    expect(isKnownCountry('Bali')).toBe(true);
+    expect(isKnownCountry('Dominikána')).toBe(true);
+  });
   it('parseCzk', () => {
     expect(parseCzk(' 16 781 Kč')).toBe(16781);
     expect(parseCzk('od 7 990 Kč')).toBe(7990);

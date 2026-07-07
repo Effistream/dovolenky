@@ -32,6 +32,9 @@ const sitemapIndexXml = loadFixture('sitemap-index-sample.xml');
 // creek-hotel-residences-el-gouna slug) — see the file's own header comment for provenance.
 const detailFixture = loadFixture('detail-320645.html');
 const REAL_DETAIL_HOTEL_NAME = 'Creek Hotel & Residences El Gouna';
+// The 12 exotic CESYS country ids the exotika query filters on (spec §16.1 row 11 — identical to
+// firo's list; the CESYS country mapping is global across storefronts).
+const EXOTIKA_COUNTRY_IDS = ['220', '131', '138', '198', '46', '142', '192', '215', '219', '112', '239', '102'];
 
 /** Builds the same detail-page lookup URL fetchOffers uses, for use in test text() mocks. */
 function detailUrl(id: number): string {
@@ -362,7 +365,9 @@ describe('dovolenkovani source adapter', () => {
     // Real sitemap index -> 2 matching accommodation URLs -> 1 (index) + 2 (shards) = 3 text()
     // calls, PLUS one detail-page lookup per distinct unresolved master_id in the fixture (4).
     expect(textMock.mock.calls.length).toBe(3 + 4);
-    expect(jsonMock.mock.calls.length).toBeLessThanOrEqual(3);
+    // json calls = 1 mapping/countries GET + one dates-list POST per query. Now 3 queries
+    // (léto-moře, last-minute, exotika — spec §16.2) → up to 4 json calls.
+    expect(jsonMock.mock.calls.length).toBeLessThanOrEqual(4);
     expect(offers.length).toBeGreaterThan(0);
     expect(offers.every((o) => o.source === 'dovolenkovani')).toBe(true);
   });
@@ -468,6 +473,28 @@ describe('dovolenkovani source adapter', () => {
     }
   });
 
+  it('issues exactly one dates-list body carrying country_id (the exotika query), with the 12 exotic ids', async () => {
+    const { ctx, jsonMock } = makeCtx(
+      async () => sitemapXml,
+      async () => datesListFixture,
+    );
+    await dovolenkovani.fetchOffers(ctx);
+
+    const postBodies = jsonMock.mock.calls
+      .filter((call) => call[1] !== undefined)
+      .map((call) => JSON.parse((call[1] as RequestInit).body as string));
+    // dovolenkovani now runs 3 queries: léto-moře, last-minute, exotika (spec §16.2).
+    expect(postBodies.length).toBe(3);
+
+    const withCountry = postBodies.filter((b) => b.country_id !== undefined);
+    expect(withCountry.length).toBe(1);
+    expect(withCountry[0].country_id).toEqual(EXOTIKA_COUNTRY_IDS);
+
+    // The non-exotika queries must NOT carry a country_id at all (catalogue-wide, byte-identical
+    // to the pre-exotika bodies).
+    expect(postBodies.filter((b) => b.country_id === undefined).length).toBe(2);
+  });
+
   it('degrades gracefully when the sitemap fetch fails (falls back to Hotel <id> / country still resolved)', async () => {
     const { ctx } = makeCtx(
       async () => {
@@ -497,7 +524,7 @@ describe('dovolenkovani source adapter', () => {
     expect(offers.every((o) => o.country === null)).toBe(true);
   });
 
-  it('rethrows when BOTH dates-list queries fail (fischer pattern: total failure, not empty market)', async () => {
+  it('rethrows when ALL dates-list queries fail (fischer pattern: total failure, not empty market)', async () => {
     const { ctx } = makeCtx(
       async () => sitemapXml,
       async () => {
