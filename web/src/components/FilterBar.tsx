@@ -29,7 +29,7 @@ import {
   type NightsBand,
   type SortKey,
 } from '../lib/filters.js';
-import { boardLabel, sourceLabel } from '../lib/term.js';
+import { sourceLabel } from '../lib/term.js';
 import type { Offer } from '../lib/types.js';
 
 interface Props {
@@ -54,9 +54,22 @@ const SORTS: { key: SortKey; label: string }[] = [
 ];
 
 const PRICE_PRESETS = [10000, 15000, 20000, 25000];
-const MIN_REAL_PRESETS = [0, 10, 15, 25];
-/** Board codes offered as filter chips, in the mockup's order. */
-const BOARD_CHIPS = ['AI', 'HB', 'BB', 'none'];
+const MIN_REAL_PRESETS = [10, 15, 25];
+/**
+ * Board chip order + labels. Covers the full Board domain (AI/FB/HB/BB/none/
+ * unknown) so every board code that can appear on the board is also
+ * selectable/excludable here — see boardFacets, which filters this list down
+ * to codes actually present in the loaded data.
+ */
+const BOARD_LABELS: Record<string, string> = {
+  AI: 'All inclusive',
+  FB: 'Plná penze',
+  HB: 'Polopenze',
+  BB: 'Snídaně',
+  none: 'Bez stravy',
+  unknown: 'Neuvedeno',
+};
+const BOARD_CHIPS = ['AI', 'FB', 'HB', 'BB', 'none', 'unknown'];
 const NIGHTS_ORDER: NightsBand[] = ['le5', '6-8', '9-12', '13+'];
 const COUNTRY_VISIBLE = 8;
 
@@ -245,7 +258,7 @@ export function FilterBar({ offers, profile, onProfile, state, onChange, onClear
               {BOARD_CHIPS.filter((code) => boardCodes.has(code)).map((code) => (
                 <Chip
                   key={code}
-                  label={code === 'none' ? 'Bez stravy' : boardLabel(code)}
+                  label={BOARD_LABELS[code] ?? code}
                   pressed={state.boards.includes(code)}
                   onClick={() => set({ boards: toggle(state.boards, code) })}
                 />

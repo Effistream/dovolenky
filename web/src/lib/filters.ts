@@ -48,7 +48,13 @@ export interface FilterState {
   dateFrom: string | null;
   /** Departure on/before this ISO date (YYYY-MM-DD), or null. */
   dateTo: string | null;
-  /** Minimum real discount in whole percent (0/10/15/25…), or null = no floor. */
+  /**
+   * Minimum real discount in whole percent (10/15/25…), or null = no floor.
+   * 0 is treated as equivalent to null — a 0 % floor is a no-op (it passes
+   * every offer, including undated/still-collecting ones — see
+   * matchesMinRealPct), so it is never active, never serialized, and the
+   * FilterBar offers no "0 %" preset.
+   */
   minRealPct: number | null;
   /** Selected sources (multi). Empty = all. Matched against Offer.source. */
   sources: string[];
@@ -91,7 +97,7 @@ export function activeFilterCount(s: FilterState): number {
   if (s.boards.length > 0) n++;
   if (s.airports.length > 0 || s.ownTransport) n++;
   if (s.dateFrom != null || s.dateTo != null) n++;
-  if (s.minRealPct != null) n++;
+  if (s.minRealPct != null && s.minRealPct > 0) n++;
   if (s.sources.length > 0) n++;
   return n;
 }
@@ -340,7 +346,7 @@ export function serializeFilterState(s: FilterState): URLSearchParams {
   if (s.ownTransport) q.set(PARAM.ownTransport, '1');
   if (s.dateFrom != null) q.set(PARAM.dateFrom, s.dateFrom);
   if (s.dateTo != null) q.set(PARAM.dateTo, s.dateTo);
-  if (s.minRealPct != null) q.set(PARAM.minRealPct, String(s.minRealPct));
+  if (s.minRealPct != null && s.minRealPct > 0) q.set(PARAM.minRealPct, String(s.minRealPct));
   if (s.sources.length > 0) q.set(PARAM.sources, s.sources.join(','));
   if (s.sort !== 'real') q.set(PARAM.sort, s.sort);
   return q;
@@ -369,7 +375,7 @@ export function parseFilterState(input: URLSearchParams | string): FilterState {
   s.ownTransport = q.get(PARAM.ownTransport) === '1';
   s.dateFrom = parseIsoDate(q.get(PARAM.dateFrom));
   s.dateTo = parseIsoDate(q.get(PARAM.dateTo));
-  s.minRealPct = parseNonNegInt(q.get(PARAM.minRealPct));
+  s.minRealPct = parsePosInt(q.get(PARAM.minRealPct));
   s.sources = splitList(q.get(PARAM.sources));
 
   const sort = q.get(PARAM.sort);
@@ -390,18 +396,11 @@ function isNightsBand(v: string): v is NightsBand {
   return (NIGHTS_BAND_KEYS as string[]).includes(v);
 }
 
-/** Positive integer (price ceiling) or null. Zero/negative/NaN → null. */
+/** Positive integer (price ceiling / min real pct floor) or null. Zero/negative/NaN → null. */
 function parsePosInt(raw: string | null): number | null {
   if (raw == null || raw === '') return null;
   const n = Number(raw);
   return Number.isInteger(n) && n > 0 ? n : null;
-}
-
-/** Non-negative integer (a 0 % floor is meaningful) or null. */
-function parseNonNegInt(raw: string | null): number | null {
-  if (raw == null || raw === '') return null;
-  const n = Number(raw);
-  return Number.isInteger(n) && n >= 0 ? n : null;
 }
 
 /** Accepts a strict YYYY-MM-DD string; anything else → null. */

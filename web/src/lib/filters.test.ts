@@ -86,6 +86,9 @@ describe('emptyFilterState / isDefaultState / activeFilterCount', () => {
     expect(activeFilterCount(state({ minRealPct: 15 }))).toBe(1);
     expect(activeFilterCount(state({ sources: ['invia'] }))).toBe(1);
   });
+  it('a 0 % minRealPct is a no-op: not counted as active', () => {
+    expect(activeFilterCount(state({ minRealPct: 0 }))).toBe(0);
+  });
   it('sums across dimensions', () => {
     const s = state({ countries: ['Řecko'], nights: ['6-8'], minRealPct: 15 });
     expect(activeFilterCount(s)).toBe(3);
@@ -161,6 +164,15 @@ describe('matchesBoard', () => {
     expect(matchesBoard(offer({ board: 'AI' }), ['AI', 'HB'])).toBe(true);
     expect(matchesBoard(offer({ board: 'BB' }), ['AI', 'HB'])).toBe(false);
     expect(matchesBoard(offer({ board: 'none' }), ['none'])).toBe(true);
+  });
+  it('FB (plná penze) is a first-class board code, matchable like any other', () => {
+    expect(matchesBoard(offer({ board: 'FB' }), ['FB'])).toBe(true);
+    expect(matchesBoard(offer({ board: 'FB' }), ['AI', 'HB'])).toBe(false);
+    expect(matchesBoard(offer({ board: 'AI' }), ['FB'])).toBe(false);
+  });
+  it('unknown board offers are filterable via the "unknown" code', () => {
+    expect(matchesBoard(offer({ board: 'unknown' }), ['unknown'])).toBe(true);
+    expect(matchesBoard(offer({ board: 'unknown' }), ['AI'])).toBe(false);
   });
 });
 
@@ -245,6 +257,14 @@ describe('applyFilters', () => {
   ];
   it('empty state passes everything', () => {
     expect(applyFilters(offers, emptyFilterState()).map((o) => o.id)).toEqual([1, 2, 3, 4]);
+  });
+  it('board filter can target FB (plná penze), previously unreachable via chips', () => {
+    const withFB = [...offers, offer({ id: 5, country: 'Řecko', board: 'FB', pricePerPerson: 18000 })];
+    expect(applyFilters(withFB, state({ boards: ['FB'] })).map((o) => o.id)).toEqual([5]);
+  });
+  it('board filter can target unknown-board offers via "Neuvedeno"', () => {
+    const withUnknown = [...offers, offer({ id: 6, country: 'Řecko', board: 'unknown', pricePerPerson: 18000 })];
+    expect(applyFilters(withUnknown, state({ boards: ['unknown'] })).map((o) => o.id)).toEqual([6]);
   });
   it('country + nights band narrows', () => {
     const s = state({ countries: ['Řecko'], nights: ['6-8'] });
@@ -347,6 +367,21 @@ describe('facets', () => {
       { value: 'BB', count: 1 },
     ]);
   });
+  it('board facets surface FB and unknown when present in the data', () => {
+    const withMore = [
+      ...offers,
+      offer({ board: 'FB' }),
+      offer({ board: 'FB' }),
+      offer({ board: 'unknown' }),
+    ];
+    expect(boardFacets(withMore)).toEqual([
+      { value: 'AI', count: 2 },
+      { value: 'FB', count: 2 },
+      { value: 'HB', count: 2 },
+      { value: 'BB', count: 1 },
+      { value: 'unknown', count: 1 },
+    ]);
+  });
   it('hasOwnTransport reflects the data', () => {
     expect(hasOwnTransport(offers)).toBe(true);
     expect(hasOwnTransport([offer({ departureAirport: 'PRG', transport: 'flight' })])).toBe(false);
@@ -394,7 +429,6 @@ describe('serialize / parse round-trip', () => {
       { ownTransport: true },
       { dateFrom: '2026-08-01' },
       { dateTo: '2026-08-31' },
-      { minRealPct: 0 },
       { minRealPct: 25 },
       { sources: ['fischer'] },
       { sort: 'departure' },
@@ -403,6 +437,15 @@ describe('serialize / parse round-trip', () => {
       const s = state(v);
       expect(parseFilterState(serializeFilterState(s))).toEqual(s);
     }
+  });
+  it('a 0 % minRealPct serializes to an empty query and parses back to null (no-op, not a floor)', () => {
+    const s = state({ minRealPct: 0 });
+    const q = serializeFilterState(s);
+    expect([...q.keys()]).toEqual([]);
+    expect(parseFilterState(q).minRealPct).toBeNull();
+  });
+  it('minReal=0 in a URL is ignored on parse (falls back to null, not 0)', () => {
+    expect(parseFilterState('minReal=0').minRealPct).toBeNull();
   });
   it('ignores malformed values (garbled URL never throws)', () => {
     const s = parseFilterState('maxPrice=abc&minReal=-4&nights=99,6-8&sort=bogus&from=2026-13&own=x');
