@@ -555,7 +555,11 @@ async function fetchOffers(ctx: SourceContext, opts: CesysStorefrontOpts): Promi
     } catch (err) {
       if (err instanceof SourceBlockedError) {
         // Site is actively blocking us: stop issuing further queries (politeness) but keep
-        // whatever offers the earlier query already yielded.
+        // whatever offers the earlier query already yielded. Record the block as lastError so a
+        // block BEFORE the first success still trips the successCount===0 rethrow below (→ BLOCKED
+        // marker → 24h backoff) instead of silently degrading to []. (The hotel-name lookup loop
+        // below is a separate helper loop — its block correctly only stops enrichment.)
+        lastError = err;
         ctx.log(`${opts.name}: query ${query.label} blocked (${err.message}), stopping`);
         break;
       }

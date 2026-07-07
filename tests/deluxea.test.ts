@@ -318,4 +318,17 @@ describe('deluxea.fetchOffers: per-listing-URL error isolation', () => {
     const ctx = makeCtx(http);
     await expect(deluxea.fetchOffers(ctx)).rejects.toThrow('total outage');
   });
+
+  it('rethrows when the FIRST listing URL is blocked before any success (backoff must engage)', async () => {
+    const http = {
+      text: vi.fn(async (url: string) => {
+        if (url.includes('hotely-maledivy')) throw new SourceBlockedError(403, 'blocked');
+        throw new Error(`should not fetch ${url}`);
+      }),
+      json: vi.fn(),
+    } as unknown as SourceContext['http'];
+    const ctx = makeCtx(http);
+    await expect(deluxea.fetchOffers(ctx)).rejects.toThrow('blocked');
+    expect((http.text as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+  });
 });

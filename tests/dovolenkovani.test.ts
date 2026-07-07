@@ -535,6 +535,20 @@ describe('dovolenkovani source adapter', () => {
     await expect(dovolenkovani.fetchOffers(ctx)).rejects.toThrow();
   });
 
+  it('rethrows when the FIRST dates-list query is blocked before any success (backoff must engage)', async () => {
+    // Regression: a block on the first dates-list query (countries GET is non-fatal enrichment)
+    // must propagate, not swallow to [], so runScan writes the BLOCKED marker and backoff engages.
+    // The main dates-list loop's blocked branch must set lastError before break.
+    const { SourceBlockedError } = await import('../src/core/http.js');
+    const { ctx } = makeCtx(
+      async () => sitemapXml,
+      async () => {
+        throw new SourceBlockedError(403, 'blocked');
+      },
+    );
+    await expect(dovolenkovani.fetchOffers(ctx)).rejects.toThrow('blocked');
+  });
+
   it('stops on SourceBlockedError but keeps offers already collected from the other query', async () => {
     const { SourceBlockedError } = await import('../src/core/http.js');
     let jsonCallCount = 0;

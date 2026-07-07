@@ -305,6 +305,7 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
   const all: NormalizedOffer[] = [];
   const seen = new Set<string>();
   let pageCount = 0;
+  let lastError: unknown;
 
   for (const url of targets) {
     let offers: NormalizedOffer[];
@@ -315,9 +316,12 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
     } catch (err) {
       if (err instanceof SourceBlockedError) {
         // Actively blocked: stop issuing further detail GETs (politeness) but keep what we have.
+        // Record the block so a block BEFORE the first success still trips the rethrow below.
+        lastError = err;
         ctx.log(`adventura: ${url} blocked (${err.message}), stopping`);
         break;
       }
+      lastError = err;
       const message = err instanceof Error ? err.message : String(err);
       ctx.log(`adventura: ${url} failed (${message}), skipping`);
       continue;
@@ -328,6 +332,16 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
       seen.add(offer.sourceOfferKey);
       all.push(offer);
     }
+  }
+
+  if (pageCount === 0 && lastError !== undefined) {
+    // Every detail GET failed (the sitemap itself was fine): this is NOT "market empty" — rethrow
+    // the last error (sibling convention) so runScan records this source 'failed' rather than
+    // degrading to [] (which would flip known offers inactive and mute the health alert). A block
+    // on the very first detail lands here too, so the BLOCKED marker / 24h backoff engages.
+    const message = lastError instanceof Error ? lastError.message : String(lastError);
+    ctx.log(`adventura: all ${targets.length} detail pages failed (${message}), aborting`);
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
   ctx.log(`adventura: fetched ${all.length} offers across ${pageCount} tour pages`);

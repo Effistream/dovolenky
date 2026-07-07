@@ -1,5 +1,6 @@
 import type { NormalizedOffer, SourceAdapter, SourceContext } from '../core/types.js';
 import { mapDerTours } from './der.js';
+import { SourceBlockedError } from '../core/http.js';
 
 const BASE_URL = 'https://www.etravel.cz';
 const WINDOW_DAYS = 60;
@@ -104,6 +105,8 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
   const all: NormalizedOffer[] = [];
   const seen = new Set<string>();
   const today = new Date();
+  let lastError: unknown;
+  let successCount = 0;
 
   for (const country of TARGET_COUNTRIES) {
     const ids = destinationIds.get(country);
@@ -117,8 +120,18 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
       const url = searchUrl(ids, today);
       const res = await ctx.http.json<SearchResultResponse>(url);
       offers = mapDerTours(res.tours ?? [], 'etravel', BASE_URL);
+      successCount += 1;
     } catch (err) {
+      if (err instanceof SourceBlockedError) {
+        // Site is actively blocking us: stop issuing further destination queries (politeness) but
+        // keep whatever offers earlier destinations already yielded. Record the block as lastError
+        // so a block BEFORE the first success still trips the successCount===0 rethrow below.
+        lastError = err;
+        ctx.log(`etravel: ${country} blocked (${err.message}), stopping`);
+        break;
+      }
       // Per-request error isolation: one destination failing must not sink the others.
+      lastError = err;
       const message = err instanceof Error ? err.message : String(err);
       ctx.log(`etravel: ${country} query failed (${message}), skipping`);
       continue;
@@ -129,6 +142,17 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
       seen.add(offer.sourceOfferKey);
       all.push(offer);
     }
+  }
+
+  if (successCount === 0 && lastError !== undefined) {
+    // Every destination query failed (discovery was fine): this is not "market empty" — rethrow
+    // (fischer pattern) so runScan records this source 'failed' rather than degrading to [] (which
+    // would flip known offers inactive and mute the health alert). A block on the first destination
+    // lands here → BLOCKED marker / 24h backoff engages. (Countries with no destination ids are a
+    // benign skip, not a failure, so they never set lastError.)
+    const message = lastError instanceof Error ? lastError.message : String(lastError);
+    ctx.log(`etravel: all destination queries failed (${message}), aborting`);
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
   ctx.log(`etravel: fetched ${all.length} offers across ${TARGET_COUNTRIES.length} destinations`);

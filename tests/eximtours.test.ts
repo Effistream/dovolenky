@@ -184,4 +184,17 @@ describe('eximtours source adapter', () => {
     expect(offers.length).toBeGreaterThan(0);
     expect(jsonMock).toHaveBeenCalledTimes(2);
   });
+
+  it('rethrows when the FIRST destination request is blocked before any success (backoff must engage)', async () => {
+    const { SourceBlockedError } = await import('../src/core/http.js');
+    const textMock = vi.fn().mockResolvedValue(lastMinuteHtml);
+    const jsonMock = vi.fn().mockRejectedValue(new SourceBlockedError(403, 'blocked'));
+    const ctx: SourceContext = {
+      http: { json: jsonMock, text: textMock } as unknown as SourceContext['http'],
+      adults: 2,
+      log: vi.fn(),
+    };
+    await expect(eximtours.fetchOffers(ctx)).rejects.toThrow('blocked');
+    expect(jsonMock).toHaveBeenCalledTimes(1);
+  });
 });

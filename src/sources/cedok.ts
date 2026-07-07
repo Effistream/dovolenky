@@ -116,6 +116,8 @@ function parseCard($: cheerio.CheerioAPI, card: ReturnType<cheerio.CheerioAPI>):
 async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
   const all: NormalizedOffer[] = [];
   const seen = new Set<string>();
+  let lastError: unknown;
+  let successCount = 0;
 
   for (let page = 1; page <= LAST_MINUTE_PAGES; page += 1) {
     const url = `${BASE_URL}/last-minute/?page=${page}&order=priceAsc`;
@@ -123,15 +125,19 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
     try {
       const html = await ctx.http.text(url);
       offers = parseCedokListing(html);
+      successCount += 1;
     } catch (err) {
       if (err instanceof SourceBlockedError) {
         // The site is actively blocking us: stop paging immediately (politeness) but keep
-        // whatever offers earlier pages already yielded.
+        // whatever offers earlier pages already yielded. Record the block as lastError so a block
+        // BEFORE the first success still trips the successCount===0 rethrow below.
+        lastError = err;
         ctx.log(`cedok: page ${page} blocked (${err.message}), stopping pagination`);
         break;
       }
       // Any other per-page failure (network error, parse error, transient 5xx exhausted) should
       // not sink the whole fetch — log and move on to the next page.
+      lastError = err;
       const message = err instanceof Error ? err.message : String(err);
       ctx.log(`cedok: page ${page} failed (${message}), skipping`);
       continue;
@@ -142,6 +148,15 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
       seen.add(offer.sourceOfferKey);
       all.push(offer);
     }
+  }
+
+  if (successCount === 0 && lastError !== undefined) {
+    // Every page failed: this is not "market empty" — rethrow (fischer pattern) so runScan records
+    // this source 'failed' rather than degrading to [] (which would flip known offers inactive and
+    // mute the health alert). A block on the first page lands here → BLOCKED marker / 24h backoff.
+    const message = lastError instanceof Error ? lastError.message : String(lastError);
+    ctx.log(`cedok: all ${LAST_MINUTE_PAGES} pages failed (${message}), aborting`);
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
   ctx.log(`cedok: fetched ${all.length} offers across ${LAST_MINUTE_PAGES} pages`);

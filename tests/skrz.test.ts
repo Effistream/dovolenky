@@ -339,4 +339,18 @@ describe('skrz.fetchOffers: per-listing-URL error isolation', () => {
     expect(offers.map((o) => o.title)).toEqual(['Recko Hotel']);
     expect(http.text).toHaveBeenCalledTimes(2);
   });
+
+  it('rethrows when the FIRST listing URL is blocked before any success (backoff must engage)', async () => {
+    // Regression: a block on the very first listing URL must propagate (not swallow to []), so
+    // runScan writes the BLOCKED marker and the 24h backoff engages.
+    const http = {
+      text: vi.fn(async (url: string) => {
+        if (url.includes('destinace:recko')) throw new SourceBlockedError(403, 'blocked');
+        throw new Error(`should not fetch ${url}`);
+      }),
+      json: vi.fn(),
+    } as unknown as SourceContext['http'];
+    await expect(skrz.fetchOffers(makeCtx(http))).rejects.toThrow('blocked');
+    expect(http.text).toHaveBeenCalledTimes(1);
+  });
 });

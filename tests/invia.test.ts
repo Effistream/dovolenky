@@ -244,4 +244,11 @@ describe('invia adapter fetchOffers', () => {
 
     expect(offers.length).toBe(15);
   });
+
+  it('rethrows when the FIRST query is blocked before any success (backoff must engage)', async () => {
+    const jsonMock = vi.fn().mockRejectedValue(new SourceBlockedError(403, 'blocked'));
+    const ctx = makeCtx({ json: jsonMock, text: vi.fn() } as unknown as SourceContext['http']);
+    await expect(invia.fetchOffers(ctx)).rejects.toThrow('blocked');
+    expect(jsonMock).toHaveBeenCalledTimes(1);
+  });
 });

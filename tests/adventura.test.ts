@@ -374,6 +374,30 @@ describe('adventura.fetchOffers: sitemap-bounded crawl', () => {
     expect(detailCount).toBe(2);
   });
 
+  it('rethrows when ALL detail pages fail (sitemap ok) so runScan marks the source failed', async () => {
+    // Item 3: sitemap OK but every detail GET fails -> not "market empty", rethrow the last error
+    // (sibling convention) so runScan records 'failed' rather than degrading to [].
+    const http = {
+      text: vi.fn(async (u: string) => {
+        if (u.endsWith('/sitemap.xml')) return sitemapExcerpt;
+        throw new Error('detail 500');
+      }),
+      json: vi.fn(),
+    } as unknown as SourceContext['http'];
+    await expect(adventura.fetchOffers(makeCtx(http))).rejects.toThrow('detail 500');
+  });
+
+  it('rethrows when the FIRST detail page is blocked before any success (backoff must engage)', async () => {
+    const http = {
+      text: vi.fn(async (u: string) => {
+        if (u.endsWith('/sitemap.xml')) return sitemapExcerpt;
+        throw new SourceBlockedError(403, 'blocked');
+      }),
+      json: vi.fn(),
+    } as unknown as SourceContext['http'];
+    await expect(adventura.fetchOffers(makeCtx(http))).rejects.toThrow('blocked');
+  });
+
   it('rethrows when the sitemap fetch itself fails (nothing to scan without it)', async () => {
     const http = {
       text: vi.fn(async () => {

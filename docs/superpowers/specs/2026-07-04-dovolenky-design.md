@@ -375,8 +375,11 @@ exotika.cz je 301 alias esotravel.cz (jeden adapter).
 | 16 | **Datour** (datour.cz; anchoice.cz whitelabel, agency_id 88) | Čisté JSON API: **GET `https://search.anchoice.cz/web-search?page=N&location=<id>&package=0`** (+ header `Referer: https://datour.cz/`) → `{total, total_docs, packages[]}`, 18/str. Param `location` odchycen živě z frontendu 2026-07-07 (Playwright; URL `/vyhledavani?page=1&location=30182`). Country location ids ověřené živě: Maledivy 30182, Thajsko 29828, Zanzibar 452587, Mauricius 451780, Dominikánská 28824, SAE 30594, Kuba 28796, Vietnam 29920, Seychely 28075, Srí Lanka 450831, Indonésie 29632, Mexiko 29011, Keňa 27990, Filipíny 29724. (POST `/search` z reconu má nefunkční filtr — nepoužívat.) | `packages[]`: tour_name, country_name/country_id, state_name, destination_name, start/end (ISO), nights/days, board_name, transport_name, **unit_price = za osobu** (package_price bývá 0.0 → nepoužívat), original_price + package_discount (často 0 → guard→null), accommodation_category ("3.0" → int hvězdy), provider_name (Čedok, Coral…→ tourOperator), trip_advisor, detail (slug), item_id. Agreguje 23k+ nabídek napříč CK. ⚠️ robots jmenovitě blokuje „claudebot" → výhradně Chrome UA (odchylka §9). ⚠️⚠️ Klientský bundle leakuje Elastic Cloud credentials (index anchoice_live151_2 + heslo) — **IGNOROVAT, nikdy nepoužít**; jediná legitimní plocha je REST API výše. |
 
 Politeness: každý nový zdroj = jiný host → per-host 3s gap platí; rozpočty/scan: FIRO ~4-6
-requestů (jako ř. 10), Alexandria ~8-10, Deluxea ~10-12, ESO ~10-15, Adventura ~26 (1 sitemap +
-25 detailů), Datour ~8-14. Celkem projekt zůstává v cíli ~50-250 requestů/běh.
+requestů v ustáleném stavu, ale až ~45 na raných bězích (1 sitemap + ≤2 accommodation shardy +
+1 countries + 3 dates-list + až 40 detail-page name-lookupů neznámých hotelů, MAX_NAME_LOOKUPS;
+amortizuje se přes priorTitles jak se jména ukládají — jako ř. 10), Alexandria ~8-10, Deluxea
+~10-12, ESO ~10-15, Adventura ~26 (1 sitemap + 25 detailů), Datour ~8-14. Celkem projekt zůstává
+v cíli ~50-250 requestů/běh.
 
 ### 16.2 Rozšíření dotazů stávajících zdrojů
 

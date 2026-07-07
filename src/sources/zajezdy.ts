@@ -296,6 +296,8 @@ export async function fetchZajezdyOffers(ctx: SourceContext, now: Date = new Dat
 
   const all: NormalizedOffer[] = [];
   const seen = new Set<string>();
+  let lastError: unknown;
+  let successCount = 0;
 
   for (const slug of SLUGS) {
     const url = `${BASE_URL}/${slug}/`;
@@ -303,15 +305,19 @@ export async function fetchZajezdyOffers(ctx: SourceContext, now: Date = new Dat
     try {
       const html = await ctx.http.text(url);
       offers = parseZajezdy(html, now);
+      successCount += 1;
     } catch (err) {
       if (err instanceof SourceBlockedError) {
         // The site is actively blocking us: stop fetching remaining slugs immediately
-        // (politeness) but keep whatever offers earlier slugs already yielded.
+        // (politeness) but keep whatever offers earlier slugs already yielded. Record the block as
+        // lastError so a block BEFORE the first success still trips the successCount===0 rethrow.
+        lastError = err;
         ctx.log(`zajezdy: slug ${slug} blocked (${err.message}), stopping`);
         break;
       }
       // Any other per-slug failure (network error, parse error, transient 5xx exhausted)
       // should not sink the whole fetch — log and move on to the next slug.
+      lastError = err;
       const message = err instanceof Error ? err.message : String(err);
       ctx.log(`zajezdy: slug ${slug} failed (${message}), skipping`);
       continue;
@@ -322,6 +328,17 @@ export async function fetchZajezdyOffers(ctx: SourceContext, now: Date = new Dat
       seen.add(offer.sourceOfferKey);
       all.push(offer);
     }
+  }
+
+  if (successCount === 0 && lastError !== undefined) {
+    // Every slug failed: this is not "market empty" — rethrow (fischer pattern) so runScan records
+    // this source 'failed' rather than degrading to [] (which would flip known offers inactive and
+    // mute the health alert). A block on the first slug lands here → BLOCKED marker / 24h backoff.
+    // NB: the outside-crawl-window early return above still returns [] (intentional skip, not a
+    // failure) — this guard only fires once we've actually attempted (and lost) every slug.
+    const message = lastError instanceof Error ? lastError.message : String(lastError);
+    ctx.log(`zajezdy: all ${SLUGS.length} slugs failed (${message}), aborting`);
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
   ctx.log(`zajezdy: fetched ${all.length} offers across ${SLUGS.length} slugs`);
