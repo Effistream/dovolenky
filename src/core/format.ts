@@ -17,9 +17,11 @@ const KIND_EMOJI: Record<'hot_deal' | 'price_drop' | 'new_offer', string> = {
   new_offer: '🆕',
 };
 
-const REFERENCE_LABEL: Record<'own' | 'omnibus' | 'market', string> = {
+const REFERENCE_LABEL: Record<'own' | 'omnibus' | 'hotel' | 'locality' | 'market', string> = {
   own: '30denní medián',
   omnibus: 'zákonné 30denní minimum',
+  hotel: 'medián tohoto hotelu',
+  locality: 'medián lokality',
   market: 'medián trhu',
 };
 

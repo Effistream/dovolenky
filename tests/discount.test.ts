@@ -78,28 +78,30 @@ describe('computeRealDiscount', () => {
     expect(result.realPct).toBe(17);
   });
 
-  it('3) no own/omnibus, 8 marketPrices with median 16000, current 12000 -> market, 25', () => {
-    const marketPrices = [10000, 12000, 14000, 15000, 17000, 18000, 20000, 22000]; // median (15000+17000)/2=16000
+  it('3) no own/omnibus, 8 marketPricesPN with median 1600/night, current 7200 over 6 nights (1200/night) -> market, 25', () => {
+    const marketPricesPN = [1000, 1200, 1400, 1500, 1700, 1800, 2000, 2200]; // median 1600
     const result = computeRealDiscount({
-      current: 12000,
+      current: 7200,
+      nights: 6,
       ownSnapshots: [],
       omnibus: null,
-      marketPrices,
+      marketPricesPN,
       claimedPct: null,
       now: NOW,
     });
     expect(result.reference).toBe('market');
-    expect(result.baseline).toBe(16000);
-    expect(result.realPct).toBe(25);
+    expect(result.baseline).toBe(1600 * 6); // total-equivalent baseline
+    expect(result.realPct).toBe(25); // (1600-1200)/1600*100 = 25
   });
 
-  it('4) market with fewer than 8 values -> reference null, realPct null, fake false', () => {
-    const marketPrices = [10000, 12000, 14000, 15000, 17000, 18000, 20000]; // only 7
+  it('4) market with fewer than 8 per-night values -> reference null, realPct null, fake false', () => {
+    const marketPricesPN = [1000, 1200, 1400, 1500, 1700, 1800, 2000]; // only 7
     const result = computeRealDiscount({
-      current: 12000,
+      current: 7200,
+      nights: 6,
       ownSnapshots: [],
       omnibus: null,
-      marketPrices,
+      marketPricesPN,
       claimedPct: 30,
       now: NOW,
     });
@@ -228,18 +230,19 @@ describe('computeRealDiscount', () => {
   });
 
   describe('zero/negative baseline guard (Finding 2 regression)', () => {
-    it('omnibus: 0 with 8 valid marketPrices -> falls through to market', () => {
-      const marketPrices = [10000, 12000, 14000, 15000, 17000, 18000, 20000, 22000]; // median 16000
+    it('omnibus: 0 with 8 valid marketPricesPN -> falls through to market', () => {
+      const marketPricesPN = [1000, 1200, 1400, 1500, 1700, 1800, 2000, 2200]; // median 1600
       const result = computeRealDiscount({
-        current: 12000,
+        current: 7200,
+        nights: 6,
         ownSnapshots: [],
         omnibus: 0,
-        marketPrices,
+        marketPricesPN,
         claimedPct: null,
         now: NOW,
       });
       expect(result.reference).toBe('market');
-      expect(result.baseline).toBe(16000);
+      expect(result.baseline).toBe(1600 * 6);
       expect(result.realPct).toBe(25);
     });
 
@@ -306,13 +309,14 @@ describe('computeRealDiscount', () => {
       expect(result.fake).toBe(false);
     });
 
-    it('marketPrices length exactly 7 -> market NOT used', () => {
-      const marketPrices = [10000, 12000, 14000, 15000, 17000, 18000, 20000]; // 7 values
+    it('marketPricesPN length exactly 7 -> market NOT used', () => {
+      const marketPricesPN = [1000, 1200, 1400, 1500, 1700, 1800, 2000]; // 7 values
       const result = computeRealDiscount({
-        current: 12000,
+        current: 7200,
+        nights: 6,
         ownSnapshots: [],
         omnibus: null,
-        marketPrices,
+        marketPricesPN,
         claimedPct: null,
         now: NOW,
       });
@@ -320,10 +324,26 @@ describe('computeRealDiscount', () => {
       expect(result.baseline).toBeNull();
     });
 
-    it('marketPrices length exactly 8 -> market IS used', () => {
-      const marketPrices = [10000, 12000, 14000, 15000, 17000, 18000, 20000, 22000]; // 8 values
+    it('marketPricesPN length exactly 8 -> market IS used', () => {
+      const marketPricesPN = [1000, 1200, 1400, 1500, 1700, 1800, 2000, 2200]; // 8 values
       const result = computeRealDiscount({
-        current: 12000,
+        current: 7200,
+        nights: 6,
+        ownSnapshots: [],
+        omnibus: null,
+        marketPricesPN,
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBe('market');
+      expect(result.baseline).toBe(1600 * 6);
+    });
+
+    it('legacy marketPrices field still works as an alias for marketPricesPN (backward compat)', () => {
+      const marketPrices = [1000, 1200, 1400, 1500, 1700, 1800, 2000, 2200]; // median 1600
+      const result = computeRealDiscount({
+        current: 7200,
+        nights: 6,
         ownSnapshots: [],
         omnibus: null,
         marketPrices,
@@ -331,7 +351,211 @@ describe('computeRealDiscount', () => {
         now: NOW,
       });
       expect(result.reference).toBe('market');
-      expect(result.baseline).toBe(16000);
+      expect(result.baseline).toBe(1600 * 6);
+      expect(result.realPct).toBe(25);
+    });
+  });
+
+  describe('per-night 5-tier ladder (Task 31)', () => {
+    it('hotel tier wins with exactly 4 entries: basePN median vs currentPN, baseline is total-equivalent', () => {
+      const hotelTermPricesPN = [1400, 1500, 1700, 1800]; // median (1500+1700)/2=1600
+      const result = computeRealDiscount({
+        current: 6000, // 6000/5 nights = 1200/night
+        nights: 5,
+        ownSnapshots: [],
+        omnibus: null,
+        hotelTermPricesPN,
+        localityPricesPN: [],
+        marketPricesPN: [],
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBe('hotel');
+      expect(result.baseline).toBe(1600 * 5); // total-equivalent for a 5-night stay
+      expect(result.realPct).toBe(25); // (1600-1200)/1600*100
+    });
+
+    it('hotel tier with only 3 entries falls through to locality (8 entries)', () => {
+      const hotelTermPricesPN = [1400, 1500, 1700]; // only 3, insufficient
+      const localityPricesPN = [1000, 1200, 1400, 1500, 1700, 1800, 2000, 2200]; // median 1600
+      const result = computeRealDiscount({
+        current: 6000,
+        nights: 5,
+        ownSnapshots: [],
+        omnibus: null,
+        hotelTermPricesPN,
+        localityPricesPN,
+        marketPricesPN: [],
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBe('locality');
+      expect(result.baseline).toBe(1600 * 5);
+      expect(result.realPct).toBe(25);
+    });
+
+    it('locality tier with only 7 entries falls through to market (8 entries)', () => {
+      const localityPricesPN = [1000, 1200, 1400, 1500, 1700, 1800, 2000]; // only 7, insufficient
+      const marketPricesPN = [900, 1100, 1300, 1500, 1700, 1900, 2100, 2300]; // median (1500+1700)/2=1600
+      const result = computeRealDiscount({
+        current: 6000,
+        nights: 5,
+        ownSnapshots: [],
+        omnibus: null,
+        hotelTermPricesPN: [],
+        localityPricesPN,
+        marketPricesPN,
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBe('market');
+      expect(result.baseline).toBe(1600 * 5);
+      expect(result.realPct).toBe(25);
+    });
+
+    it('per-night fairness: 1-night stay at 3000 vs hotel-term-PN median 2000 is +50% (a price INCREASE, not a discount)', () => {
+      // Old total-bucket logic would compare 3000 directly against a median built from
+      // multi-night totals, mis-rating this offer. Per-night, currentPN = 3000/1 = 3000,
+      // which is 50% ABOVE the 2000 hotel-term median -> realPct must be negative.
+      const hotelTermPricesPN = [1800, 1900, 2000, 2100, 2200]; // median 2000
+      const result = computeRealDiscount({
+        current: 3000,
+        nights: 1,
+        ownSnapshots: [],
+        omnibus: null,
+        hotelTermPricesPN,
+        localityPricesPN: [],
+        marketPricesPN: [],
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBe('hotel');
+      expect(result.baseline).toBe(2000 * 1);
+      // realPct = round((2000-3000)/2000*100) = -50 (a markup, not a discount)
+      expect(result.realPct).toBe(-50);
+    });
+
+    it('nights null -> only own/omnibus reachable; hotel/locality/market skipped even if arrays provided', () => {
+      const result = computeRealDiscount({
+        current: 6000,
+        nights: null,
+        ownSnapshots: [],
+        omnibus: null,
+        hotelTermPricesPN: [1400, 1500, 1700, 1800], // would qualify for hotel tier if nights were set
+        localityPricesPN: [1000, 1200, 1400, 1500, 1700, 1800, 2000, 2200],
+        marketPricesPN: [900, 1100, 1300, 1500, 1700, 1900, 2100, 2300],
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBeNull();
+      expect(result.realPct).toBeNull();
+      expect(result.baseline).toBeNull();
+      expect(result.fake).toBe(false);
+    });
+
+    it('nights omitted (undefined, default null) -> same skip behavior as explicit null', () => {
+      const result = computeRealDiscount({
+        current: 6000,
+        ownSnapshots: [],
+        omnibus: null,
+        hotelTermPricesPN: [1400, 1500, 1700, 1800],
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBeNull();
+      expect(result.realPct).toBeNull();
+    });
+
+    it('own still wins over hotel/locality/market even when nights and per-night arrays are present', () => {
+      const ownSnapshots = [
+        { price: 20000, at: daysAgo(10) },
+        { price: 19000, at: daysAgo(8) },
+        { price: 20000, at: daysAgo(4) },
+      ];
+      const result = computeRealDiscount({
+        current: 15000,
+        nights: 5,
+        ownSnapshots,
+        omnibus: null,
+        hotelTermPricesPN: [1400, 1500, 1700, 1800],
+        localityPricesPN: [1000, 1200, 1400, 1500, 1700, 1800, 2000, 2200],
+        marketPricesPN: [900, 1100, 1300, 1500, 1700, 1900, 2100, 2300],
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBe('own');
+      expect(result.baseline).toBe(20000);
+    });
+
+    it('omnibus still wins over hotel/locality/market when own is insufficient', () => {
+      const result = computeRealDiscount({
+        current: 15000,
+        nights: 5,
+        ownSnapshots: [],
+        omnibus: 18000,
+        hotelTermPricesPN: [1400, 1500, 1700, 1800],
+        localityPricesPN: [1000, 1200, 1400, 1500, 1700, 1800, 2000, 2200],
+        marketPricesPN: [900, 1100, 1300, 1500, 1700, 1900, 2100, 2300],
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBe('omnibus');
+      expect(result.baseline).toBe(18000);
+    });
+
+    it('hotel baseline of exactly 0 (guard) falls through to locality', () => {
+      // Construct a hotel bucket whose median is 0 (e.g. free/placeholder prices) -> invalid, fall through.
+      const hotelTermPricesPN = [0, 0, 0, 0];
+      const localityPricesPN = [1000, 1200, 1400, 1500, 1700, 1800, 2000, 2200]; // median 1600
+      const result = computeRealDiscount({
+        current: 6000,
+        nights: 5,
+        ownSnapshots: [],
+        omnibus: null,
+        hotelTermPricesPN,
+        localityPricesPN,
+        marketPricesPN: [],
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBe('locality');
+      expect(result.baseline).toBe(1600 * 5);
+    });
+
+    it('all-empty arrays + no own/omnibus + nights present -> null result ("sbírám historii")', () => {
+      const result = computeRealDiscount({
+        current: 6000,
+        nights: 5,
+        ownSnapshots: [],
+        omnibus: null,
+        hotelTermPricesPN: [],
+        localityPricesPN: [],
+        marketPricesPN: [],
+        claimedPct: 40,
+        now: NOW,
+      });
+      expect(result.reference).toBeNull();
+      expect(result.realPct).toBeNull();
+      expect(result.baseline).toBeNull();
+      expect(result.fake).toBe(false);
+    });
+
+    it('fake threshold at exactly 15 on the hotel tier', () => {
+      // basePN 2000, currentPN 1700 -> realPct = round((2000-1700)/2000*100) = 15
+      const hotelTermPricesPN = [1800, 1900, 2000, 2100, 2200]; // median 2000
+      const result = computeRealDiscount({
+        current: 1700 * 4, // nights=4 -> currentPN=1700
+        nights: 4,
+        ownSnapshots: [],
+        omnibus: null,
+        hotelTermPricesPN,
+        localityPricesPN: [],
+        marketPricesPN: [],
+        claimedPct: 30, // 30 - 15 = 15 -> fake
+        now: NOW,
+      });
+      expect(result.realPct).toBe(15);
+      expect(result.fake).toBe(true);
     });
   });
 });
