@@ -141,4 +141,19 @@ describe('normalize', () => {
     expect(prg).not.toBeNull();
     expect(nullAirport).not.toBe(prg);
   });
+  it('computeMatchKey: title normalizes to empty canonName -> null (never a false cross-source merge)', () => {
+    // 'Hotel' and 'Resort Spa' both normalize to '' (all-stopword titles).
+    // Without the empty-canonName guard these would hash to IDENTICAL keys
+    // for two unrelated properties sharing country/date/nights/board/airport.
+    const keyHotel = computeMatchKey(makeOffer({ title: 'Hotel' }));
+    const keyResortSpa = computeMatchKey(makeOffer({ title: 'Resort Spa' }));
+    expect(keyHotel).toBeNull();
+    expect(keyResortSpa).toBeNull();
+    // Both are null, not equal-but-identical hash strings — i.e. these two unrelated
+    // properties are correctly opted OUT of matching rather than falsely merged.
+
+    // A normal, non-stopword-only title still yields a real key.
+    const keyNormal = computeMatchKey(makeOffer({ title: 'Blue Aegean Resort & Spa' }));
+    expect(keyNormal).not.toBeNull();
+  });
 });

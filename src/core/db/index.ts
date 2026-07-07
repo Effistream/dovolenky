@@ -18,6 +18,8 @@ export function openDb(url: string): Db {
 // an existing DB file has to check PRAGMA table_info first and only issue the
 // ALTER TABLE when the column is actually missing. Safe to call repeatedly
 // (ensureSchema idempotence).
+// `table` and `columnDdl` are interpolated directly into SQL with no escaping — every
+// call site MUST pass string literals only, never external/user input.
 async function ensureColumn(db: Db, table: string, column: string, columnDdl: string): Promise<void> {
   const rows = (await db.all(`PRAGMA table_info(${table})`)) as Array<{ name: string }>;
   const exists = rows.some(r => r.name === column);

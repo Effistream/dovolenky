@@ -139,14 +139,19 @@ export function normalizeAirport(raw: string | null | undefined): string | null 
  * all offer-canonicalization logic in one module.
  *
  * Returns null — deliberately opting the offer out of cross-source matching —
- * when departureDate is null, board is 'unknown', or country is null: any of
- * these makes the offer under-specified enough that a wrong merge (treating
- * two different physical tours as the same one) is a worse outcome than no
- * merge at all.
+ * when departureDate is null, board is 'unknown', country is null, or the
+ * title normalizes to an empty canonical name (title was entirely stopwords,
+ * e.g. "Hotel" or "Resort Spa"): any of these makes the offer under-specified
+ * enough that a wrong merge (treating two different physical tours as the
+ * same one) is a worse outcome than no merge at all. An empty canonName in
+ * particular would make computeMatchKey degenerate to hashing just
+ * [country, departureDate, nights, board, airportNorm], so any two unrelated
+ * properties sharing those fields would incorrectly collide.
  */
 export function computeMatchKey(o: NormalizedOffer): string | null {
   if (o.departureDate === null || o.board === 'unknown' || o.country === null) return null;
   const canonName = normalizeHotelName(o.title);
+  if (canonName === '') return null;
   const airportNorm = normalizeAirport(o.departureAirport);
   return offerKeyHash([canonName, o.country, o.departureDate, o.nights, o.board, airportNorm ?? '*']);
 }
