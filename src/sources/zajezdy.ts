@@ -8,7 +8,30 @@ const SEARCH_DATA_MARKER = 'window.searchData = ';
 // Fixed set of destination/category slugs (recon-confirmed, spec §3 row 6). Robots.txt on
 // this host disallows `/api/` paths and `?page=` query params, so coverage comes from
 // breadth across these SSR listing pages (10 tourResults each) rather than pagination.
-const SLUGS = ['recko', 'turecko', 'egypt', 'chorvatsko', 'bulharsko', 'all-inclusive', 'letecky-praha'];
+//
+// Exotic slugs (spec §16.2) appended below. Each was live-verified 2026-07-07 (Chrome UA, 5s
+// crawl-delay honored): `GET https://last-minute.zajezdy.cz/<slug>/` must return a page whose
+// window.searchData carries a non-empty tourResults. Verdicts (HTTP 200 / tourResults=10 /
+// 30 departures each): spojene-arabske-emiraty ✓, thajsko ✓, maledivy ✓, mauricius ✓,
+// dominikanska-republika ✓ (all added). Also verified ✓ but OMITTED to keep SLUGS ≤ 12 (5s
+// gap → ~60 s/scan politeness ceiling, spec §16.2): zanzibar, kapverdy — both are already
+// covered by dedicated exotic sources (Datour/FIRO for Zanzibar, FIRO id 102 + eximtours for
+// Kapverdy). Candidate `exotika` was REJECTED: HTTP 404 (not a real slug on this host).
+const SLUGS = [
+  'recko',
+  'turecko',
+  'egypt',
+  'chorvatsko',
+  'bulharsko',
+  'all-inclusive',
+  'letecky-praha',
+  // exotic (live-verified 2026-07-07), top-5 by the exotika watch profile's own country order:
+  'thajsko',
+  'maledivy',
+  'mauricius',
+  'spojene-arabske-emiraty',
+  'dominikanska-republika',
+];
 
 interface RawMoney {
   amount?: number;

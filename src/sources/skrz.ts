@@ -4,6 +4,11 @@ import { SourceBlockedError } from '../core/http.js';
 
 const BASE_URL = 'https://skrz.cz';
 
+// Exotic paths (spec §16.2) appended below, each live-verified 2026-07-07 (Chrome UA, 3s gap):
+// the path must return a Next.js RSC page whose reconstructed `deals` array is non-empty.
+// Verdicts (HTTP 200 / deals): /exoticka-dovolena → 24 deals (Kapverdy, Maledivy, Mauricius, …,
+// a broad multi-country exotic page); /dovolena-more/destinace:thajsko → 14 deals (Thajsko);
+// /dovolena-more/destinace:maledivy → 24 deals (Maledivy). All three added.
 const LISTING_PATHS = [
   '/dovolena-more/destinace:recko',
   '/dovolena-more/destinace:turecko',
@@ -11,6 +16,9 @@ const LISTING_PATHS = [
   '/dovolena-more/destinace:bulharsko',
   '/pobyty/destinace:chorvatsko',
   '/pobyty',
+  '/exoticka-dovolena',
+  '/dovolena-more/destinace:thajsko',
+  '/dovolena-more/destinace:maledivy',
 ];
 
 const NEXT_F_PUSH_RE = /self\.__next_f\.push\(\[1,(".*?")\]\)/gs;

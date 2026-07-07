@@ -18,12 +18,17 @@ describe('loadConfig', () => {
     expect(cfg.scan.adults).toBe(2);
   });
 
-  it('parses the exotika profile (task 34)', () => {
+  it('parses the exotika profile (task 34; countries extended to 24 per spec §16.3 rev)', () => {
     const cfg = loadConfig({ configPath: CONFIG_PATH, env: {} });
 
     const exotika = cfg.profiles['exotika'];
     expect(exotika?.enabled).toBe(true);
-    expect(exotika?.countries).toHaveLength(17);
+    // Extended from 17 to 24 (spec §16.3 revision after Task 39 review): +Nepál, Peru, Japonsko,
+    // Kambodža, Madagaskar, Namibie, Jihoafrická republika (Adventura's expedition countries).
+    expect(exotika?.countries).toHaveLength(24);
+    expect(exotika?.countries).toEqual(
+      expect.arrayContaining(['Nepál', 'Peru', 'Japonsko', 'Kambodža', 'Madagaskar', 'Namibie', 'Jihoafrická republika']),
+    );
     expect(exotika?.transport).toBe('flight');
     expect(exotika?.board).toEqual([]);
     expect(exotika?.departureMonths).toEqual([]);

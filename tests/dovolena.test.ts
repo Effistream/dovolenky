@@ -73,7 +73,7 @@ describe('parseDovolena (fixture, destination=4826 Řecko)', () => {
 });
 
 describe('dovolena source adapter', () => {
-  it('is named dovolena and issues bounded requests (3 destinations x page 1)', async () => {
+  it('is named dovolena and issues bounded requests (4 destinations x page 1)', async () => {
     const jsonMock = vi.fn().mockResolvedValue(tripListingFixture);
     const ctx: SourceContext = {
       http: { json: jsonMock, text: vi.fn() } as unknown as SourceContext['http'],
@@ -85,7 +85,8 @@ describe('dovolena source adapter', () => {
 
     expect(dovolena.name).toBe('dovolena');
     expect(jsonMock.mock.calls.length).toBeGreaterThan(0);
-    expect(jsonMock.mock.calls.length).toBeLessThanOrEqual(6);
+    // DESTINATIONS grew to 4 (spec §16.2: + verified exotic Maledivy id 4830); one page-1 GET each.
+    expect(jsonMock.mock.calls.length).toBeLessThanOrEqual(4);
     expect(offers.length).toBeGreaterThan(0);
     expect(offers.every((o) => o.source === 'dovolena')).toBe(true);
   });
