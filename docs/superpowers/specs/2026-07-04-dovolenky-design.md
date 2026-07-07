@@ -241,3 +241,31 @@ scan:
 - Cross-source dedup (týž hotel+termín u více zdrojů) — v1 je každý zdroj samostatná nabídka.
 - Vercel deploy (cron routes + Turso) — architektura na to připravena.
 - Telegram příkazy (/top, /pause), web UI, více uživatelů.
+
+## 13. Cross-source dedup (přidáno 2026-07-07)
+
+Stejný fyzický zájezd (hotel × termín × strava × odlet) prodává více zdrojů (Invia, Dovolenkovani,
+Skrz… agregují tytéž CK). Bez dedupu hrozí vícenásobné notifikace, duplicitní digest a nadvážení
+tržního mediánu.
+
+**Match key** (uložen jako `offers.match_key`):
+`sha1[canonName, country, departureDate, nights, board, airportNorm]` kde
+- `canonName` = normalizeHotelName(title): lowercase, bez diakritiky, odstranit stopslova
+  (hotel, resort, spa, aparthotel, apartments, wellness, &, and, „★"), zkolabovat mezery;
+- `airportNorm` = normalizeAirport(departureAirport): město/kód → IATA (Praha→PRG, Brno→BRQ,
+  Ostrava→OSR, Pardubice→PED, Vídeň→VIE, Bratislava→BTS, Budapešť→BUD, Katovice→KTW,
+  Krakov→KRK, Wroclaw→WRO), null → `*`;
+- pokud `departureDate` null nebo `board` unknown → match_key = null (žádné cross-source
+  párování; konzervativní: chybné sloučení je horší než nesloučení).
+
+**Konzumenti:**
+1. **Notifikace**: kandidáti se před odesláním seskupí podle match_key; posílá se jeden
+   (nejlevnější) s řádkem „Také: <zdroj> <cena> Kč" pro alternativy (max 3, seřazené).
+   Dedup v `notifications_log` přechází z (offerId, type) na (match_key ?? offerId, type) —
+   nový sloupec `match_key` v logu; re-notify pravidla (−5 % / 7 dní) platí pro skupinu.
+2. **Digest**: top-10 po seskupení podle match_key (reprezentant = nejlevnější).
+3. **Tržní baseline**: v koši se bere MIN(cena) na match_key skupinu (nenadvažovat
+   agregovaný inventář).
+
+Fuzzy matching jmen (Levenshtein/token overlap) je mimo scope — jen kanonizace + exact match;
+zdokumentovat míru sloučení v testu na reálných fixtures.

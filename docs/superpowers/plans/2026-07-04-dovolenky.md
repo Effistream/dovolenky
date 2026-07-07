@@ -628,3 +628,31 @@ Strategie a všechny endpointy/pole: spec §3 řádek 10 (ověřeno živě 2026-
 - [ ] **Step 4: Registrace + README** — přidat do `adapters` v src/sources/index.ts; README tabulka zdrojů +1 řádek (CESYS white-label, co dává: termíny+ceny+slevy přes API, jména hotelů ze sitemapy).
 - [ ] **Step 5: Live smoke** — max 6 requestů, vypsat počty + 2 offery.
 - [ ] **Step 6: Zelené testy + commit** — plný `npx vitest run` (286 stávajících zůstává zelených) + `npx tsc --noEmit`; commit `feat: dovolenkovani adapter (CESYS dates-list API)` vč. fixtures.
+
+---
+
+### Task 23: Cross-source match key (core)
+
+**Files:**
+- Modify: `src/core/normalize.ts` (+normalizeHotelName, +normalizeAirport), `src/core/db/schema.ts` + `src/core/db/index.ts` (ensureSchema: nové sloupce), `src/core/ingest.ts` (výpočet match_key)
+- Test: `tests/normalize.test.ts` (rozšířit), `tests/ingest.test.ts` (rozšířit)
+
+**Interfaces:**
+- Produces: `normalizeHotelName(raw: string): string`; `normalizeAirport(raw: string|null|undefined): string|null`; `computeMatchKey(o: NormalizedOffer): string|null` (export z ingest.ts nebo normalize.ts — rozhodni dle závislostí, match_key = null když departureDate null či board unknown); `offers.match_key TEXT` (index, ne unique), `notifications_log.match_key TEXT` nullable.
+- Migrace: ensureSchema přidá sloupce přes PRAGMA table_info check + ALTER TABLE ADD COLUMN (SQLite bez IF NOT EXISTS); backfill match_key pro existující offers řádky s NULL (jednorázově při startu, levné).
+
+- [ ] Testy dle spec §13 (kanonizace jmen vč. „Blue Aegean Resort & Spa" → „blue aegean", letiště Praha→PRG, null pravidla) → implementace → plný suite zelený → commit `feat: cross-source match key`.
+
+### Task 24: Cross-source dedup — konzumenti (notify, digest, market)
+
+**Files:**
+- Modify: `src/core/notify.ts` (grouping + log dedup na match_key), `src/core/run.ts` (předání match_key, market MIN na skupinu), `src/core/digest.ts` + `src/core/market.ts` (grouping), `src/core/format.ts` (řádek „Také: …")
+- Test: `tests/notify.test.ts`, `tests/run.test.ts`, `tests/digest.test.ts`, `tests/format.test.ts` (rozšířit)
+
+**Interfaces:**
+- `Candidate` získá `matchKey: string|null` a `alternatives: {source: string; pricePerPerson: number; url: string}[]` (max 3, cena vzestupně, bez reprezentanta).
+- `capMessages`/`filterAgainstLog` pracují nad seskupenými kandidáty; log dedup klíč = match_key ?? String(offerId).
+- `formatOffer`: za cenový řádek přidá „Také: Invia 13 990 Kč · Skrz 14 200 Kč" jen když alternatives.length > 0.
+- Market bucket (market.ts): GROUP BY match_key (NULL skupiny zůstávají per-offer), cena skupiny = MIN.
+
+- [ ] Testy: dvojice offers ze dvou zdrojů se stejným match_key → 1 notifikace s „Také:", log dedup blokuje re-notifikaci druhého zdroje, digest top-10 bez duplicit, market bucket počítá MIN; NULL match_key beze změny chování → implementace → plný suite zelený → commit `feat: cross-source dedup in notifications, digest and market baseline`.
