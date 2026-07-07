@@ -409,7 +409,8 @@ exotika:
   countries: [Thajsko, Maledivy, Mauricius, Spojené arabské emiráty,
               Dominikánská republika, Mexiko, Kuba, Seychely, Srí Lanka,
               Zanzibar, Tanzanie, Vietnam, Indonésie, Kapverdy, Keňa,
-              Filipíny, Réunion]
+              Filipíny, Réunion, Nepál, Peru, Japonsko, Kambodža,
+              Madagaskar, Namibie, Jihoafrická republika]
   transport: flight
   board: []               # exotika: BB u Malediv běžná, nefiltrovat stravu
   departure_months: []    # celoročně — hlavní sezóna je zima
@@ -417,6 +418,10 @@ exotika:
   min_real_discount_pct: 15
   notify_new_offers: false
 ```
+
+Revize 2026-07-07 (po review Tasku 39): countries rozšířeno o expediční země Adventury
+(Nepál, Peru, Japonsko, Kambodža, Madagaskar, Namibie, Jihoafrická republika) — celkem 24;
+matchesCountry(null)=false, takže okruhy s nekanonickou zemí stále nenotifikují (konzervativní).
 
 Nové kanonické země v `COUNTRIES` (normalize.ts): Tanzanie, Keňa, Réunion, Filipíny, Kambodža,
 Nepál, Peru, Japonsko, Jihoafrická republika, Madagaskar, Namibie. Nové aliasy:
