@@ -1264,4 +1264,123 @@ describe('runScan', () => {
     expect(d.reference).toBe('hotel');
     expect(d.realPct).toBe(-50); // round((2000-3000)/2000*100) → a markup, not a discount
   });
+
+  it('scenario 16: scan-time keys use the PERSISTED (sticky-guarded) title, not a placeholder incoming title (2026-07-07 fix)', async () => {
+    const t0 = new Date('2026-07-04T09:00:00.000Z');
+    const now = new Date('2026-07-04T10:00:00.000Z');
+
+    // The subject offer, already ingested once with its real, resolved title. Country/board/
+    // transport/departure month/price all sit inside LETO_MORE so a hot_deal can actually fire.
+    const resolved = makeOffer({
+      source: 'dv',
+      sourceOfferKey: 'dv-subject',
+      title: 'Creek Hotel Resort',
+      url: 'https://example.com/dv-subject',
+    });
+    await ingestOffer(db, resolved, t0);
+
+    // 4 other terms of the SAME hotel (same resolved title → same hotel_key), so the "hotel" rung
+    // (≥4) qualifies for the subject — mirrors seedHotelTerms but keyed off the resolved title.
+    const hotelKey = computeHotelKey(resolved);
+    for (let i = 0; i < 4; i += 1) {
+      const [row] = await db
+        .insert(offers)
+        .values({
+          source: 'seed',
+          sourceOfferKey: `dv-sibling-${i}`,
+          title: 'Creek Hotel Resort',
+          country: 'Řecko',
+          locality: 'Kréta',
+          stars: 4,
+          board: 'AI',
+          transport: 'flight',
+          departureAirport: 'PRG',
+          departureDate: `2026-08-${String(10 + i).padStart(2, '0')}`,
+          nights: 7,
+          tourOperator: 'Seed',
+          url: `https://example.com/dv-sibling-${i}`,
+          firstSeenAt: t0.toISOString(),
+          lastSeenAt: t0.toISOString(),
+          active: true,
+          misses: 0,
+          matchKey: null,
+          hotelKey,
+        })
+        .returning({ id: offers.id });
+      await db.insert(priceSnapshots).values({
+        offerId: row!.id,
+        capturedAt: t0.toISOString(),
+        pricePerPerson: 21000, // 21000/7 = 3000/night
+        priceTotal: 42000,
+        claimedOriginalPrice: null,
+        claimedDiscountPct: null,
+        omnibusLowestPrice: null,
+      });
+    }
+
+    // Now the SAME dovolenkovani-style offer re-arrives with a placeholder title (its per-run
+    // resolution cap was exhausted this time). ingestOffer's sticky-name guard keeps "Creek Hotel
+    // Resort" persisted in the DB — but before the fix, run.ts fed the raw incoming (placeholder)
+    // offer into computeHotelKey/hotelTermPricesPN, so the scan-time hotel_key would NOT match the
+    // siblings' persisted hotel_key (derived from "Creek Hotel Resort") and the ladder would fall
+    // through past "hotel" to "market" (or null, since there's no market bucket seeded here).
+    const placeholderIncoming = makeOffer({
+      source: 'dv',
+      sourceOfferKey: 'dv-subject',
+      title: 'Hotel 320645',
+      url: 'https://example.com/dv-subject',
+      pricePerPerson: 12000, // 12000/7 ≈ 1714/night, well below the 3000/night sibling median
+    });
+
+    const spy: SourceAdapter = {
+      name: 'dv',
+      async fetchOffers() {
+        return [placeholderIncoming];
+      },
+    };
+
+    const tg = new TelegramMock();
+
+    // LETO_MORE (Řecko / flight / AI / departs Jun–Sep / ≤25000 Kč/os. / ≥15% real discount)
+    // matches this offer, so a genuine realPct >= 15 produces a hot_deal candidate that
+    // actually reaches the telegram mock — nothing here is recomputed by the test.
+    const summary = await runScan({
+      db,
+      cfg: makeConfig(),
+      http: makeHttp(),
+      telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [spy],
+      now,
+    });
+
+    // The DB must still hold the resolved title (sticky-name guard) — sanity check.
+    const [subjectRow] = await db
+      .select()
+      .from(offers)
+      .where(and(eq(offers.source, 'dv'), eq(offers.sourceOfferKey, 'dv-subject')));
+    expect(subjectRow?.title).toBe('Creek Hotel Resort');
+
+    // OBSERVABLE outcome of runScan itself (not a test-body recomputation): a hot_deal fires and
+    // its formatted Telegram message carries the "hotel" reference label + baseline. That label
+    // is only reachable if run.ts's internal DiscountResult.reference resolved to 'hotel', which
+    // in turn only happens if processOffers built its hotel-bucket query from the PERSISTED title
+    // ("Creek Hotel Resort", matching the 4 siblings' hotel_key) rather than the raw incoming
+    // placeholder ("Hotel 320645", which shares no hotel_key with any seeded row). If run.ts used
+    // the raw incoming title, the hotel pool would come back empty, DiscountResult.reference would
+    // fall through to 'market' (or null — no market bucket is seeded here), and neither the
+    // "vs. tento hotel" label nor the exact −43 % / baseline figure below would appear.
+    expect(summary.notificationsSent).toBe(1);
+    const hot = tg.messages.find((m) => m.includes('🔥'));
+    expect(hot).toBeDefined();
+    expect(hot).toContain('vs. tento hotel 21 000 Kč'); // baseline = 3000/night median × 7 nights
+    expect(hot).toContain('−43 %'); // round((3000-1714)/3000*100), same math as scenario 14
+    expect(hot).not.toMatch(/vs\. (30denní medián|Omnibus|Řecko|Kréta)/);
+
+    const logs = await db
+      .select()
+      .from(notificationsLog)
+      .where(and(eq(notificationsLog.offerId, subjectRow!.id), eq(notificationsLog.type, 'hot_deal')));
+    expect(logs).toHaveLength(1);
+    expect(logs[0]?.priceAtSend).toBe(12000);
+  });
 });

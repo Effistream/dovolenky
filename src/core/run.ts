@@ -63,13 +63,24 @@ async function processOffers(
       const ingest = await ingestOffer(db, offer, now);
       if (ingest.snapshotWritten) snapshotsWritten += 1;
 
+      // Scan-time keys must match persisted keys (2026-07-07 fix): ingestOffer persists
+      // match_key/hotel_key computed from the STICKY-GUARDED title (see ingest.ts), so a
+      // placeholder incoming title (e.g. dovolenkovani's "Hotel 320645") does NOT overwrite an
+      // already-resolved real title in the DB. If we fed the raw incoming `offer` (still carrying
+      // the placeholder title) into computeMatchKey/computeHotelKey and the bucket queries below,
+      // our scan-time keys would diverge from the persisted ones — thinning the hotel pool and
+      // letting twin-exclusion miss, which can under-notify (a lower reference tier than the
+      // dashboard, which reads persisted keys, shows). Building `keyOffer` from
+      // ingest.persistedTitle keeps the two in lockstep.
+      const keyOffer = ingest.persistedTitle === offer.title ? offer : { ...offer, title: ingest.persistedTitle };
+
       const ownSnapshots = await ownSnapshotsFor(db, ingest.offerId, now);
       // Per-night reference ladder (spec §15): hotel → locality → market, each a
       // per-night bucket; discount.ts picks the first that qualifies (own/omnibus
       // still win above them). `nights` is required for the per-night tiers.
-      const hotelPricesPN = await hotelTermPricesPN(db, ingest.offerId, offer);
-      const localityPricesPN = await localityBucketPricesPN(db, ingest.offerId, offer);
-      const marketPricesPN = await marketBucketPrices(db, ingest.offerId, offer);
+      const hotelPricesPN = await hotelTermPricesPN(db, ingest.offerId, keyOffer);
+      const localityPricesPN = await localityBucketPricesPN(db, ingest.offerId, keyOffer);
+      const marketPricesPN = await marketBucketPrices(db, ingest.offerId, keyOffer);
 
       const discount: DiscountResult = computeRealDiscount({
         current: offer.pricePerPerson,
@@ -94,9 +105,10 @@ async function processOffers(
         cfg: cfg.notifications,
       });
 
-      // ingestOffer already persisted the match_key; recompute here (pure, no DB
-      // round-trip) so the candidate carries the same value for grouping + log dedup.
-      const matchKey = computeMatchKey(offer);
+      // ingestOffer already persisted the match_key (from the sticky-guarded title); recompute
+      // here from keyOffer (pure, no DB round-trip) — NOT the raw incoming `offer` — so the
+      // candidate carries the exact same value the DB has, for grouping + log dedup.
+      const matchKey = computeMatchKey(keyOffer);
       for (const outcome of outcomes) {
         candidates.push({
           offerId: ingest.offerId,

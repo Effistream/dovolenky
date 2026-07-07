@@ -11,15 +11,6 @@ export interface ComputeRealDiscountInput {
   current: number;
   ownSnapshots: { price: number; at: string }[];
   omnibus: number | null;
-  /**
-   * @deprecated Plain alias for `marketPricesPN` (per-night market bucket
-   * prices). All real callers (run.ts, digest.ts, web/api.ts) now pass
-   * `marketPricesPN` + `nights` directly; this alias is retained only for
-   * backward source-compat and is read as per-night. `marketPricesPN` wins when
-   * both are supplied. Requires `nights ≥ 1` to be used, like `marketPricesPN`.
-   * New callers should use `marketPricesPN`.
-   */
-  marketPrices?: number[];
   /** Per-night market bucket prices (country × month × nights band × board × stars). Min 8 entries. */
   marketPricesPN?: number[];
   /** Subject offer's nights. Required to reach the hotel/locality/market tiers (per-night comparison). */
@@ -100,7 +91,11 @@ export function computeRealDiscount(input: ComputeRealDiscountInput): DiscountRe
   const own = ownBaseline(input.ownSnapshots, now);
   if (own !== null && own > 0) {
     reference = 'own';
-    baseline = own;
+    // own is a median of snapshot prices — an even-count bucket can produce an x.5 value.
+    // Round only the DISPLAYED baseline; baseForPct keeps the unrounded median so realPct isn't
+    // skewed by the same rounding twice (matches the per-night tiers' baseForPct/baseline split
+    // below).
+    baseline = Math.round(own);
     baseForPct = own;
     currentForPct = input.current;
   } else if (input.omnibus !== null && input.omnibus > 0) {
@@ -112,28 +107,29 @@ export function computeRealDiscount(input: ComputeRealDiscountInput): DiscountRe
     // Per-night tiers require a valid nights count to normalize `current`.
     const currentPN = Math.round(input.current / nights);
 
-    // marketPricesPN is the current field; `marketPrices` is accepted as a plain
-    // alias (both are per-night here — the pre-v2 total-price legacy branch was
-    // removed in Task 32 once run.ts/digest.ts/web-api all pass `nights`).
-    const marketPricesPN = input.marketPricesPN ?? input.marketPrices ?? [];
+    const marketPricesPN = input.marketPricesPN ?? [];
 
     const hotelBasePN = perNightBaseline(hotelTermPricesPN, HOTEL_MIN_PRICES);
     const localityBasePN = perNightBaseline(localityPricesPN, LOCALITY_MIN_PRICES);
     const marketBasePN = perNightBaseline(marketPricesPN, MARKET_MIN_PRICES);
 
+    // basePN is a per-night median and can be x.5; basePN * nights can therefore land on a
+    // fractional CZK amount (e.g. 1650.5 * 7 = 11553.5), which Telegram's formatCzk would render
+    // as "11 553,5 Kč". Round the displayed baseline; baseForPct keeps the unrounded per-night
+    // median for realPct (see the rounding-drift note below).
     if (hotelBasePN !== null) {
       reference = 'hotel';
-      baseline = hotelBasePN * nights;
+      baseline = Math.round(hotelBasePN * nights);
       baseForPct = hotelBasePN;
       currentForPct = currentPN;
     } else if (localityBasePN !== null) {
       reference = 'locality';
-      baseline = localityBasePN * nights;
+      baseline = Math.round(localityBasePN * nights);
       baseForPct = localityBasePN;
       currentForPct = currentPN;
     } else if (marketBasePN !== null) {
       reference = 'market';
-      baseline = marketBasePN * nights;
+      baseline = Math.round(marketBasePN * nights);
       baseForPct = marketBasePN;
       currentForPct = currentPN;
     }

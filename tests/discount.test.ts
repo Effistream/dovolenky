@@ -31,7 +31,7 @@ describe('computeRealDiscount', () => {
       current: 15000,
       ownSnapshots,
       omnibus: null,
-      marketPrices: [],
+      marketPricesPN: [],
       claimedPct: null,
       now: NOW,
     });
@@ -49,7 +49,7 @@ describe('computeRealDiscount', () => {
       current: 15000,
       ownSnapshots,
       omnibus: 18000,
-      marketPrices: [],
+      marketPricesPN: [],
       claimedPct: null,
       now: NOW,
     });
@@ -69,7 +69,7 @@ describe('computeRealDiscount', () => {
       current: 15000,
       ownSnapshots,
       omnibus: 18000,
-      marketPrices: [],
+      marketPricesPN: [],
       claimedPct: null,
       now: NOW,
     });
@@ -116,7 +116,7 @@ describe('computeRealDiscount', () => {
       current: 12000,
       ownSnapshots: [],
       omnibus: 10000,
-      marketPrices: [],
+      marketPricesPN: [],
       claimedPct: null,
       now: NOW,
     });
@@ -128,7 +128,7 @@ describe('computeRealDiscount', () => {
     const base = {
       current: 7800,
       ownSnapshots: [],
-      marketPrices: [],
+      marketPricesPN: [],
       now: NOW,
     };
     // baseline 10000, current 7800 -> realPct = round((10000-7800)/10000*100) = 22
@@ -158,7 +158,7 @@ describe('computeRealDiscount', () => {
       current: 15000,
       ownSnapshots,
       omnibus: null,
-      marketPrices: [],
+      marketPricesPN: [],
       claimedPct: null,
       now: NOW,
     });
@@ -173,7 +173,7 @@ describe('computeRealDiscount', () => {
       current: 15000,
       ownSnapshots: [],
       omnibus: null,
-      marketPrices: [],
+      marketPricesPN: [],
       claimedPct: 50,
       now: NOW,
     });
@@ -199,7 +199,7 @@ describe('computeRealDiscount', () => {
         current: 15000,
         ownSnapshots,
         omnibus: null,
-        marketPrices: [],
+        marketPricesPN: [],
         claimedPct: null,
         now: PRAGUE_NOW,
       });
@@ -219,7 +219,7 @@ describe('computeRealDiscount', () => {
         current: 15000,
         ownSnapshots,
         omnibus: null,
-        marketPrices: [],
+        marketPricesPN: [],
         claimedPct: null,
         now: PRAGUE_NOW,
       });
@@ -251,7 +251,7 @@ describe('computeRealDiscount', () => {
         current: 12000,
         ownSnapshots: [],
         omnibus: 0,
-        marketPrices: [],
+        marketPricesPN: [],
         claimedPct: 50,
         now: NOW,
       });
@@ -273,7 +273,7 @@ describe('computeRealDiscount', () => {
         current: 15000,
         ownSnapshots,
         omnibus: null,
-        marketPrices: [],
+        marketPricesPN: [],
         claimedPct: null,
         now: NOW,
       });
@@ -287,7 +287,7 @@ describe('computeRealDiscount', () => {
         current: 8500,
         ownSnapshots: [],
         omnibus: 10000,
-        marketPrices: [],
+        marketPricesPN: [],
         claimedPct: 30,
         now: NOW,
       });
@@ -301,7 +301,7 @@ describe('computeRealDiscount', () => {
         current: 8500,
         ownSnapshots: [],
         omnibus: 10000,
-        marketPrices: [],
+        marketPricesPN: [],
         claimedPct: 29,
         now: NOW,
       });
@@ -337,22 +337,6 @@ describe('computeRealDiscount', () => {
       });
       expect(result.reference).toBe('market');
       expect(result.baseline).toBe(1600 * 6);
-    });
-
-    it('legacy marketPrices field still works as an alias for marketPricesPN (backward compat)', () => {
-      const marketPrices = [1000, 1200, 1400, 1500, 1700, 1800, 2000, 2200]; // median 1600
-      const result = computeRealDiscount({
-        current: 7200,
-        nights: 6,
-        ownSnapshots: [],
-        omnibus: null,
-        marketPrices,
-        claimedPct: null,
-        now: NOW,
-      });
-      expect(result.reference).toBe('market');
-      expect(result.baseline).toBe(1600 * 6);
-      expect(result.realPct).toBe(25);
     });
   });
 
@@ -556,6 +540,51 @@ describe('computeRealDiscount', () => {
       });
       expect(result.realPct).toBe(15);
       expect(result.fake).toBe(true);
+    });
+
+    it('fractional baseline (Telegram formatCzk fix): even-count PN bucket producing an x.5 median rounds to an integer baseline', () => {
+      // hotelTermPricesPN sorted = [1400, 1501, 1700, 1801] -> median (1501+1700)/2 = 1600.5
+      // (even count -> .5 median). 1600.5 * 7 nights = 11203.5, which would render as
+      // "11 203,5 Kč" in Telegram if not rounded.
+      const hotelTermPricesPN = [1400, 1501, 1700, 1801];
+      const result = computeRealDiscount({
+        current: 1500 * 7,
+        nights: 7,
+        ownSnapshots: [],
+        omnibus: null,
+        hotelTermPricesPN,
+        localityPricesPN: [],
+        marketPricesPN: [],
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBe('hotel');
+      expect(result.baseline).not.toBeNull();
+      expect(Number.isInteger(result.baseline)).toBe(true);
+      expect(result.baseline).toBe(Math.round(1600.5 * 7));
+    });
+  });
+
+  describe('fractional own baseline (Telegram formatCzk fix)', () => {
+    it('an even-count own-snapshot bucket with an x.5 median still yields an integer baseline', () => {
+      // 4 qualifying snapshots -> even count -> median (20000+20001)/2 = 20000.5.
+      const ownSnapshots = [
+        { price: 19000, at: daysAgo(10) },
+        { price: 20000, at: daysAgo(8) },
+        { price: 20001, at: daysAgo(6) },
+        { price: 21000, at: daysAgo(4) },
+      ];
+      const result = computeRealDiscount({
+        current: 15000,
+        ownSnapshots,
+        omnibus: null,
+        marketPricesPN: [],
+        claimedPct: null,
+        now: NOW,
+      });
+      expect(result.reference).toBe('own');
+      expect(Number.isInteger(result.baseline)).toBe(true);
+      expect(result.baseline).toBe(Math.round(20000.5));
     });
   });
 });
