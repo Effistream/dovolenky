@@ -1269,7 +1269,8 @@ describe('runScan', () => {
     const t0 = new Date('2026-07-04T09:00:00.000Z');
     const now = new Date('2026-07-04T10:00:00.000Z');
 
-    // The subject offer, already ingested once with its real, resolved title.
+    // The subject offer, already ingested once with its real, resolved title. Country/board/
+    // transport/departure month/price all sit inside LETO_MORE so a hot_deal can actually fire.
     const resolved = makeOffer({
       source: 'dv',
       sourceOfferKey: 'dv-subject',
@@ -1331,7 +1332,6 @@ describe('runScan', () => {
       pricePerPerson: 12000, // 12000/7 ≈ 1714/night, well below the 3000/night sibling median
     });
 
-    let capturedTitle: string | undefined;
     const spy: SourceAdapter = {
       name: 'dv',
       async fetchOffers() {
@@ -1339,11 +1339,16 @@ describe('runScan', () => {
       },
     };
 
-    await runScan({
+    const tg = new TelegramMock();
+
+    // LETO_MORE (Řecko / flight / AI / departs Jun–Sep / ≤25000 Kč/os. / ≥15% real discount)
+    // matches this offer, so a genuine realPct >= 15 produces a hot_deal candidate that
+    // actually reaches the telegram mock — nothing here is recomputed by the test.
+    const summary = await runScan({
       db,
-      cfg: makeConfig({ profiles: {} }),
+      cfg: makeConfig(),
       http: makeHttp(),
-      telegram: null,
+      telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
       adapters: [spy],
       now,
     });
@@ -1354,41 +1359,28 @@ describe('runScan', () => {
       .from(offers)
       .where(and(eq(offers.source, 'dv'), eq(offers.sourceOfferKey, 'dv-subject')));
     expect(subjectRow?.title).toBe('Creek Hotel Resort');
-    capturedTitle = subjectRow?.title;
-    expect(capturedTitle).toBe('Creek Hotel Resort');
 
-    // Recompute the discount exactly as processOffers now does: build the key-offer from the
-    // PERSISTED title (what the fix does), not the raw placeholder incoming offer.
-    const { hotelTermPricesPN, localityBucketPricesPN, marketBucketPrices, ownSnapshotsFor } = await import(
-      '../src/core/market.js'
-    );
-    const { computeRealDiscount } = await import('../src/core/discount.js');
-    const keyOffer = { ...placeholderIncoming, title: subjectRow!.title };
-    const hotelPN = await hotelTermPricesPN(db, subjectRow!.id, keyOffer);
-    const localityPN = await localityBucketPricesPN(db, subjectRow!.id, keyOffer);
-    const marketPN = await marketBucketPrices(db, subjectRow!.id, keyOffer);
-    const own = await ownSnapshotsFor(db, subjectRow!.id, now);
-    const d = computeRealDiscount({
-      current: 12000,
-      ownSnapshots: own,
-      omnibus: null,
-      nights: 7,
-      hotelTermPricesPN: hotelPN,
-      localityPricesPN: localityPN,
-      marketPricesPN: marketPN,
-      claimedPct: null,
-      now,
-    });
+    // OBSERVABLE outcome of runScan itself (not a test-body recomputation): a hot_deal fires and
+    // its formatted Telegram message carries the "hotel" reference label + baseline. That label
+    // is only reachable if run.ts's internal DiscountResult.reference resolved to 'hotel', which
+    // in turn only happens if processOffers built its hotel-bucket query from the PERSISTED title
+    // ("Creek Hotel Resort", matching the 4 siblings' hotel_key) rather than the raw incoming
+    // placeholder ("Hotel 320645", which shares no hotel_key with any seeded row). If run.ts used
+    // the raw incoming title, the hotel pool would come back empty, DiscountResult.reference would
+    // fall through to 'market' (or null — no market bucket is seeded here), and neither the
+    // "vs. tento hotel" label nor the exact −43 % / baseline figure below would appear.
+    expect(summary.notificationsSent).toBe(1);
+    const hot = tg.messages.find((m) => m.includes('🔥'));
+    expect(hot).toBeDefined();
+    expect(hot).toContain('vs. tento hotel 21 000 Kč'); // baseline = 3000/night median × 7 nights
+    expect(hot).toContain('−43 %'); // round((3000-1714)/3000*100), same math as scenario 14
+    expect(hot).not.toMatch(/vs\. (30denní medián|Omnibus|Řecko|Kréta)/);
 
-    // With the persisted-title fix, the hotel pool is found (4 siblings) → reference resolves to
-    // 'hotel', not falling through to 'market' (which would be null here — no market bucket seeded).
-    expect(hotelPN).toHaveLength(4);
-    expect(d.reference).toBe('hotel');
-    expect(d.realPct).toBe(43); // round((3000-1714)/3000*100), same math as scenario 14
-
-    // And confirm the raw-incoming-offer (pre-fix) key would have MISSED the pool entirely —
-    // proving this scenario actually exercises the drift the fix closes.
-    const staleHotelPN = await hotelTermPricesPN(db, subjectRow!.id, placeholderIncoming);
-    expect(staleHotelPN).toHaveLength(0);
+    const logs = await db
+      .select()
+      .from(notificationsLog)
+      .where(and(eq(notificationsLog.offerId, subjectRow!.id), eq(notificationsLog.type, 'hot_deal')));
+    expect(logs).toHaveLength(1);
+    expect(logs[0]?.priceAtSend).toBe(12000);
   });
 });
