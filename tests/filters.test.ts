@@ -30,7 +30,6 @@ profiles:
                 Dominikánská republika, Mexiko, Kuba, Seychely, Srí Lanka,
                 Zanzibar, Tanzanie, Vietnam, Indonésie, Kapverdy, Keňa,
                 Filipíny, Réunion]
-    transport: flight
     board: []
     departure_months: []
     max_price_per_person: 60000
@@ -156,6 +155,26 @@ describe('matchProfiles', () => {
 
     expect(matches.map((m) => m.name)).toContain('exotika');
     expect(matches.map((m) => m.name)).not.toContain('leto-more');
+  });
+
+  it('15. Thajsko offer with transport "unknown" under cap matches exotika (no transport filter)', () => {
+    // Regression guard for the 2026-07-07 final-review fix: exotika dropped its
+    // transport: flight filter. All exotika countries are long-haul (flight
+    // implied), and matchesTransport requires exact equality — so a flight-only
+    // operator whose cards carry no transport marker (ESO travel emits
+    // 'unknown', as does part of Adventura) was silently excluded, killing its
+    // notification path. With the filter gone, transport 'unknown' must match.
+    const profiles = loadProfiles();
+    const offer = mkOffer({
+      country: 'Thajsko',
+      transport: 'unknown',
+      departureDate: '2027-01-15',
+      pricePerPerson: 45000,
+    });
+
+    const matches = matchProfiles(offer, profiles, new Date('2026-07-01'));
+
+    expect(matches.map((m) => m.name)).toContain('exotika');
   });
 
   it('7. an offer with departureDate: null only matches profiles with no date conditions', () => {

@@ -22,7 +22,9 @@ profiles:
                 Zanzibar, Tanzanie, Vietnam, Indonésie, Kapverdy, Keňa,
                 Filipíny, Réunion, Nepál, Peru, Japonsko, Kambodža,
                 Madagaskar, Namibie, Jihoafrická republika]
-    transport: flight
+    # transport filtr záměrně vynechán — exotické země jsou z podstaty letecké
+    # a exact-match filtr by vyřazoval zdroje s transport 'unknown' (ESO travel,
+    # část Adventury). Revize 2026-07-07 (finální review).
     board: []               # exotika: BB u Malediv běžná, nefiltrovat stravu
     departure_months: []    # celoročně — hlavní sezóna je zima
     max_price_per_person: 60000

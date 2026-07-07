@@ -300,7 +300,7 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
 
     for (const offer of offers) {
       // The same term can surface under more than one country query, so dedupe globally by
-      // sourceOfferKey (the per-term+room item_id hash).
+      // sourceOfferKey (the per-term+board [tour_id, start, nights, board_id] hash).
       if (seen.has(offer.sourceOfferKey)) continue;
       seen.add(offer.sourceOfferKey);
       all.push(offer);

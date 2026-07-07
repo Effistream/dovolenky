@@ -2,7 +2,7 @@
 
 ## Co to je
 
-Osobní hlídač zájezdů. Každé 2 hodiny stahuje nabídky z 10 českých cestovních zdrojů,
+Osobní hlídač zájezdů. Každé 2 hodiny stahuje nabídky z 16 českých cestovních zdrojů,
 ukládá cenovou historii a počítá **reálnou slevu**: skutečný rozdíl proti vlastní
 historii nabídky nebo proti trhu, ne přeškrtnutou cenu, kterou napíše zdroj. Když
 nabídka splní prahy nastavené v `config/watch.yaml`, pošle zprávu na Telegram;
@@ -21,6 +21,12 @@ jednou denně navíc souhrnný digest top 10 nabídek.
 | Dovolena.cz | `tripListing` API (provozuje Student Agency); hotel-level ceny, bez konkrétních termínů |
 | eTravel | `getsearchresult` API; jediný zdroj s oficiálním Omnibus 30denním minimem (`lowestPrice`) |
 | Dovolenkovani.cz | CESYS white-label API (`dates-list`) — termíny, ceny za osobu i uváděné slevy; jména hotelů dopočtená ze sitemapy (`accommodations.xml`) |
+| FIRO Travel | CESYS white-label API (`dates-list`, stejná továrna jako Dovolenkovani.cz) — exotické lety, agreguje mj. zájezdy Fischer CK |
+| Alexandria | `bck-new` JSON API (`web-search`) — dotazy na exotické location id; cena za skupinu → dopočet na osobu, sleva z `original_price` |
+| Deluxea | Nette `data-json` embedded v HTML — nabídky přímo ze stránky, bez API |
+| ESO travel | JSON API; 100% letecký operátor, karty bez markeru dopravy (transport `unknown`) |
+| Adventura | okružní a expediční zájezdy (Nepál, Peru, Madagaskar aj.); část karet bez markeru dopravy |
+| Datour | `anchoice.cz` white-label JSON API (`web-search`) — termíny za osobu (`unit_price`), agreguje 23k+ nabídek napříč CK |
 | Slevomat | přímo neběží (Cloudflare) — nabídky bereme přes **Skrz.cz**, který je agreguje |
 
 ## Setup krok za krokem

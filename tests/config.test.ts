@@ -29,7 +29,10 @@ describe('loadConfig', () => {
     expect(exotika?.countries).toEqual(
       expect.arrayContaining(['Nepál', 'Peru', 'Japonsko', 'Kambodža', 'Madagaskar', 'Namibie', 'Jihoafrická republika']),
     );
-    expect(exotika?.transport).toBe('flight');
+    // transport filter removed (spec §16.3 rev 2026-07-07 final review): exotika
+    // countries are long-haul (flight implied) and exact-match transport would
+    // exclude sources emitting 'unknown' (ESO travel, part of Adventura).
+    expect(exotika?.transport).toBeUndefined();
     expect(exotika?.board).toEqual([]);
     expect(exotika?.departureMonths).toEqual([]);
     expect(exotika?.maxPricePerPerson).toBe(60000);

@@ -411,13 +411,16 @@ exotika:
               Zanzibar, Tanzanie, Vietnam, Indonésie, Kapverdy, Keňa,
               Filipíny, Réunion, Nepál, Peru, Japonsko, Kambodža,
               Madagaskar, Namibie, Jihoafrická republika]
-  transport: flight
   board: []               # exotika: BB u Malediv běžná, nefiltrovat stravu
   departure_months: []    # celoročně — hlavní sezóna je zima
   max_price_per_person: 60000
   min_real_discount_pct: 15
   notify_new_offers: false
 ```
+
+Revize 2026-07-07 (finální review): transport filtr odstraněn — exotické země jsou
+z podstaty letecké a exact-match filtr by vyřazoval zdroje s transport 'unknown'
+(ESO travel, část Adventury).
 
 Revize 2026-07-07 (po review Tasku 39): countries rozšířeno o expediční země Adventury
 (Nepál, Peru, Japonsko, Kambodža, Madagaskar, Namibie, Jihoafrická republika) — celkem 24;
