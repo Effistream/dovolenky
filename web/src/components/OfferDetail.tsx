@@ -17,7 +17,7 @@ import {
   buildChart,
   buildFacts,
   buildVerdict,
-  sourceDisplayName,
+  offerCtaLabel,
 } from '../lib/history.js';
 import { formatCzk } from '../lib/format.js';
 import { sourceLabel } from '../lib/term.js';
@@ -29,6 +29,9 @@ interface Props {
 
 // Per-id history cache, module-scoped so it survives collapse/expand and row
 // re-renders (a plain object keyed by offer id). Cleared only on full reload.
+// Accepted trade-off: entries are never invalidated, so a cached history can
+// go stale until the page is reloaded — consistent with the app's no-refresh
+// model (v1 has no live re-fetch of open rows; spec §14).
 const historyCache = new Map<number, HistoryResponse>();
 
 // The chart viewBox matches the mockup (560×190). The SVG scales to 100% width.
@@ -86,7 +89,7 @@ function DetailBody({ offer, history }: { offer: Offer; history: HistoryResponse
   const chart = buildChart(CHART_VB, history);
   const facts = buildFacts(history);
   const verdict = buildVerdict(offer, history);
-  const openLabel = `Otevřít u ${sourceDisplayName(offer.source)}`;
+  const openLabel = offerCtaLabel(offer.source);
 
   return (
     <>

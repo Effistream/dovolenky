@@ -3,6 +3,7 @@ import {
   buildChart,
   buildFacts,
   buildVerdict,
+  offerCtaLabel,
   sourceDisplayName,
   sourceDotTone,
   sourceViaNote,
@@ -82,6 +83,27 @@ describe('sourceDisplayName', () => {
   });
 });
 
+// --- offerCtaLabel -----------------------------------------------------------
+
+describe('offerCtaLabel', () => {
+  it('gives every source its correct Czech genitive/locative CTA phrasing', () => {
+    expect(offerCtaLabel('exim')).toBe('Otevřít u Eximu');
+    expect(offerCtaLabel('fischer')).toBe('Otevřít u Fischera');
+    expect(offerCtaLabel('cedok')).toBe('Otevřít u Čedoku');
+    expect(offerCtaLabel('invia')).toBe('Otevřít na Invii');
+    expect(offerCtaLabel('etravel')).toBe('Otevřít na eTravelu');
+    expect(offerCtaLabel('bluestyle')).toBe('Otevřít u Blue Style');
+    expect(offerCtaLabel('zajezdy')).toBe('Otevřít na Zajezdy.cz');
+    expect(offerCtaLabel('dovolena')).toBe('Otevřít na Dovolena.cz');
+    expect(offerCtaLabel('skrz')).toBe('Otevřít na Skrz.cz');
+    expect(offerCtaLabel('dovolenkovani')).toBe('Otevřít na Dovolenkovani.cz');
+  });
+
+  it('falls back to a generic label for an unknown source', () => {
+    expect(offerCtaLabel('foo')).toBe('Otevřít nabídku');
+  });
+});
+
 // --- sourceDotTone / sourceViaNote ------------------------------------------
 
 describe('sourceDotTone', () => {
@@ -157,6 +179,55 @@ describe('buildChart', () => {
     expect(line.label).toBe(`„PŮVODNÍ CENA“ ${n(34300)} Kč — ZA TU SE NEPRODÁVALO`);
     // The claimed line sits above (smaller y than) the whole price curve.
     expect(line.y).toBeLessThan(0 + VB.height);
+  });
+
+  it('keeps a shared scale when the claimed price is within range (not clamped)', () => {
+    // claimed 22000 is well under 1.15× the 19700 data max — shared scale.
+    const chart = buildChart(VB, history({ claimedOriginalPrice: 22000 }))!;
+    expect(chart.clamped).toBe(false);
+    // The claimed line still sits above the whole curve on the shared scale.
+    const pairs = chart.polylinePoints.trim().split(/\s+/);
+    const ys = pairs.map((p) => Number(p.split(',')[1]));
+    expect(chart.claimedLine!.y).toBeLessThan(Math.min(...ys));
+  });
+
+  it('clamps a far-outlier claimed price to a fixed top band and rescales the curve to stay legible', () => {
+    // Realistic fake case: curve 16490–19700, claimed 34300 (≈1.74× the max) —
+    // sharing one scale would squash the curve into ~24px of a 134px plot.
+    const h = history({
+      series: series([19400, 19100, 19700, 16490]),
+      median: 19400,
+      claimedOriginalPrice: 34300,
+    });
+    const chart = buildChart(VB, h)!;
+    expect(chart.clamped).toBe(true);
+
+    // The claimed dashed line sits at the fixed top-band y, not scaled with
+    // the (much lower) data range.
+    expect(chart.claimedLine!.y).toBe(40);
+
+    // The curve now occupies at least half of the plot's total height.
+    const pairs = chart.polylinePoints.trim().split(/\s+/);
+    const ys = pairs.map((p) => Number(p.split(',')[1]));
+    const curveSpan = Math.max(...ys) - Math.min(...ys);
+    // The series here isn't flat, so it should actually spread across most of
+    // the rescaled plot area, comfortably clearing 50% of the viewBox height.
+    expect(curveSpan).toBeGreaterThanOrEqual(VB.height * 0.5 - 40);
+    // More directly: the curve's own drawable band (floor − topmost point)
+    // covers at least half the viewBox height.
+    const floorY = chart.baselineY;
+    const topmostY = Math.min(...ys);
+    expect(floorY - topmostY).toBeGreaterThanOrEqual(VB.height * 0.5);
+  });
+
+  it('in-range claimed price leaves the shared-scale chart unaffected by the clamp logic', () => {
+    // Sanity check that adding the clamp branch didn't change the no-claim /
+    // in-range-claim geometry from the original shared-scale behaviour.
+    const withoutClaim = buildChart(VB, history({ claimedOriginalPrice: null }))!;
+    expect(withoutClaim.clamped).toBe(false);
+    const pairs = withoutClaim.polylinePoints.trim().split(/\s+/);
+    const [, lastY] = pairs[pairs.length - 1]!.split(',').map(Number);
+    expect(withoutClaim.dot.y).toBe(lastY);
   });
 
   it('labels the first and last dates on the axis', () => {

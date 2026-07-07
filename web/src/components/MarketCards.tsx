@@ -21,14 +21,19 @@ interface Props {
   sources: SourceStatus[] | null;
 }
 
-/** Latest source_run start "…T14:05…" → "14:05". */
+/** Formats a source-run start as Prague wall-clock time ("14:05"). */
+const hhmmFormatter = new Intl.DateTimeFormat('cs-CZ', {
+  timeZone: 'Europe/Prague',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+/** Latest source_run start "…T14:05…" (UTC) → Prague local "14:05". */
 function hhmm(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(
-    d.getUTCMinutes(),
-  ).padStart(2, '0')}`;
+  return hhmmFormatter.format(d);
 }
 
 /** The median for the "léto u moře" set, the headline market number. */

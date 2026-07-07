@@ -76,7 +76,7 @@ export type ProfileFilter = 'all' | 'leto-more' | 'last-minute';
 export interface HistoryPoint {
   /** ISO capture timestamp. */
   at: string;
-  pricePerPerson: number;
+  price: number;
 }
 
 /**
@@ -88,7 +88,7 @@ export interface HistoryPoint {
 export interface HistoryResponse {
   offerId: number;
   title: string;
-  series: { at: string; price: number }[];
+  series: HistoryPoint[];
   median: number | null;
   claimedOriginalPrice: number | null;
 }

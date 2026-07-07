@@ -36,6 +36,35 @@ export function sourceDisplayName(source: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// CTA label (per-source genitive phrasing)
+// ---------------------------------------------------------------------------
+
+/**
+ * Explicit per-source CTA copy — Czech genitive/locative phrasing doesn't
+ * follow from the slug mechanically ("Otevřít u Exim" is wrong; it must be
+ * "Otevřít u Eximu"), so each source gets an exact, hand-written label rather
+ * than a templated "Otevřít u {name}". MASTER.md's canonical example is
+ * "Otevřít u Eximu".
+ */
+const CTA_LABELS: Record<string, string> = {
+  exim: 'Otevřít u Eximu',
+  fischer: 'Otevřít u Fischera',
+  cedok: 'Otevřít u Čedoku',
+  invia: 'Otevřít na Invii',
+  etravel: 'Otevřít na eTravelu',
+  bluestyle: 'Otevřít u Blue Style',
+  zajezdy: 'Otevřít na Zajezdy.cz',
+  dovolena: 'Otevřít na Dovolena.cz',
+  skrz: 'Otevřít na Skrz.cz',
+  dovolenkovani: 'Otevřít na Dovolenkovani.cz',
+};
+
+/** The primary CTA label for a source, with correct Czech grammar. */
+export function offerCtaLabel(source: string): string {
+  return CTA_LABELS[source] ?? 'Otevřít nabídku';
+}
+
+// ---------------------------------------------------------------------------
 // Source status dot (ZDROJE card)
 // ---------------------------------------------------------------------------
 
@@ -105,6 +134,14 @@ export interface ChartModel {
   axis: { first: string; last: string };
   /** The baseline rule y (plot floor). */
   baselineY: number;
+  /**
+   * True when claimedOriginalPrice sat far enough above the price series that
+   * the claimed line was pinned to a fixed top band instead of sharing the
+   * price curve's scale (see buildChart doc comment). The component doesn't
+   * currently vary rendering on this, but it's exposed so callers can key off
+   * "this chart is in outlier-clamp mode" without recomputing the ratio.
+   */
+  clamped: boolean;
 }
 
 // Inner plot padding: leaves room for the top claimed-line label and the bottom
@@ -113,15 +150,37 @@ const PLOT_TOP = 34;
 const PLOT_BOTTOM_PAD = 22;
 const BAND_HEIGHT = 18;
 
+// When claimedOriginalPrice exceeds the price-series/median range by more than
+// this factor, sharing one linear scale between it and the curve squashes the
+// curve into a sliver near the floor (the whole point of the chart). Past this
+// ratio we stop scaling the claimed line with the data and instead pin it to a
+// fixed row near the top, then rescale the curve + band alone into the space
+// below it.
+const CLAMP_RATIO = 1.15;
+// Fixed y for the claimed dashed line once clamped (mirrors the mockup's
+// in-range example, where the line sits near the top of the plot).
+const CLAMPED_CLAIMED_Y = 40;
+// Padding between the clamped claimed-line row and the rescaled curve/band
+// plot area below it, so the two never visually merge.
+const CLAMPED_TOP_GAP = 24;
+
 /**
  * Scales an offer's price history into an SVG-ready model within `viewBox`.
  * Returns null for a degenerate series (<2 points) — the caller shows a
  * "zatím málo dat na graf" note instead of a chart.
  *
- * The vertical scale spans every value we draw (all series prices, the median
- * band, and the claimed-original line) so the claimed line always sits visibly
- * above the curve and the band overlaps it, matching the mockup. Higher price =
- * smaller y (top), like the sparkline.
+ * Normally the vertical scale spans every value we draw (all series prices,
+ * the median band, and the claimed-original line) so the claimed line sits
+ * visibly above the curve and the band overlaps it, matching the mockup.
+ * Higher price = smaller y (top), like the sparkline.
+ *
+ * But a "fake sleva" claimed price is often wildly above the real range (the
+ * whole point of the flag) — sharing one scale then squeezes the actual price
+ * curve into a sliver at the bottom, which defeats the chart. When
+ * claimedOriginalPrice exceeds 1.15× the max of the price series + median
+ * band, we pin the claimed line to a fixed row near the top (CLAMPED_CLAIMED_Y)
+ * and scale only the curve + band into the remaining plot area below it, so
+ * the curve stays legible. `clamped` on the result flags when this happened.
  */
 export function buildChart(
   viewBox: ChartViewBox,
@@ -133,20 +192,33 @@ export function buildChart(
   const prices = series.map((p) => p.price);
   const floorY = viewBox.height - PLOT_BOTTOM_PAD;
 
-  // Value range must cover the curve, the band centre, and the claimed line.
-  const values = [...prices];
-  if (median != null) values.push(median);
-  if (claimedOriginalPrice != null) values.push(claimedOriginalPrice);
+  // The curve's own range (price series + median), independent of the claim.
+  const dataValues = [...prices];
+  if (median != null) dataValues.push(median);
+  const dataMax = Math.max(...dataValues);
+
+  const clamped =
+    claimedOriginalPrice != null && claimedOriginalPrice > dataMax * CLAMP_RATIO;
+
+  // Value range for the curve/band scale: normally includes the claimed price
+  // too (one shared scale); when clamped, the claimed price is excluded so the
+  // curve gets the full plot height to itself.
+  const values = [...dataValues];
+  if (claimedOriginalPrice != null && !clamped) values.push(claimedOriginalPrice);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const span = max - min;
 
-  const innerH = floorY - PLOT_TOP;
+  // Plot area for the curve/band: the full inner height normally, or the band
+  // below the fixed claimed-line row when clamped.
+  const plotTop = clamped ? CLAMPED_CLAIMED_Y + CLAMPED_TOP_GAP : PLOT_TOP;
+  const innerH = floorY - plotTop;
+
   const x = (i: number): number =>
     (i / (series.length - 1)) * viewBox.width;
-  // Higher value → smaller y (nearer PLOT_TOP). Flat range → mid plot.
+  // Higher value → smaller y (nearer plotTop). Flat range → mid plot.
   const y = (value: number): number =>
-    span === 0 ? PLOT_TOP + innerH / 2 : PLOT_TOP + (1 - (value - min) / span) * innerH;
+    span === 0 ? plotTop + innerH / 2 : plotTop + (1 - (value - min) / span) * innerH;
 
   const coords = series.map((p, i) => ({ px: round(x(i)), py: round(y(p.price)) }));
   const polylinePoints = coords.map((c) => `${c.px},${c.py}`).join(' ');
@@ -167,7 +239,7 @@ export function buildChart(
   const claimedLine =
     claimedOriginalPrice != null
       ? {
-          y: round(y(claimedOriginalPrice)),
+          y: clamped ? CLAMPED_CLAIMED_Y : round(y(claimedOriginalPrice)),
           label: `„PŮVODNÍ CENA“ ${formatNumber(claimedOriginalPrice)} Kč — ZA TU SE NEPRODÁVALO`,
         }
       : null;
@@ -182,6 +254,7 @@ export function buildChart(
       last: formatDayMonth(series[series.length - 1]!.at),
     },
     baselineY: floorY,
+    clamped,
   };
 }
 
@@ -208,6 +281,11 @@ export interface FactsModel {
  *  - tracked span + snapshot count,
  *  - 30-day median (or "zatím bez reference"),
  *  - the last price move vs. the previous snapshot.
+ *
+ * Note: the mockup's third line reads "proti včerejšku" (vs. yesterday), but
+ * snapshots aren't guaranteed to be exactly one day apart, so this says
+ * "proti předchozímu snímku" (vs. the previous snapshot) instead — an
+ * intentional generalisation, not a copy bug.
  */
 export function buildFacts(history: HistoryResponse): FactsModel {
   const { series, median } = history;
