@@ -140,7 +140,9 @@ SQLite DB, kterou plní scan; sám nic nestahuje ani neposílá (read-only, spec
 1. `npm run web:build` — sestaví frontend do `web/dist` (vite build v `web/`).
 2. `npm run web` — nastartuje Hono server na portu **4141**; obsluhuje API
    (`/api/offers`, `/api/offers/:id/history`, `/api/sources`, `/api/stats`)
-   i sestavený SPA ze stejného originu. Port lze přepsat přes `PORT`.
+   i sestavený SPA ze stejného originu. Port lze přepsat přes `PORT`. Server
+   poslouchá jen na `127.0.0.1` (localhost), ne na všech rozhraních; přepsat
+   lze přes `HOST`.
 3. Otevři `http://localhost:4141`.
 
 Když `web/dist` neexistuje, server místo SPA vrátí textovou hlášku „spusť
@@ -151,7 +153,7 @@ s hot-reloadem; ten proxuje `/api` na `:4141`, takže vedle sebe běží
 `npm run web` (API) a `npm run web:dev` (UI) bez CORS.
 
 **E2E smoke:** `npm run test:e2e` (Playwright, chromium). Config
-`playwright.config.ts` si sám sestaví frontend, naseedује throwaway SQLite DB
+`playwright.config.ts` si sám sestaví frontend, naseeduje throwaway SQLite DB
 (`tests/e2e/seed.ts`, deterministická data přes reálný ingest pipeline),
 nastartuje server a projede board render, filtry (země/profil), rozbalení
 detailu s grafem, cross-source alternativy a stav karet — plus kontrolu, že

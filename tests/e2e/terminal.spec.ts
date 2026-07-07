@@ -188,8 +188,9 @@ test('(d) a single-snapshot offer shows „zatím málo dat na graf"', async ({ 
 test('(e) „Také:" alternatives are visible on the cross-source row', async ({ page }) => {
   await waitForBoard(page);
 
-  // Blue Lagoon is the cheaper (fischer) representative of the cross-source
-  // pair; the pricier invia twin renders as a "Také: INVIA …" via-line.
+  // Blue Lagoon is the cheaper (dovolenkovani) representative of the
+  // cross-source pair; the pricier invia twin renders as a "Také: INVIA …"
+  // via-line.
   const twin = page.locator('button.row', { hasText: 'Hotel Blue Lagoon' });
   await expect(twin).toBeVisible();
   const via = twin.locator('.src .via');

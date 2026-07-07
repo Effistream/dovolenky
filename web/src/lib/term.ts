@@ -4,6 +4,25 @@
  * copy is Czech per design-system/MASTER.md.
  */
 
+/**
+ * Formats a source-run/scan timestamp as Prague wall-clock time ("14:05"),
+ * shared by StatusLine (SCAN) and MarketCards (ZDROJE run times) so both
+ * report the same local time instead of StatusLine drifting to UTC.
+ */
+const pragueHhmmFormatter = new Intl.DateTimeFormat('cs-CZ', {
+  timeZone: 'Europe/Prague',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+/** ISO timestamp → Prague local "14:05". Returns "—" for a missing/invalid input. */
+export function pragueHhmm(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return pragueHhmmFormatter.format(d);
+}
+
 /** "2026-08-15" → "15.08". Returns "—" for a missing/invalid date. */
 export function formatDayMonth(iso: string | null | undefined): string {
   if (!iso) return '—';

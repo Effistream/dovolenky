@@ -6,7 +6,23 @@ import {
   boardLabel,
   departureLabel,
   sourceLabel,
+  pragueHhmm,
 } from './term.js';
+
+describe('pragueHhmm', () => {
+  it('converts a UTC instant to Prague local wall-clock time', () => {
+    // 2026-07-04T12:05:00Z is summer (CEST, UTC+2) → 14:05 in Prague.
+    expect(pragueHhmm('2026-07-04T12:05:00Z')).toBe('14:05');
+  });
+  it('converts a UTC instant in winter (CET, UTC+1)', () => {
+    expect(pragueHhmm('2026-01-04T12:05:00Z')).toBe('13:05');
+  });
+  it('placeholder for missing/invalid', () => {
+    expect(pragueHhmm(null)).toBe('—');
+    expect(pragueHhmm(undefined)).toBe('—');
+    expect(pragueHhmm('not-a-date')).toBe('—');
+  });
+});
 
 describe('formatDayMonth', () => {
   it('formats an ISO date as DD.MM (UTC)', () => {

@@ -107,6 +107,7 @@ export function App() {
         expandedId={expandedId}
         onToggle={toggleRow}
         onRetry={offersState.reload}
+        sort={filters.sort}
         renderDetail={(offer) => <OfferDetail offer={offer} />}
       />
 

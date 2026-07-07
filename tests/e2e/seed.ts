@@ -15,7 +15,8 @@
  * tsx tests/e2e/seed.ts
  *
  * What it seeds (all requirements of the brief):
- *  - 13 active offers across 3 fake sources (invia / fischer / exim).
+ *  - 13 active offers across 3 real registry sources (invia / eximtours /
+ *    dovolenkovani — see src/sources/index.ts).
  *  - one cross-source pair (same match_key) → the pricier peer shows as "Také:".
  *  - one fake-discount offer with 7 snapshots of own history (own reference
  *    kicks in → realPct modest, claimed pct huge → `fake` flag) + a claimed
@@ -128,8 +129,8 @@ async function seed(db: Db): Promise<void> {
   // -----------------------------------------------------------------------
   // 2) Cross-source pair: identical match_key inputs (title/country/date/
   // nights/board/airport), two different sources & prices. The cheaper one
-  // (fischer) becomes the representative; the pricier (invia) shows up as a
-  // "Také:" alternative on that row.
+  // (dovolenkovani) becomes the representative; the pricier (invia) shows up
+  // as a "Také:" alternative on that row.
   // -----------------------------------------------------------------------
   const twinFields = {
     title: 'Hotel Blue Lagoon',
@@ -145,11 +146,11 @@ async function seed(db: Db): Promise<void> {
     db,
     makeOffer({
       ...twinFields,
-      source: 'fischer',
-      sourceOfferKey: 'fischer:blue-lagoon-2026-07-20',
+      source: 'dovolenkovani',
+      sourceOfferKey: 'dovolenkovani:blue-lagoon-2026-07-20',
       pricePerPerson: 18400,
       priceTotal: 36800,
-      url: 'https://fischer.test/blue-lagoon',
+      url: 'https://dovolenkovani.test/blue-lagoon',
     }),
     BASE,
   );
@@ -174,8 +175,8 @@ async function seed(db: Db): Promise<void> {
   await ingestOffer(
     db,
     makeOffer({
-      source: 'exim',
-      sourceOfferKey: 'exim:sunrise-2026-09-05',
+      source: 'eximtours',
+      sourceOfferKey: 'eximtours:sunrise-2026-09-05',
       title: 'Hotel Sunrise Garden',
       country: 'Egypt',
       locality: 'Hurghada',
@@ -185,7 +186,7 @@ async function seed(db: Db): Promise<void> {
       claimedOriginalPrice: 19900,
       claimedDiscountPct: 15,
       departureDate: '2026-09-05',
-      url: 'https://exim.test/sunrise',
+      url: 'https://eximtours.test/sunrise',
     }),
     BASE,
   );
@@ -196,8 +197,8 @@ async function seed(db: Db): Promise<void> {
   await ingestOffer(
     db,
     makeOffer({
-      source: 'fischer',
-      sourceOfferKey: 'fischer:fresh-2026-08-30',
+      source: 'dovolenkovani',
+      sourceOfferKey: 'dovolenkovani:fresh-2026-08-30',
       title: 'Hotel Costa Nueva',
       country: 'Španělsko',
       locality: 'Mallorca',
@@ -205,7 +206,7 @@ async function seed(db: Db): Promise<void> {
       pricePerPerson: 13900,
       priceTotal: 27800,
       departureDate: '2026-08-30',
-      url: 'https://fischer.test/costa-nueva',
+      url: 'https://dovolenkovani.test/costa-nueva',
     }),
     BASE,
   );
@@ -220,11 +221,11 @@ async function seed(db: Db): Promise<void> {
   const soonIso = new Date(BASE.getTime() + 5 * DAY_MS).toISOString().slice(0, 10);
   const fillers: Partial<NormalizedOffer>[] = [
     { source: 'invia', sourceOfferKey: 'invia:kos-1', title: 'Hotel Aegean Star', country: 'Řecko', locality: 'Kos', stars: 4, pricePerPerson: 17200, departureDate: '2026-08-10' },
-    { source: 'exim', sourceOfferKey: 'exim:antalya-1', title: 'Hotel Lara Palace', country: 'Turecko', locality: 'Antalya', stars: 5, pricePerPerson: 21400, departureDate: '2026-07-28' },
-    { source: 'fischer', sourceOfferKey: 'fischer:djerba-1', title: 'Hotel Palm Oasis', country: 'Tunisko', locality: 'Djerba', stars: 4, board: 'HB', pricePerPerson: 14200, departureDate: '2026-09-12' },
+    { source: 'eximtours', sourceOfferKey: 'eximtours:antalya-1', title: 'Hotel Lara Palace', country: 'Turecko', locality: 'Antalya', stars: 5, pricePerPerson: 21400, departureDate: '2026-07-28' },
+    { source: 'dovolenkovani', sourceOfferKey: 'dovolenkovani:djerba-1', title: 'Hotel Palm Oasis', country: 'Tunisko', locality: 'Djerba', stars: 4, board: 'HB', pricePerPerson: 14200, departureDate: '2026-09-12' },
     { source: 'invia', sourceOfferKey: 'invia:sunny-1', title: 'Hotel Sunny Bay', country: 'Bulharsko', locality: 'Slunečné pobřeží', stars: 3, board: 'HB', pricePerPerson: 9900, departureDate: '2026-08-22' },
-    { source: 'exim', sourceOfferKey: 'exim:costa-1', title: 'Hotel Costa Verde', country: 'Španělsko', locality: 'Costa Brava', stars: 4, pricePerPerson: 15600, departureDate: '2026-08-18' },
-    { source: 'fischer', sourceOfferKey: 'fischer:rhodes-1', title: 'Hotel Rhodos Bay', country: 'Řecko', locality: 'Rhodos', stars: 4, pricePerPerson: 18100, departureDate: '2026-09-01' },
+    { source: 'eximtours', sourceOfferKey: 'eximtours:costa-1', title: 'Hotel Costa Verde', country: 'Španělsko', locality: 'Costa Brava', stars: 4, pricePerPerson: 15600, departureDate: '2026-08-18' },
+    { source: 'dovolenkovani', sourceOfferKey: 'dovolenkovani:rhodes-1', title: 'Hotel Rhodos Bay', country: 'Řecko', locality: 'Rhodos', stars: 4, pricePerPerson: 18100, departureDate: '2026-09-01' },
     { source: 'invia', sourceOfferKey: 'invia:lastminute-1', title: 'Hotel Marmaris Deal', country: 'Turecko', locality: 'Marmaris', stars: 4, pricePerPerson: 12400, departureDate: soonIso },
   ];
   for (const f of fillers) {
@@ -251,7 +252,7 @@ async function seed(db: Db): Promise<void> {
   });
 
   await db.insert(sourceRuns).values({
-    source: 'fischer',
+    source: 'dovolenkovani',
     startedAt: okStart.toISOString(),
     finishedAt: okFinish.toISOString(),
     offersFound: 3,
@@ -262,7 +263,7 @@ async function seed(db: Db): Promise<void> {
   });
 
   await db.insert(sourceRuns).values({
-    source: 'exim',
+    source: 'eximtours',
     startedAt: okStart.toISOString(),
     finishedAt: okFinish.toISOString(),
     offersFound: 0,

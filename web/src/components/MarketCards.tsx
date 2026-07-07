@@ -5,7 +5,7 @@
  * carries a "vč. Slevomatu" via-note. Times are the latest run's start.
  */
 import { formatNumber } from '../lib/format.js';
-import { sourceLabel } from '../lib/term.js';
+import { pragueHhmm, sourceLabel } from '../lib/term.js';
 import { sourceDotTone, sourceViaNote } from '../lib/history.js';
 import type { SourceStatus, StatsResponse } from '../lib/types.js';
 
@@ -19,21 +19,6 @@ const DOT_CLASS: Record<string, string> = {
 interface Props {
   stats: StatsResponse | null;
   sources: SourceStatus[] | null;
-}
-
-/** Formats a source-run start as Prague wall-clock time ("14:05"). */
-const hhmmFormatter = new Intl.DateTimeFormat('cs-CZ', {
-  timeZone: 'Europe/Prague',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-/** Latest source_run start "…T14:05…" (UTC) → Prague local "14:05". */
-function hhmm(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return hhmmFormatter.format(d);
 }
 
 /** The median for the "léto u moře" set, the headline market number. */
@@ -76,7 +61,7 @@ export function MarketCards({ stats, sources }: Props) {
                 <span className={DOT_CLASS[tone]} />
                 {sourceLabel(s.source)}
                 {via && <span className="via">{via}</span>}
-                <time>{hhmm(s.startedAt)}</time>
+                <time>{pragueHhmm(s.startedAt)}</time>
               </div>
             );
           })}

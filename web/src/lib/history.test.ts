@@ -7,6 +7,7 @@ import {
   sourceDisplayName,
   sourceDotTone,
   sourceViaNote,
+  SOURCE_NAMES,
 } from './history.js';
 import { formatCzk, formatNumber } from './format.js';
 import type { HistoryResponse, Offer } from './types.js';
@@ -74,9 +75,9 @@ function history(over: Partial<HistoryResponse> = {}): HistoryResponse {
 
 describe('sourceDisplayName', () => {
   it('title-cases known source slugs for prose (Exim, not EXIM)', () => {
-    expect(sourceDisplayName('exim')).toBe('Exim');
+    expect(sourceDisplayName('eximtours')).toBe('Exim');
     expect(sourceDisplayName('invia')).toBe('Invia');
-    expect(sourceDisplayName('blue-style')).toBe('Blue Style');
+    expect(sourceDisplayName('bluestyle')).toBe('Blue Style');
   });
   it('falls back to a capitalised slug for unknown sources', () => {
     expect(sourceDisplayName('foo')).toBe('Foo');
@@ -87,7 +88,7 @@ describe('sourceDisplayName', () => {
 
 describe('offerCtaLabel', () => {
   it('gives every source its correct Czech genitive/locative CTA phrasing', () => {
-    expect(offerCtaLabel('exim')).toBe('Otevřít u Eximu');
+    expect(offerCtaLabel('eximtours')).toBe('Otevřít u Eximu');
     expect(offerCtaLabel('fischer')).toBe('Otevřít u Fischera');
     expect(offerCtaLabel('cedok')).toBe('Otevřít u Čedoku');
     expect(offerCtaLabel('invia')).toBe('Otevřít na Invii');
@@ -101,6 +102,40 @@ describe('offerCtaLabel', () => {
 
   it('falls back to a generic label for an unknown source', () => {
     expect(offerCtaLabel('foo')).toBe('Otevřít nabídku');
+  });
+});
+
+// --- registry-slug coverage --------------------------------------------------
+
+// Hardcoded copy of the production source registry (src/sources/index.ts) —
+// web/ can't import server code, so this list is kept in sync by hand. If a
+// source is added/renamed there, add it here too so this test catches a
+// future CTA_LABELS/SOURCE_NAMES drift like the one this test guards against.
+const REGISTRY_SLUGS = [
+  'cedok',
+  'bluestyle',
+  'skrz',
+  'zajezdy',
+  'invia',
+  'etravel',
+  'fischer',
+  'eximtours',
+  'dovolena',
+  'dovolenkovani',
+] as const;
+
+describe('registry slugs have real copy (no fallback)', () => {
+  it.each(REGISTRY_SLUGS)('%s has a non-fallback CTA label', (slug) => {
+    expect(offerCtaLabel(slug)).not.toBe('Otevřít nabídku');
+  });
+
+  it.each(REGISTRY_SLUGS)('%s has an explicit display name entry', (slug) => {
+    // Some slugs (e.g. "skrz") happen to title-case to the same string as
+    // their explicit display name, so comparing sourceDisplayName's *output*
+    // against the generic fallback can't distinguish "has an entry" from
+    // "coincidentally matches the fallback". Assert directly against the
+    // hand-written map instead.
+    expect(SOURCE_NAMES).toHaveProperty(slug);
   });
 });
 

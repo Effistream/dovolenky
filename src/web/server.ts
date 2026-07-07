@@ -37,7 +37,8 @@ async function main(): Promise<void> {
   }
 
   const port = Number(process.env.PORT ?? DEFAULT_PORT);
-  serve({ fetch: app.fetch, port }, (info) => {
+  const hostname = process.env.HOST ?? '127.0.0.1';
+  serve({ fetch: app.fetch, port, hostname }, (info) => {
     // eslint-disable-next-line no-console
     console.log(`dovolenky terminál běží na http://localhost:${info.port}`);
   });

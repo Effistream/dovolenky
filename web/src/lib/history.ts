@@ -13,16 +13,19 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // Source display names — title-case for prose ("Exim počítá…"), distinct from
-// term.ts#sourceLabel which uppercases for the board's mono ZDROJ cell.
+// term.ts#sourceLabel which uppercases for the board's mono ZDROJ cell. Keyed
+// on the production registry slugs (src/sources/index.ts): cedok, bluestyle,
+// skrz, zajezdy, invia, etravel, fischer, eximtours, dovolena, dovolenkovani.
 // ---------------------------------------------------------------------------
-const SOURCE_NAMES: Record<string, string> = {
+export const SOURCE_NAMES: Record<string, string> = {
   invia: 'Invia',
   fischer: 'Fischer',
-  exim: 'Exim',
+  eximtours: 'Exim',
   cedok: 'Čedok',
-  'blue-style': 'Blue Style',
-  'zajezdy-cz': 'Zajezdy.cz',
-  'dovolena-cz': 'Dovolena.cz',
+  bluestyle: 'Blue Style',
+  zajezdy: 'Zajezdy.cz',
+  dovolena: 'Dovolena.cz',
+  dovolenkovani: 'Dovolenkovani.cz',
   etravel: 'eTravel',
   skrz: 'Skrz',
 };
@@ -44,10 +47,11 @@ export function sourceDisplayName(source: string): string {
  * follow from the slug mechanically ("Otevřít u Exim" is wrong; it must be
  * "Otevřít u Eximu"), so each source gets an exact, hand-written label rather
  * than a templated "Otevřít u {name}". MASTER.md's canonical example is
- * "Otevřít u Eximu".
+ * "Otevřít u Eximu". Keyed on the production registry slugs (see SOURCE_NAMES
+ * above for the source-of-truth list).
  */
 const CTA_LABELS: Record<string, string> = {
-  exim: 'Otevřít u Eximu',
+  eximtours: 'Otevřít u Eximu',
   fischer: 'Otevřít u Fischera',
   cedok: 'Otevřít u Čedoku',
   invia: 'Otevřít na Invii',

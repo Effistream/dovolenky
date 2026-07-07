@@ -7,6 +7,7 @@
  */
 import { Fragment } from 'react';
 import { BoardRow } from './BoardRow.js';
+import type { SortKey } from '../lib/filters.js';
 import type { Offer } from '../lib/types.js';
 
 interface Props {
@@ -16,8 +17,22 @@ interface Props {
   expandedId: number | null;
   onToggle: (id: number) => void;
   onRetry: () => void;
+  /** Current board sort order — drives the caption text (see sortCaption). */
+  sort: SortKey;
   /** Optional detail renderer for the expanded row (Task 27). */
   renderDetail?: (offer: Offer) => React.ReactNode;
+}
+
+/** Caption labels per sort key, matching FilterBar's SORTS wording. */
+const SORT_CAPTIONS: Record<SortKey, string> = {
+  real: 'SEŘAZENO PODLE REÁLNÉ SLEVY',
+  price: 'SEŘAZENO PODLE CENY',
+  departure: 'SEŘAZENO PODLE ODLETU',
+};
+
+/** The board-cap caption text for the current sort order. */
+export function sortCaption(sort: SortKey): string {
+  return SORT_CAPTIONS[sort];
 }
 
 const HEADER = [
@@ -70,6 +85,7 @@ export function Board({
   expandedId,
   onToggle,
   onRetry,
+  sort,
   renderDetail,
 }: Props) {
   const count = offers.length;
@@ -79,7 +95,7 @@ export function Board({
       <div className="board-cap">
         <h2>ODLETOVÁ TABULE</h2>
         <span className="count">
-          SEŘAZENO PODLE REÁLNÉ SLEVY · {count} NABÍDEK
+          {sortCaption(sort)} · {count} NABÍDEK
         </span>
       </div>
 

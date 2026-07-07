@@ -5,21 +5,12 @@
  * not exposed by the API (no field in /api/stats), so per the brief it renders
  * "—" rather than a fabricated value.
  */
+import { pragueHhmm } from '../lib/term.js';
 import type { SourceStatus } from '../lib/types.js';
 
 interface Props {
   sources: SourceStatus[] | null;
   loading: boolean;
-}
-
-/** "2026-07-04T14:05:00Z" → "14:05" (UTC clock, matching the mockup's HH:MM). */
-function hhmm(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(
-    d.getUTCMinutes(),
-  ).padStart(2, '0')}`;
 }
 
 function latestScan(sources: SourceStatus[]): string {
@@ -32,7 +23,7 @@ function latestScan(sources: SourceStatus[]): string {
       iso = s.startedAt;
     }
   }
-  return hhmm(iso);
+  return pragueHhmm(iso);
 }
 
 export function StatusLine({ sources, loading }: Props) {
