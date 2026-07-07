@@ -1,11 +1,20 @@
 /**
  * The two quiet light cards below the board: TRH DNES (three market numbers from
- * /api/stats) and ZDROJE (a status grid from /api/sources). Green dot = latest
- * run ok; warn dot = failed / in backoff. Times are the latest run's start.
+ * /api/stats) and ZDROJE (a status grid from /api/sources). Dot tone follows
+ * MASTER.md: green ok, amber partial or in-backoff ("v pauze"), red failed. Skrz
+ * carries a "vč. Slevomatu" via-note. Times are the latest run's start.
  */
 import { formatNumber } from '../lib/format.js';
 import { sourceLabel } from '../lib/term.js';
+import { sourceDotTone, sourceViaNote } from '../lib/history.js';
 import type { SourceStatus, StatsResponse } from '../lib/types.js';
+
+/** Dot tone → the CSS modifier: ok green (base), partial amber, failed red. */
+const DOT_CLASS: Record<string, string> = {
+  ok: 'dot',
+  partial: 'dot partial',
+  failed: 'dot warn',
+};
 
 interface Props {
   stats: StatsResponse | null;
@@ -55,12 +64,13 @@ export function MarketCards({ stats, sources }: Props) {
         <h3>ZDROJE</h3>
         <div className="sources">
           {(sources ?? []).map((s) => {
-            const healthy = s.status === 'ok' && !s.backoff;
+            const tone = sourceDotTone(s.status, s.backoff);
+            const via = sourceViaNote(s.source, s.backoff);
             return (
               <div className="sourc" key={s.source}>
-                <span className={`dot${healthy ? '' : ' warn'}`} />
+                <span className={DOT_CLASS[tone]} />
                 {sourceLabel(s.source)}
-                {s.backoff && <span className="via">v pauze</span>}
+                {via && <span className="via">{via}</span>}
                 <time>{hhmm(s.startedAt)}</time>
               </div>
             );

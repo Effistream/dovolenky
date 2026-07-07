@@ -71,3 +71,24 @@ export interface StatsResponse {
 
 /** The three profile filters shown as single-select chips (mockup order). */
 export type ProfileFilter = 'all' | 'leto-more' | 'last-minute';
+
+/** One price observation in an offer's history (oldest→newest). */
+export interface HistoryPoint {
+  /** ISO capture timestamp. */
+  at: string;
+  pricePerPerson: number;
+}
+
+/**
+ * Price history for a single offer (GET /api/offers/:id/history). Field names
+ * mirror src/web/api.ts#buildHistory verbatim: `series` uses `price` (not
+ * pricePerPerson), `median` is the 30-day band centre, `claimedOriginalPrice`
+ * is the latest seller-claimed "original" (drives the red dashed line).
+ */
+export interface HistoryResponse {
+  offerId: number;
+  title: string;
+  series: { at: string; price: number }[];
+  median: number | null;
+  claimedOriginalPrice: number | null;
+}

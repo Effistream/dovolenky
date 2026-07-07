@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import type {
+  HistoryResponse,
   OffersResponse,
   SourcesResponse,
   StatsResponse,
@@ -34,6 +35,13 @@ export function fetchSources(signal?: AbortSignal): Promise<SourcesResponse> {
 
 export function fetchStats(signal?: AbortSignal): Promise<StatsResponse> {
   return getJson<StatsResponse>('/api/stats', signal);
+}
+
+export function fetchHistory(
+  id: number,
+  signal?: AbortSignal,
+): Promise<HistoryResponse> {
+  return getJson<HistoryResponse>(`/api/offers/${id}/history`, signal);
 }
 
 export interface AsyncState<T> {

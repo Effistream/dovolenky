@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react';
 import { StatusLine } from './components/StatusLine.js';
 import { FilterChips } from './components/FilterChips.js';
 import { Board } from './components/Board.js';
+import { OfferDetail } from './components/OfferDetail.js';
 import { MarketCards } from './components/MarketCards.js';
 import { fetchOffers, fetchSources, fetchStats, useAsync } from './lib/api.js';
 import {
@@ -82,6 +83,7 @@ export function App() {
         expandedId={expandedId}
         onToggle={toggleRow}
         onRetry={offersState.reload}
+        renderDetail={(offer) => <OfferDetail offer={offer} />}
       />
 
       <MarketCards
