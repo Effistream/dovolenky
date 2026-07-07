@@ -20,6 +20,7 @@ export const offers = sqliteTable('offers', {
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
   misses: integer('misses').notNull().default(0),
   matchKey: text('match_key'),
+  hotelKey: text('hotel_key'),
 }, (table) => [
   uniqueIndex('offers_source_source_offer_key_idx').on(table.source, table.sourceOfferKey),
 ]);

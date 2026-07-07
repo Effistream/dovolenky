@@ -3,7 +3,7 @@ import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { sql } from 'drizzle-orm';
 import * as schema from './schema.js';
 import { offers } from './schema.js';
-import { computeMatchKey } from '../normalize.js';
+import { computeMatchKey, computeHotelKey } from '../normalize.js';
 import type { NormalizedOffer } from '../types.js';
 
 export type Db = LibSQLDatabase<typeof schema>;
@@ -104,7 +104,16 @@ export async function ensureSchema(db: Db): Promise<void> {
     CREATE INDEX IF NOT EXISTS offers_match_key_idx ON offers (match_key)
   `);
 
+  // Hotel identity key (spec §15) — one level up from match_key (no date/nights/board), used
+  // by the discount-v2 "hotel" reference rung. Same ALTER TABLE + index + backfill pattern.
+  await ensureColumn(db, 'offers', 'hotel_key', 'hotel_key TEXT');
+
+  await db.run(`
+    CREATE INDEX IF NOT EXISTS offers_hotel_key_idx ON offers (hotel_key)
+  `);
+
   await backfillMatchKeys(db);
+  await backfillHotelKeys(db);
 }
 
 // One-off backfill for offers rows written before match_key existed (or
@@ -141,6 +150,33 @@ async function backfillMatchKeys(db: Db): Promise<void> {
     const matchKey = computeMatchKey(pseudoOffer);
     if (matchKey !== null) {
       await db.update(offers).set({ matchKey }).where(sql`${offers.id} = ${row.id}`);
+    }
+  }
+}
+
+// One-off backfill for offers rows written before hotel_key existed (spec §15), mirroring
+// backfillMatchKeys above.
+async function backfillHotelKeys(db: Db): Promise<void> {
+  const rows = await db
+    .select({
+      id: offers.id,
+      title: offers.title,
+      country: offers.country,
+    })
+    .from(offers)
+    .where(sql`${offers.hotelKey} IS NULL`);
+
+  for (const row of rows) {
+    // Reconstruct just enough of a NormalizedOffer shape for computeHotelKey — it only reads
+    // title/country.
+    const pseudoOffer = {
+      title: row.title,
+      country: row.country,
+    } as NormalizedOffer;
+
+    const hotelKey = computeHotelKey(pseudoOffer);
+    if (hotelKey !== null) {
+      await db.update(offers).set({ hotelKey }).where(sql`${offers.id} = ${row.id}`);
     }
   }
 }

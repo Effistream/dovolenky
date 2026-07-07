@@ -155,3 +155,21 @@ export function computeMatchKey(o: NormalizedOffer): string | null {
   const airportNorm = normalizeAirport(o.departureAirport);
   return offerKeyHash([canonName, o.country, o.departureDate, o.nights, o.board, airportNorm ?? '*']);
 }
+
+/**
+ * Cross-term, cross-source identity key for a HOTEL (spec §15), one level up from
+ * computeMatchKey: sha1 of [canonName, country] only — no date/nights/board/airport — so every
+ * term of the same physical property (any length of stay, any departure date, any source) shares
+ * the same hotel_key. Used by the discount-v2 "hotel" reference rung to pool a hotel's own other
+ * terms as a per-night baseline.
+ *
+ * Same null-conservatism as computeMatchKey: returns null (never a false grouping) when the title
+ * normalizes to an empty canonical name (all-stopword title, e.g. "Hotel" or "Resort Spa") or when
+ * country is null — either makes the offer under-specified enough that a wrong merge (pooling two
+ * unrelated properties) is worse than no merge at all.
+ */
+export function computeHotelKey(o: NormalizedOffer): string | null {
+  const canonName = normalizeHotelName(o.title);
+  if (canonName === '' || o.country === null) return null;
+  return offerKeyHash([canonName, o.country]);
+}

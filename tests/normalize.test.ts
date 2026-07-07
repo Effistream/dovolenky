@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeBoard, normalizeTransport, normalizeCountry, isKnownCountry, parseCzk, parseCzDate, offerKeyHash, normalizeHotelName, normalizeAirport, computeMatchKey } from '../src/core/normalize.js';
+import { normalizeBoard, normalizeTransport, normalizeCountry, isKnownCountry, parseCzk, parseCzDate, offerKeyHash, normalizeHotelName, normalizeAirport, computeMatchKey, computeHotelKey } from '../src/core/normalize.js';
 import type { NormalizedOffer } from '../src/core/types.js';
 
 function makeOffer(overrides: Partial<NormalizedOffer> = {}): NormalizedOffer {
@@ -155,5 +155,32 @@ describe('normalize', () => {
     // A normal, non-stopword-only title still yields a real key.
     const keyNormal = computeMatchKey(makeOffer({ title: 'Blue Aegean Resort & Spa' }));
     expect(keyNormal).not.toBeNull();
+  });
+  it('computeHotelKey: same hotel, different dates/nights -> same hotel_key, different match_key', () => {
+    const termA = makeOffer({ departureDate: '2026-07-15', nights: 7 });
+    const termB = makeOffer({ departureDate: '2026-08-01', nights: 10 });
+
+    const hotelKeyA = computeHotelKey(termA);
+    const hotelKeyB = computeHotelKey(termB);
+    expect(hotelKeyA).not.toBeNull();
+    expect(hotelKeyA).toBe(hotelKeyB);
+
+    const matchKeyA = computeMatchKey(termA);
+    const matchKeyB = computeMatchKey(termB);
+    expect(matchKeyA).not.toBe(matchKeyB);
+  });
+  it('computeHotelKey: empty/all-stopword title -> null', () => {
+    expect(computeHotelKey(makeOffer({ title: 'Hotel' }))).toBeNull();
+    expect(computeHotelKey(makeOffer({ title: 'Resort Spa' }))).toBeNull();
+  });
+  it('computeHotelKey: null country -> null', () => {
+    expect(computeHotelKey(makeOffer({ country: null }))).toBeNull();
+  });
+  it('computeHotelKey: same name, different country -> different key', () => {
+    const greece = computeHotelKey(makeOffer({ country: 'Řecko' }));
+    const turkey = computeHotelKey(makeOffer({ country: 'Turecko' }));
+    expect(greece).not.toBeNull();
+    expect(turkey).not.toBeNull();
+    expect(greece).not.toBe(turkey);
   });
 });
