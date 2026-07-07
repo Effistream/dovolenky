@@ -15,7 +15,8 @@ import {
  * Group s.r.o.), instantiated via {@link makeCesysAdapter}. All CESYS behavior (sitemap index →
  * accommodation shards, mapping/countries, dates-list body, per-person price evidence, discount
  * guard, priorTitles resolution, detail-redirect name lookup) lives in cesys.ts; this file only
- * pins dovolenkovani's own ids and its two watch-profile queries. Live provenance and the full
+ * pins dovolenkovani's own ids and its three queries (léto-moře, last-minute, exotika). Live
+ * provenance and the full
  * behavior/probe notes are documented in cesys.ts's header comment.
  *
  * Compliance (§9 / spec row 10): dovolenkovani.cz's robots.txt blocks ClaudeBot BY NAME, so this
