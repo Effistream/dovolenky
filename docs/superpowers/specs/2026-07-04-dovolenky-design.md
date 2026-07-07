@@ -269,3 +269,36 @@ tržního mediánu.
 
 Fuzzy matching jmen (Levenshtein/token overlap) je mimo scope — jen kanonizace + exact match;
 zdokumentovat míru sloučení v testu na reálných fixtures.
+
+## 14. Frontend „Terminál" (přidáno 2026-07-07)
+
+Lokální web dashboard dle schváleného vizuálního návrhu (design-system/MASTER.md,
+docs/design/terminal-mockup.html — závazné: tokeny, typografie, layout, copy pravidla).
+
+**Stack:** Vite + React + TypeScript (adresář `web/`), Tailwind v4 s tokeny z MASTER.md
+přes @theme; fonty IBM Plex Mono + Barlow lokálně (@fontsource, žádné CDN). API server:
+**Hono** (`src/web/server.ts`, `npm run web`, port 4141) — čte stejnou SQLite přes existující
+core moduly, servíruje i build frontendu. Fáze Vercel: Hono routes + statický build beze změn
+architektury.
+
+**API** (JSON, read-only):
+- `GET /api/offers` — aktivní nabídky seskupené podle match_key (reprezentant + alternatives),
+  s realPct/reference/fake z computeRealDiscount (own+omnibus+market přes market.ts),
+  query params: profile, country, source, minRealPct. In-memory cache 5 min TTL
+  (výpočet je N+1 nad koši — lokálně přijatelné, cache to kryje).
+- `GET /api/offers/:id/history` — price_snapshots řady + baseline pásmo (medián 30 d)
+  + claimed original pro graf.
+- `GET /api/sources` — poslední source_runs per zdroj (status, čas, počty, backoff).
+- `GET /api/stats` — aktivní počet, nové za 24 h, medián per profil (TRH DNES karta).
+
+**UI komponenty** (dle mockupu 1:1): status řádek, filtr chips (profily single, země multi),
+odletová tabule (řádky, sparklines, REÁLNÁ vs UVÁDÍ, NADSAZENÁ flag, „Také:" alternativy),
+rozbalený detail (SVG cenový graf s pásmem mediánu, červenou čárkovanou „původní cenou",
+fakta, verdikt — bez CTA „Ztlumit" ve v1, jen „Otevřít u <zdroj>"), karty TRH DNES + ZDROJE,
+flap animace při načtení (prefers-reduced-motion). Empty state dle MASTER.md copy pravidel.
+
+**Testy:** API endpoints vitest nad in-memory DB (seed přes ingestOffer); frontend jednotkově
+jen čisté helpery (formátování, seskupení) — UI se ověřuje Playwright smoke testem
+(board se vyrenderuje, filtr filtruje, detail se rozbalí) proti dev serveru se seed DB.
+
+**Mimo scope:** auth (localhost only), mutace (ztlumení nabídek), mobilní aplikace.

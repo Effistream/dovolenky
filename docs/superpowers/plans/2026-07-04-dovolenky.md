@@ -656,3 +656,25 @@ Strategie a všechny endpointy/pole: spec §3 řádek 10 (ověřeno živě 2026-
 - Market bucket (market.ts): GROUP BY match_key (NULL skupiny zůstávají per-offer), cena skupiny = MIN.
 
 - [ ] Testy: dvojice offers ze dvou zdrojů se stejným match_key → 1 notifikace s „Také:", log dedup blokuje re-notifikaci druhého zdroje, digest top-10 bez duplicit, market bucket počítá MIN; NULL match_key beze změny chování → implementace → plný suite zelený → commit `feat: cross-source dedup in notifications, digest and market baseline`.
+
+---
+
+### Task 25: Web scaffold + Hono API
+
+**Files:** Create `web/` (Vite React TS, Tailwind v4 s tokeny z design-system/MASTER.md, @fontsource-ibm-plex-mono + @fontsource/barlow), `src/web/server.ts` + `src/web/api.ts` (Hono: /api/offers, /api/offers/:id/history, /api/sources, /api/stats dle spec §14, in-memory cache 5 min), `package.json` scripts (`web`, `web:dev`, `web:build`); Test `tests/api.test.ts` (in-memory DB seed přes ingestOffer, všechny 4 endpointy — tvary, grouping s alternatives, cache hit).
+- [ ] TDD API; frontend scaffold jen kostra (index.html, tokeny, fonty, prázdná App s „Terminál" hlavičkou); plný suite zelený; commit `feat: web scaffold and terminal API`.
+
+### Task 26: Odletová tabule (board UI)
+
+**Files:** `web/src/` komponenty: StatusLine, FilterChips, Board, BoardRow, Sparkline; fetch z /api/offers + /api/sources; Test: čisté helpery (formatCzk, discount barvy, grouping) vitest.
+- [ ] Dle mockupu 1:1 (tokeny, mono labely, flap animace, reduced-motion); filtry fungují client-side nad API daty; commit `feat: terminal board UI`.
+
+### Task 27: Detail + karty
+
+**Files:** `web/src/` OfferDetail (SVG cenový graf: křivka, pásmo mediánu, čárkovaná „původní cena", DNES bod; fakta; verdikt; Otevřít CTA; „Také:" alternativy), MarketCard (TRH DNES z /api/stats), SourcesCard (/api/sources vč. backoff stavu); empty state.
+- [ ] Graf z /api/offers/:id/history; copy dle MASTER.md (stop-slop); commit `feat: offer detail and status cards`.
+
+### Task 28: Playwright smoke + integrace + finální review
+
+**Files:** `tests/e2e/terminal.spec.ts` (Playwright: seed DB skriptem, start serveru, board render, filtr, detail expand, žádné console errors), README sekce „Dashboard", `.gitignore` web build.
+- [ ] Smoke zelený lokálně; plný suite + tsc; whole-branch review fable → fix vlna → merge do main; commit `feat: terminal e2e smoke and docs`.
