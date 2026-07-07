@@ -359,6 +359,18 @@ describe('esotravel.fetchOffers: per-listing-URL error isolation', () => {
     await expect(esotravel.fetchOffers(makeCtx(http))).rejects.toThrow('total outage');
   });
 
+  it('rethrows when the FIRST listing URL is blocked before any success (backoff must engage)', async () => {
+    const http = {
+      text: vi.fn(async (url: string) => {
+        if (url.includes('/dovolena/thajsko/')) throw new SourceBlockedError(403, 'blocked');
+        throw new Error(`should not fetch ${url}`);
+      }),
+      json: vi.fn(),
+    } as unknown as SourceContext['http'];
+    await expect(esotravel.fetchOffers(makeCtx(http))).rejects.toThrow('blocked');
+    expect((http.text as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+  });
+
   it('dedupes globally across listing pages by sourceOfferKey', async () => {
     // Same termin id surfaced on two different country listings -> one offer.
     const http = {

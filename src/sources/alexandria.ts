@@ -135,8 +135,14 @@ function mapPackage(p: AlexandriaPackage): NormalizedOffer | null {
   let claimedOriginalPrice: number | null = null;
   let claimedDiscountPct: number | null = null;
   if (typeof original === 'number' && original > packagePrice) {
-    claimedOriginalPrice = round(original / persons);
-    claimedDiscountPct = round(((original - packagePrice) / original) * 100);
+    const pct = round(((original - packagePrice) / original) * 100);
+    // Guard 0<pct<100 (matching deluxea/datour): a discount that rounds to 0% (original barely
+    // above package_price) — or an impossible >=100% — leaves BOTH claimed fields null, never a
+    // non-null claimedOriginalPrice paired with a 0% claimedDiscountPct.
+    if (pct > 0 && pct < 100) {
+      claimedOriginalPrice = round(original / persons);
+      claimedDiscountPct = pct;
+    }
   }
 
   const cat = p.accommodation_category;
@@ -216,7 +222,10 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
     } catch (err) {
       if (err instanceof SourceBlockedError) {
         // Site is actively blocking us: stop issuing further queries (politeness) but keep
-        // whatever offers the earlier queries already yielded.
+        // whatever offers the earlier queries already yielded. Record the block as lastError so a
+        // block BEFORE the first success still trips the successCount===0 rethrow below (→ BLOCKED
+        // marker → 24h backoff) instead of silently degrading to [].
+        lastError = err;
         ctx.log(`alexandria: query ${query.label} blocked (${err.message}), stopping`);
         break;
       }

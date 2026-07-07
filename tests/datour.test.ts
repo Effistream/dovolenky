@@ -430,6 +430,12 @@ describe('datour source adapter', () => {
     await expect(datour.fetchOffers(ctx)).rejects.toThrow('total outage');
   });
 
+  it('rethrows when the FIRST query is blocked before any success (backoff must engage)', async () => {
+    const { SourceBlockedError } = await import('../src/core/http.js');
+    const { ctx } = makeCtx(() => Promise.reject(new SourceBlockedError(403, 'blocked')));
+    await expect(datour.fetchOffers(ctx)).rejects.toThrow('blocked');
+  });
+
   it('logs the final summary line', async () => {
     const { ctx } = makeCtx(standardImpl);
     const logMock = ctx.log as ReturnType<typeof vi.fn>;

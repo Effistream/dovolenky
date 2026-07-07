@@ -135,4 +135,16 @@ describe('dovolena source adapter', () => {
     expect(offers.length).toBeGreaterThan(0);
     expect(jsonMock).toHaveBeenCalledTimes(2);
   });
+
+  it('rethrows when the FIRST destination is blocked before any success (backoff must engage)', async () => {
+    const { SourceBlockedError } = await import('../src/core/http.js');
+    const jsonMock = vi.fn().mockRejectedValue(new SourceBlockedError(403, 'blocked'));
+    const ctx: SourceContext = {
+      http: { json: jsonMock, text: vi.fn() } as unknown as SourceContext['http'],
+      adults: 2,
+      log: vi.fn(),
+    };
+    await expect(dovolena.fetchOffers(ctx)).rejects.toThrow('blocked');
+    expect(jsonMock).toHaveBeenCalledTimes(1);
+  });
 });

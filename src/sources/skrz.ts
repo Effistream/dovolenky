@@ -240,6 +240,8 @@ function mapDeal(deal: RawDeal): NormalizedOffer | null {
 async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
   const all: NormalizedOffer[] = [];
   const seen = new Set<string>();
+  let lastError: unknown;
+  let successCount = 0;
 
   for (const path of LISTING_PATHS) {
     const url = `${BASE_URL}${path}`;
@@ -247,15 +249,19 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
     try {
       const html = await ctx.http.text(url);
       offers = parseSkrz(html);
+      successCount += 1;
     } catch (err) {
       if (err instanceof SourceBlockedError) {
         // The site is actively blocking us: stop working through the remaining listing URLs
-        // (politeness) but keep whatever offers earlier pages already yielded.
+        // (politeness) but keep whatever offers earlier pages already yielded. Record the block as
+        // lastError so a block BEFORE the first success still trips the successCount===0 rethrow.
+        lastError = err;
         ctx.log(`skrz: ${path} blocked (${err.message}), stopping`);
         break;
       }
       // Any other per-page failure (network error, parse error, transient 5xx exhausted) should
       // not sink the whole fetch — log and move on to the next listing URL.
+      lastError = err;
       const message = err instanceof Error ? err.message : String(err);
       ctx.log(`skrz: ${path} failed (${message}), skipping`);
       continue;
@@ -266,6 +272,15 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
       seen.add(offer.sourceOfferKey);
       all.push(offer);
     }
+  }
+
+  if (successCount === 0 && lastError !== undefined) {
+    // Every listing URL failed: this is not "market empty" — rethrow (fischer pattern) so runScan
+    // records this source 'failed' rather than degrading to [] (which would flip known offers
+    // inactive and mute the health alert). A block on the first URL lands here → BLOCKED / backoff.
+    const message = lastError instanceof Error ? lastError.message : String(lastError);
+    ctx.log(`skrz: all ${LISTING_PATHS.length} listing URLs failed (${message}), aborting`);
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
   ctx.log(`skrz: fetched ${all.length} offers across ${LISTING_PATHS.length} listing URLs`);

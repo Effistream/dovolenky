@@ -284,4 +284,18 @@ describe('cedok.fetchOffers: per-page error isolation (Finding 3)', () => {
     // Only page 1 (success) and page 2 (blocked, then stop) should have been requested.
     expect(http.text).toHaveBeenCalledTimes(2);
   });
+
+  it('rethrows when the FIRST page is blocked before any success (backoff must engage)', async () => {
+    // Regression: a block on page 1 (before any successful page) must propagate (not swallow to
+    // []), so runScan writes the BLOCKED marker and the 24h backoff engages.
+    const http = {
+      text: vi.fn(async (url: string) => {
+        if (url.includes('page=1')) throw new SourceBlockedError(403, 'blocked');
+        throw new Error(`should not fetch ${url}`);
+      }),
+      json: vi.fn(),
+    } as unknown as SourceContext['http'];
+    await expect(cedok.fetchOffers(makeCtx(http))).rejects.toThrow('blocked');
+    expect(http.text).toHaveBeenCalledTimes(1);
+  });
 });

@@ -176,6 +176,8 @@ function mapHotel(hotel: DovolenaHotel, requestUrl: string): NormalizedOffer | n
 async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
   const all: NormalizedOffer[] = [];
   const seen = new Set<string>();
+  let lastError: unknown;
+  let successCount = 0;
 
   destinationLoop: for (const destination of DESTINATIONS) {
     const url = buildListingUrl(destination.id, 1);
@@ -183,15 +185,19 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
     try {
       const json = await ctx.http.json(url);
       offers = parseDovolena(json, url);
+      successCount += 1;
     } catch (err) {
       if (err instanceof SourceBlockedError) {
         // Site is actively blocking us: stop issuing further destination requests
-        // (politeness) but keep whatever offers earlier destinations already yielded.
+        // (politeness) but keep whatever offers earlier destinations already yielded. Record the
+        // block as lastError so a block BEFORE the first success still trips the rethrow below.
+        lastError = err;
         ctx.log(`dovolena: ${destination.name} blocked (${err.message}), stopping`);
         break destinationLoop;
       }
       // Any other per-destination failure (network error, parse error, transient 5xx
       // exhausted) must not sink the whole fetch — log and move on to the next destination.
+      lastError = err;
       const message = err instanceof Error ? err.message : String(err);
       ctx.log(`dovolena: ${destination.name} fetch failed (${message}), skipping`);
       continue;
@@ -204,6 +210,16 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
       seen.add(offer.sourceOfferKey);
       all.push(offer);
     }
+  }
+
+  if (successCount === 0 && lastError !== undefined) {
+    // Every destination failed: this is not "market empty" — rethrow (fischer pattern) so runScan
+    // records this source 'failed' rather than degrading to [] (which would flip known offers
+    // inactive and mute the health alert). A block on the first destination lands here → BLOCKED
+    // marker / 24h backoff engages.
+    const message = lastError instanceof Error ? lastError.message : String(lastError);
+    ctx.log(`dovolena: all ${DESTINATIONS.length} destinations failed (${message}), aborting`);
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
   ctx.log(`dovolena: fetched ${all.length} offers across ${DESTINATIONS.length} destinations`);

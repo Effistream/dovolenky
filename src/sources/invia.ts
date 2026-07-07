@@ -308,6 +308,8 @@ function formatCzDate(d: Date): string {
 async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
   const all: NormalizedOffer[] = [];
   const seen = new Set<string>();
+  let lastError: unknown;
+  let successCount = 0;
 
   for (const query of buildQueries()) {
     const token = randomUUID().replace(/-/g, '');
@@ -322,13 +324,19 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
         },
         body: JSON.stringify(query.body),
       });
+      // A returned response means the endpoint answered us (not blocked/down) — count it as a
+      // success for the "blocked before first success" guard regardless of how many cards parse.
+      successCount += 1;
     } catch (err) {
       if (err instanceof SourceBlockedError) {
         // Politeness: the endpoint is a conscious robots deviation (spec §9) — if it starts
-        // blocking us, stop immediately rather than hammering it with a second query.
+        // blocking us, stop immediately rather than hammering it with a second query. Record the
+        // block as lastError so a block BEFORE the first success still trips the rethrow below.
+        lastError = err;
         ctx.log(`invia: query "${query.label}" blocked (${err.message}), stopping`);
         break;
       }
+      lastError = err;
       const message = err instanceof Error ? err.message : String(err);
       ctx.log(`invia: query "${query.label}" failed (${message}), skipping`);
       continue;
@@ -348,6 +356,16 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
       seen.add(offer.sourceOfferKey);
       all.push(offer);
     }
+  }
+
+  if (successCount === 0 && lastError !== undefined) {
+    // Every query request failed: this is not "market empty" — rethrow (fischer pattern) so runScan
+    // records this source 'failed' rather than degrading to [] (which would flip known offers
+    // inactive and mute the health alert). A block on the first query lands here → BLOCKED marker /
+    // 24h backoff engages.
+    const message = lastError instanceof Error ? lastError.message : String(lastError);
+    ctx.log(`invia: all queries failed (${message}), aborting`);
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
   ctx.log(`invia: fetched ${all.length} offers across ${buildQueries().length} queries`);

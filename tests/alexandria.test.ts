@@ -171,6 +171,20 @@ describe('parseAlexandria — edge cases', () => {
     const doubled = { packages: [...pk, pk[0]] };
     expect(parseAlexandria(doubled).length).toBe(18);
   });
+
+  it('nulls BOTH claimed fields when the discount pct rounds to 0 (original barely above package)', () => {
+    // original_price 10040 vs package_price 10000 -> pct = round((40/10040)*100) = round(0.398) = 0.
+    // Guard 0<pct<100 (like deluxea/datour): a 0%-rounded discount leaves BOTH claimed fields null,
+    // never a non-null claimedOriginalPrice paired with a 0% claimedDiscountPct.
+    const offers = parseAlexandria({
+      packages: [
+        { tour_id: 'P', tour_name: 'Tiny discount', detail: 'p', start: '2026-07-08', nights: 7, persons: 2, package_price: 10000, original_price: 10040 },
+      ],
+    });
+    expect(offers.length).toBe(1);
+    expect(offers[0]!.claimedDiscountPct).toBeNull();
+    expect(offers[0]!.claimedOriginalPrice).toBeNull();
+  });
 });
 
 describe('alexandria source adapter', () => {
@@ -253,6 +267,14 @@ describe('alexandria source adapter', () => {
   it('rethrows when ALL queries fail so runScan marks the source failed', async () => {
     const { ctx } = makeCtx(() => Promise.reject(new Error('total outage')));
     await expect(alexandria.fetchOffers(ctx)).rejects.toThrow('total outage');
+  });
+
+  it('rethrows when the FIRST query is blocked before any success (backoff must engage)', async () => {
+    // Regression: a block on the very first query must propagate (not swallow to []), so runScan
+    // writes the BLOCKED marker and the 24h backoff engages. The blocked branch must set lastError.
+    const { SourceBlockedError } = await import('../src/core/http.js');
+    const { ctx } = makeCtx(() => Promise.reject(new SourceBlockedError(403, 'blocked')));
+    await expect(alexandria.fetchOffers(ctx)).rejects.toThrow('blocked');
   });
 
   it('logs the final summary line', async () => {

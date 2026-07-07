@@ -196,4 +196,17 @@ describe('zajezdy.fetchOffers: per-page error isolation', () => {
     expect(calledUrls.length).toBe(2);
     void slugOrder;
   });
+
+  it('rethrows when the FIRST slug is blocked before any success (backoff must engage)', async () => {
+    // Regression: a block on the first slug (before any success) must propagate (not swallow to
+    // []), so runScan writes the BLOCKED marker and the 24h backoff engages.
+    const http = {
+      text: vi.fn(async (url: string) => {
+        if (url.includes('/recko/')) throw new SourceBlockedError(403, 'blocked');
+        throw new Error(`should not fetch ${url}`);
+      }),
+      json: vi.fn(),
+    } as unknown as SourceContext['http'];
+    await expect(fetchZajezdyOffers(makeCtx(http), new Date('2026-07-04T09:00:00Z'))).rejects.toThrow('blocked');
+  });
 });

@@ -225,6 +225,8 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
   const targetTours = sortedTours.slice(0, MAX_TOURS);
   const all: NormalizedOffer[] = [];
   const seen = new Set<string>();
+  let lastError: unknown;
+  let successCount = 0;
 
   for (const tour of targetTours) {
     const tourMeta = toTourMeta(tour);
@@ -246,15 +248,19 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
         body,
       });
       offers = mapFischerHotels(res.hotels ?? [], tourMeta);
+      successCount += 1;
     } catch (err) {
       if (err instanceof SourceBlockedError) {
         // Site is actively blocking us: stop issuing further tour requests (politeness) but
-        // keep whatever offers earlier tours already yielded.
+        // keep whatever offers earlier tours already yielded. Record the block as lastError so a
+        // block BEFORE the first successful tour still trips the rethrow below.
+        lastError = err;
         ctx.log(`fischer: tour ${tour.id} blocked (${err.message}), stopping`);
         break;
       }
       // Any other per-tour failure (network error, parse error, transient 5xx exhausted)
       // must not sink the whole fetch — log and move on to the next tour.
+      lastError = err;
       const message = err instanceof Error ? err.message : String(err);
       ctx.log(`fischer: tour ${tour.id} getTourHotelList failed (${message}), skipping`);
       continue;
@@ -265,6 +271,17 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
       seen.add(offer.sourceOfferKey);
       all.push(offer);
     }
+  }
+
+  if (successCount === 0 && lastError !== undefined) {
+    // Every per-tour hotel-list request failed (the /last-minute page itself was fine): this is not
+    // "market empty" — rethrow (matching the seed-fetch rethrow above and every sibling adapter) so
+    // runScan records this source 'failed' rather than degrading to [] (which would flip known
+    // offers inactive and mute the health alert). A block on the first tour lands here → BLOCKED
+    // marker / 24h backoff engages.
+    const message = lastError instanceof Error ? lastError.message : String(lastError);
+    ctx.log(`fischer: all ${targetTours.length} tour requests failed (${message}), aborting`);
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
   ctx.log(`fischer: fetched ${all.length} offers across ${targetTours.length} tours`);

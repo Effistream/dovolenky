@@ -289,7 +289,10 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
     } catch (err) {
       if (err instanceof SourceBlockedError) {
         // Site is actively blocking us: stop issuing further listing GETs (politeness) but keep
-        // whatever offers earlier pages already yielded.
+        // whatever offers earlier pages already yielded. Record the block as lastError so a block
+        // BEFORE the first success still trips the successCount===0 rethrow below (→ BLOCKED marker
+        // → 24h backoff) instead of silently degrading to [].
+        lastError = err;
         ctx.log(`esotravel: ${listing.url} blocked (${err.message}), stopping`);
         break;
       }
