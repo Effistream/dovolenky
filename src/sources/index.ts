@@ -12,6 +12,7 @@ import { dovolenkovani } from './dovolenkovani.js';
 import { firo } from './firo.js';
 import { alexandria } from './alexandria.js';
 import { deluxea } from './deluxea.js';
+import { esotravel } from './esotravel.js';
 
 /** All production source adapters, in scan order. */
 export const adapters: SourceAdapter[] = [
@@ -28,4 +29,5 @@ export const adapters: SourceAdapter[] = [
   firo,
   alexandria,
   deluxea,
+  esotravel,
 ];
