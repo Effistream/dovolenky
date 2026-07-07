@@ -25,8 +25,36 @@ export async function buildDigest(
   const activeRows = await db.select().from(offers).where(eq(offers.active, true));
   if (activeRows.length === 0) return null;
 
-  const items: { offer: NormalizedOffer; d: DiscountResult }[] = [];
+  // Cross-source dedup (spec §13): collapse active rows sharing a match_key to a
+  // single representative — the cheapest by latest price — BEFORE ranking, so a
+  // physical tour aggregated across sources appears once in the top-10. Rows with
+  // a NULL match_key are never merged (each is its own representative). We need
+  // each row's latest snapshot price to pick the cheapest, so pre-fetch it once.
+  const withPrice: { row: (typeof activeRows)[number]; price: number }[] = [];
   for (const row of activeRows) {
+    const [snap] = await db
+      .select({ price: priceSnapshots.pricePerPerson })
+      .from(priceSnapshots)
+      .where(eq(priceSnapshots.offerId, row.id))
+      .orderBy(desc(priceSnapshots.id))
+      .limit(1);
+    if (snap) withPrice.push({ row, price: snap.price });
+  }
+
+  const bestByKey = new Map<string, { row: (typeof activeRows)[number]; price: number }>();
+  const representatives: (typeof activeRows)[number][] = [];
+  for (const entry of withPrice) {
+    if (entry.row.matchKey == null) {
+      representatives.push(entry.row);
+      continue;
+    }
+    const prev = bestByKey.get(entry.row.matchKey);
+    if (prev == null || entry.price < prev.price) bestByKey.set(entry.row.matchKey, entry);
+  }
+  for (const entry of bestByKey.values()) representatives.push(entry.row);
+
+  const items: { offer: NormalizedOffer; d: DiscountResult }[] = [];
+  for (const row of representatives) {
     const [snap] = await db
       .select()
       .from(priceSnapshots)

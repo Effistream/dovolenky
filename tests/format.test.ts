@@ -180,6 +180,38 @@ describe('formatOffer', () => {
     const msg = formatOffer('hot_deal', offer(), discount({ fake: true }));
     expect(msg).not.toContain('!');
   });
+
+  it('renders a "Také:" line for cross-source alternatives, prices in cs-CZ format, sources capitalized', () => {
+    const msg = formatOffer('hot_deal', offer(), discount(), {
+      alternatives: [
+        { source: 'invia', pricePerPerson: 13990, url: 'https://e.com/invia' },
+        { source: 'skrz', pricePerPerson: 14200, url: 'https://e.com/skrz' },
+      ],
+    });
+    expect(msg).toContain('Také: Invia 13 990 Kč · Skrz 14 200 Kč');
+  });
+
+  it('does not render a "Také:" line when alternatives is empty or absent', () => {
+    expect(formatOffer('hot_deal', offer(), discount())).not.toContain('Také:');
+    expect(formatOffer('hot_deal', offer(), discount(), { alternatives: [] })).not.toContain('Také:');
+  });
+
+  it('escapes source names in the alternatives line', () => {
+    const msg = formatOffer('hot_deal', offer(), discount(), {
+      alternatives: [{ source: '<b>evil</b>', pricePerPerson: 12000, url: 'https://e.com/x' }],
+    });
+    expect(msg).toContain('&lt;b&gt;evil&lt;/b&gt;');
+    expect(msg).not.toContain('<b>evil</b>');
+  });
+
+  it('combines the price_drop "↓ z" line and the alternatives line', () => {
+    const msg = formatOffer('price_drop', offer(), discount(), {
+      previousPrice: 19000,
+      alternatives: [{ source: 'invia', pricePerPerson: 13990, url: 'https://e.com/invia' }],
+    });
+    expect(msg).toContain('↓ z 19 000 Kč');
+    expect(msg).toContain('Také: Invia 13 990 Kč');
+  });
 });
 
 describe('formatDigest', () => {

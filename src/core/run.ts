@@ -8,7 +8,8 @@ import { ingestOffer, markMissedOffers } from './ingest.js';
 import { SourceBlockedError } from './http.js';
 import { computeRealDiscount, type DiscountResult } from './discount.js';
 import { matchProfiles } from './filters.js';
-import { evaluateOffer, filterAgainstLog, recordSent, capMessages, type Candidate } from './notify.js';
+import { evaluateOffer, filterAgainstLog, recordSent, capMessages, groupCandidates, type Candidate } from './notify.js';
+import { computeMatchKey } from './normalize.js';
 import { formatOffer } from './format.js';
 import { pragueDayString } from './dates.js';
 import { marketBucketPrices, ownSnapshotsFor } from './market.js';
@@ -110,6 +111,9 @@ async function processOffers(
         cfg: cfg.notifications,
       });
 
+      // ingestOffer already persisted the match_key; recompute here (pure, no DB
+      // round-trip) so the candidate carries the same value for grouping + log dedup.
+      const matchKey = computeMatchKey(offer);
       for (const outcome of outcomes) {
         candidates.push({
           offerId: ingest.offerId,
@@ -118,6 +122,8 @@ async function processOffers(
           type: outcome.type,
           profile: outcome.profile,
           previousPrice: ingest.previousPrice,
+          matchKey,
+          alternatives: [],
         });
       }
     } catch (err) {
@@ -339,15 +345,22 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
   }
 
   // --- Notifications ---
-  const eligible = await filterAgainstLog(db, allCandidates, cfg.notifications, now);
+  // Cross-source dedup (spec §13): group same-match_key candidates into one
+  // representative (cheapest, carrying the pricier peers as `alternatives`)
+  // BEFORE the log dedup, so it's the representative — as the group — that gets
+  // checked against notifications_log and, once sent, records the match_key.
+  const grouped = groupCandidates(allCandidates);
+  const eligible = await filterAgainstLog(db, grouped, cfg.notifications, now);
   const { send, overflow } = capMessages(eligible, cfg.notifications.maxMessagesPerRun);
 
   let notificationsSent = 0;
   for (const candidate of send) {
     // formatOffer renders the price_drop "↓ z …" line only when given a
-    // previousPrice, and omits it otherwise (e.g. hot_deal/new_offer).
+    // previousPrice, and omits it otherwise (e.g. hot_deal/new_offer); the
+    // "Také: …" alternatives line renders only when the group had peers.
     const html = formatOffer(candidate.type, candidate.offer, candidate.discount, {
       previousPrice: candidate.previousPrice ?? undefined,
+      alternatives: candidate.alternatives,
     });
 
     if (!dryRun && telegram) {
