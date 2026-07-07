@@ -10,6 +10,7 @@ import { eximtours } from './eximtours.js';
 import { dovolena } from './dovolena.js';
 import { dovolenkovani } from './dovolenkovani.js';
 import { firo } from './firo.js';
+import { alexandria } from './alexandria.js';
 
 /** All production source adapters, in scan order. */
 export const adapters: SourceAdapter[] = [
@@ -24,4 +25,5 @@ export const adapters: SourceAdapter[] = [
   dovolena,
   dovolenkovani,
   firo,
+  alexandria,
 ];
