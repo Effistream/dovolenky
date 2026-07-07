@@ -7,10 +7,9 @@ import type { NormalizedOffer, Board, Transport } from '../core/types.js';
 import { computeRealDiscount, median, type DiscountResult } from '../core/discount.js';
 import { marketBucketPrices, ownSnapshotsFor } from '../core/market.js';
 import { matchProfiles } from '../core/filters.js';
+import { RECENT_RUN_SCAN_LIMIT, backoffUntilFrom } from '../core/backoff.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const BLOCKED_PREFIX = 'BLOCKED:';
-const BACKOFF_MS = 24 * 60 * 60 * 1000;
 const SPARKLINE_POINTS = 14;
 const HISTORY_MEDIAN_DAYS = 30;
 const MAX_ALTERNATIVES = 3;
@@ -220,36 +219,38 @@ async function buildOffers(
   return items;
 }
 
-/** Latest source_run per source + a backoff flag (recent BLOCKED: within 24h). */
+/**
+ * Latest source_run per source + a backoff flag. The backoff flag uses the same
+ * "first non-backoff row decides" algorithm as run.ts's blockedBackoffUntil (via the shared
+ * backoff.ts#backoffUntilFrom): a more recent REAL (non-backoff) run — even an 'ok' one —
+ * supersedes an older BLOCKED failure, so the flag never diverges from what the scanner
+ * actually does on the next run.
+ */
 async function buildSources(db: Db, now: Date) {
   const rows = await db.select().from(sourceRuns).orderBy(desc(sourceRuns.id));
 
-  // First row seen per source (rows are id-desc) is the latest run.
-  const latest = new Map<string, typeof sourceRuns.$inferSelect>();
-  const blockedAt = new Map<string, number>();
+  // Rows per source, newest-first (preserved from the id-desc query order).
+  const bySource = new Map<string, typeof sourceRuns.$inferSelect[]>();
   for (const row of rows) {
-    if (!latest.has(row.source)) latest.set(row.source, row);
-    // Track the most recent real BLOCKED: failure per source for the backoff flag
-    // (skip the benign 'backoff' bookkeeping rows, mirroring run.ts).
-    if (!blockedAt.has(row.source) && row.status === 'failed' && row.errorSample?.startsWith(BLOCKED_PREFIX)) {
-      const t = new Date(row.startedAt).getTime();
-      if (Number.isFinite(t)) blockedAt.set(row.source, t);
-    }
+    const list = bySource.get(row.source);
+    if (list) list.push(row);
+    else bySource.set(row.source, [row]);
   }
 
-  return [...latest.values()].map((row) => {
-    const blocked = blockedAt.get(row.source);
-    const backoff = blocked != null && now.getTime() < blocked + BACKOFF_MS;
+  const nowMs = now.getTime();
+  return [...bySource.entries()].map(([source, sourceRows]) => {
+    const latest = sourceRows[0]!;
+    const liftsAt = backoffUntilFrom(sourceRows.slice(0, RECENT_RUN_SCAN_LIMIT), nowMs);
     return {
-      source: row.source,
-      status: row.status,
-      startedAt: row.startedAt,
-      finishedAt: row.finishedAt,
-      offersFound: row.offersFound,
-      snapshotsWritten: row.snapshotsWritten,
-      errorCount: row.errorCount,
-      errorSample: row.errorSample,
-      backoff,
+      source,
+      status: latest.status,
+      startedAt: latest.startedAt,
+      finishedAt: latest.finishedAt,
+      offersFound: latest.offersFound,
+      snapshotsWritten: latest.snapshotsWritten,
+      errorCount: latest.errorCount,
+      errorSample: latest.errorSample,
+      backoff: liftsAt != null,
     };
   });
 }
@@ -350,14 +351,19 @@ export function createApi(opts: CreateApiOptions) {
 
   app.get('/api/offers', async (c) => {
     const url = new URL(c.req.url);
-    const key = `offers?${url.searchParams.toString()}`;
     const q = url.searchParams;
     const minRealPctRaw = q.get('minRealPct');
+    let minRealPct: number | undefined;
+    if (minRealPctRaw != null && minRealPctRaw !== '') {
+      minRealPct = Number(minRealPctRaw);
+      if (!Number.isFinite(minRealPct)) return c.json({ error: 'invalid minRealPct' }, 400);
+    }
+    const key = `offers?${url.searchParams.toString()}`;
     const filters = {
       profile: q.get('profile') ?? undefined,
       country: q.get('country') ?? undefined,
       source: q.get('source') ?? undefined,
-      minRealPct: minRealPctRaw != null && minRealPctRaw !== '' ? Number(minRealPctRaw) : undefined,
+      minRealPct,
     };
     const payload = await cached(key, async () => ({ offers: await buildOffers(db, profiles, now(), filters) }));
     return c.json(payload);

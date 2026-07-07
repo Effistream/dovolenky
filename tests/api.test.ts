@@ -165,6 +165,13 @@ describe('web api', () => {
       expect(high.body.offers.some((o: any) => o.title === 'Hotel Hot Deal')).toBe(false);
     });
 
+    it('rejects a non-numeric minRealPct with 400 (consistent with :id validation)', async () => {
+      const client = makeClient(db);
+      const { status, body } = await client('/api/offers?minRealPct=abc');
+      expect(status).toBe(400);
+      expect(body.error).toBeDefined();
+    });
+
     it('caches: a second identical call does not recompute the market baseline', async () => {
       await seedMarketBucket(db, 8, 25000);
       await ingestOffer(db, makeOffer({ source: 'invia', sourceOfferKey: 'deal', pricePerPerson: 12000, url: 'https://x/deal' }), NOW);
@@ -241,6 +248,53 @@ describe('web api', () => {
 
       const skrz = body.sources.find((s: any) => s.source === 'skrz');
       expect(skrz.backoff).toBe(true);
+    });
+
+    it('backoff flag is FALSE when a newer REAL ok run supersedes an older BLOCKED failure within 24h (reviewer counterexample)', async () => {
+      // Oldest → newest: a BLOCKED failure, then a benign backoff bookkeeping row, then a REAL
+      // 'ok' run — all within the 24h window. Scanning ALL rows for "any BLOCKED failure in the
+      // last 24h" (the old buildSources behavior) would wrongly report backoff=true here; the
+      // shared "first non-backoff row decides" algorithm correctly sees the newer ok run and
+      // reports backoff=false, matching what run.ts would actually do on the next scan.
+      await db.insert(sourceRuns).values({
+        source: 'invia',
+        startedAt: new Date(NOW.getTime() - 20 * 60 * 60 * 1000).toISOString(),
+        finishedAt: new Date(NOW.getTime() - 20 * 60 * 60 * 1000).toISOString(),
+        offersFound: 0,
+        snapshotsWritten: 0,
+        errorCount: 1,
+        status: 'failed',
+        errorSample: 'BLOCKED:Request blocked with status 403',
+      });
+      await db.insert(sourceRuns).values({
+        source: 'invia',
+        startedAt: new Date(NOW.getTime() - 16 * 60 * 60 * 1000).toISOString(),
+        finishedAt: new Date(NOW.getTime() - 16 * 60 * 60 * 1000).toISOString(),
+        offersFound: 0,
+        snapshotsWritten: 0,
+        errorCount: 0,
+        status: 'partial',
+        errorSample: 'backoff',
+      });
+      await db.insert(sourceRuns).values({
+        source: 'invia',
+        startedAt: new Date(NOW.getTime() - 1 * 60 * 60 * 1000).toISOString(),
+        finishedAt: new Date(NOW.getTime() - 1 * 60 * 60 * 1000).toISOString(),
+        offersFound: 10,
+        snapshotsWritten: 5,
+        errorCount: 0,
+        status: 'ok',
+        errorSample: null,
+      });
+
+      const client = makeClient(db);
+      const { status, body } = await client('/api/sources');
+      expect(status).toBe(200);
+
+      const invia = body.sources.find((s: any) => s.source === 'invia');
+      expect(invia).toBeDefined();
+      expect(invia.status).toBe('ok');
+      expect(invia.backoff).toBe(false);
     });
   });
 
