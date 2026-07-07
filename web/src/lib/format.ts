@@ -4,7 +4,7 @@
  * run under node with no DOM. Formatting follows design-system/MASTER.md: Czech
  * copy, concrete numbers, no exclamations.
  */
-import type { ProfileFilter } from './types.js';
+import type { Offer, ProfileFilter, Reference } from './types.js';
 
 /** Non-breaking space so "9 990 Kč" never wraps between digits and unit. */
 const NBSP = ' ';
@@ -63,6 +63,29 @@ export function formatDiscount(realPct: number | null): string {
   if (realPct == null) return '';
   if (realPct <= 0) return `+${Math.abs(realPct)} %`;
   return `−${realPct} %`;
+}
+
+/**
+ * Reference-tier label (spec §15) — mirrors src/core/format.ts#referenceLabel
+ * so the board/detail show the exact same wording as the Telegram message for
+ * the same offer. own/omnibus are static phrases; hotel is a fixed phrase
+ * ("tento hotel" — the subject *is* the hotel); locality/market interpolate
+ * the offer's own locality/country, falling back to a generic noun when that
+ * field is null (should be rare in practice — the bucket query requires it).
+ */
+export function referenceLabel(reference: NonNullable<Reference>, offer: Pick<Offer, 'locality' | 'country'>): string {
+  switch (reference) {
+    case 'own':
+      return '30denní medián';
+    case 'omnibus':
+      return 'Omnibus 30denní min.';
+    case 'hotel':
+      return 'tento hotel';
+    case 'locality':
+      return offer.locality ?? 'lokalita';
+    case 'market':
+      return offer.country ?? 'trh';
+  }
 }
 
 /**

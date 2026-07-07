@@ -6,7 +6,7 @@
  * active voice, no exclamations, fake-slevy verdict names the actor).
  */
 import type { HistoryResponse, Offer } from './types.js';
-import { formatCzk, formatNumber } from './format.js';
+import { formatCzk, formatNumber, referenceLabel } from './format.js';
 import { formatDayMonth } from './term.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -331,6 +331,9 @@ export function buildFacts(history: HistoryResponse): FactsModel {
  *  - fake (fake == true): names the actor, the claimed pct/price and the
  *    "za tu se neprodával" line, plus a real-saving clause when realPct > 0.
  *  - honest: a factual one-liner (real discount, or a price rise when realPct ≤ 0).
+ * The reference tier (own/omnibus/hotel/locality/market) is always named via
+ * referenceLabel (spec §15) so the verdict matches the board cell and the
+ * Telegram message for the same offer (src/core/format.ts#referenceLabel).
  */
 export function buildVerdict(offer: Offer, history: HistoryResponse): string {
   if (offer.reference == null || offer.realPct == null) {
@@ -339,6 +342,7 @@ export function buildVerdict(offer: Offer, history: HistoryResponse): string {
   }
 
   const name = sourceDisplayName(offer.source);
+  const label = referenceLabel(offer.reference, offer);
 
   if (offer.fake) {
     const pct = offer.claimedDiscountPct;
@@ -348,18 +352,22 @@ export function buildVerdict(offer: Offer, history: HistoryResponse): string {
         ? `${name} počítá slevu ${pct} % z ceny ${formatCzk(orig)}. Za tu se termín posledních 30 dní neprodával.`
         : `${name} nadsazuje původní cenu. Za tu se termín posledních 30 dní neprodával.`;
     if (offer.realPct > 0) {
-      return `${head} Proti reálnému trhu ušetříš ${offer.realPct} %.`;
+      return `${head} Ušetříš ${offer.realPct} % (vs. ${label}).`;
     }
     return head;
   }
 
-  // Honest: factual one-liner off the real percentage and baseline.
+  // Honest: factual one-liner off the real percentage, baseline, and tier label.
+  // "vs. <label>" (not "proti <label>") sidesteps Czech instrumental declension
+  // on interpolated place names (offer.locality/country) — "proti Řecku" would
+  // need grammar the raw nominative string doesn't have; "vs." stays invariant
+  // and matches the board cell / Telegram wording exactly.
   const baseline = offer.baseline;
   if (offer.realPct > 0) {
-    const base = baseline != null ? ` proti mediánu ${formatCzk(baseline)}` : '';
-    return `Reálná sleva ${offer.realPct} %${base} za posledních 30 dní.`;
+    const base = baseline != null ? ` vs. ${label} ${formatCzk(baseline)}` : '';
+    return `Reálná sleva ${offer.realPct} %${base}.`;
   }
   const rise = Math.abs(offer.realPct);
-  const base = baseline != null ? ` mediánem ${formatCzk(baseline)}` : ' mediánem';
-  return `Cena je o ${rise} % nad${base} za posledních 30 dní. Zdražuje.`;
+  const base = baseline != null ? ` (vs. ${label} ${formatCzk(baseline)})` : ` (vs. ${label})`;
+  return `Cena je o ${rise} % výš${base}. Zdražuje.`;
 }

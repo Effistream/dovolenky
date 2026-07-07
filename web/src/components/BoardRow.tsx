@@ -10,6 +10,7 @@ import {
   formatCzk,
   formatDiscount,
   formatNumber,
+  referenceLabel,
 } from '../lib/format.js';
 import {
   boardLabel,
@@ -43,11 +44,15 @@ function RealCell({ offer }: { offer: Offer }) {
   }
 
   const ref =
-    offer.baseline != null ? (
+    offer.baseline != null && offer.reference != null ? (
       tone === 'up' ? (
-        <span className="ref">zdražuje · medián {formatNumber(offer.baseline)}</span>
+        <span className="ref">
+          zdražuje · vs. {referenceLabel(offer.reference, offer)} {formatNumber(offer.baseline)}
+        </span>
       ) : (
-        <span className="ref">vs. medián {formatNumber(offer.baseline)}</span>
+        <span className="ref">
+          vs. {referenceLabel(offer.reference, offer)} {formatNumber(offer.baseline)}
+        </span>
       )
     ) : null;
 

@@ -309,12 +309,20 @@ Kritika uživatele: srovnávat reálnou slevu proti mediánu příliš hrubého 
 nespravedlivé; medián má být pro podobné hotely/hvězdy v podobné destinaci, a různě dlouhé
 pobyty se nesmí míchat.
 
-**Normalizace na cenu za osobu a noc.** Všechny koše i porovnání se počítají na
-`pricePerNight = round(pricePerPerson / nights)` (nights ≥ 1; při nights null nelze normalizovat
-→ daný stupeň se přeskočí). Sledovaná cena v notifikaci/UI zůstává celková za osobu; zobrazená
-baseline se ukazuje jako **ekvivalent na délku této nabídky** = `baselinePerNight × offer.nights`
-(stejná jednotka jako cena nabídky), aby bylo srovnání čitelné. `realPct` se počítá z per-noc
-(matematicky totožné s ekvivalentem).
+**Normalizace na cenu za osobu a noc — jen napříč nabídkami.** Cross-offer stupně (hotel/locality/
+market) srovnávají jinak dlouhé pobyty, takže se počítají na `pricePerNight = round(pricePerPerson
+/ nights)` (nights ≥ 1; při nights null nelze normalizovat → daný stupeň se přeskočí). own a
+omnibus naproti tomu srovnávají **stejný termín se stejným počtem nocí** na obou stranách (vlastní
+historie téhož termínu / zákonné minimum téhož termínu) — dělení nocemi se v poměru odečte, takže
+srovnání na celkové ceně je matematicky totožné s per-noc a zároveň se vyhne zbytečnému dvojímu
+zaokrouhlení (round na per-noc cenu, pak zpět na ekvivalent). own a omnibus proto zůstávají na
+**celkové ceně za osobu** (jako v1); jen hotel/locality/market jsou nově per-noc. Sledovaná cena
+v notifikaci/UI zůstává vždy celková za osobu; u cross-offer stupňů se zobrazená baseline ukazuje
+jako **ekvivalent na délku této nabídky** = `baselinePerNight × offer.nights` (stejná jednotka
+jako cena nabídky), aby bylo srovnání čitelné. `realPct` se počítá z téhož páru hodnot, který
+stupeň vyhrál (celková cena pro own/omnibus, per-noc pro hotel/locality/market) — u cross-offer
+stupňů díky dvojímu zaokrouhlení (baseline i realPct se zaokrouhlují nezávisle) se zobrazená
+baseline a realPct mohou lišit o ≤1 p.b. od hypotetického přepočtu jedna z druhé; akceptováno.
 
 **Identita hotelu (nová):** `hotelKey = sha1[normalizeHotelName(title), country]` — bez termínu
 a nocí (na rozdíl od `matchKey`, který termín má). Null když jméno prázdné nebo země null.
@@ -322,18 +330,21 @@ Sloupec `offers.hotel_key` (index, backfill, výpočet v ingest — stejná maš
 
 **Žebřík referencí (priorita, první dostupná vyhrává; `reference` v DiscountResult):**
 1. **own** — medián vlastní historie *téhož termínu* (≥3 snapshoty, rozpětí ≥5 dní, 30denní okno
-   bez dneška). Beze změny; per-noc.
-2. **omnibus** — zákonné 30denní minimum (jen eTravel). Per-noc.
+   bez dneška). Beze změny; srovnání na celkové ceně (týž termín na obou stranách, viz výše).
+2. **omnibus** — zákonné 30denní minimum (jen eTravel). Srovnání na celkové ceně (týž termín).
 3. **hotel** (NOVÉ) — medián `pricePerNight` ostatních aktivních termínů **téhož hotelu**
    (`hotel_key`), stejná strava, nights ±2, departureDate ±30 dní; vyloučit subjekt i jeho
    cross-source dvojčata (`match_key`); min. 4 termíny. „Je tenhle termín levný na tenhle hotel?"
+   Per-noc (různé nights v koši).
 4. **locality** (NOVÉ) — medián `pricePerNight` koše `locality × měsíc odletu × strava × hvězdy`
-   (aktivní nabídky, poslední snapshot, per-noc, vyloučit subjekt+dvojčata); min. 8.
+   (aktivní nabídky, poslední snapshot, per-noc, vyloučit subjekt+dvojčata); min. 8. Per-noc.
 5. **market** (dnešní koš, upravený) — `country × měsíc × pásmo nocí × strava × hvězdy`, ale nově
    **per-noc**; min. 8. Poslední záchrana.
 
-`realPct = round((baselinePN − currentPN) / baselinePN × 100)`; fake flag ≥15 p.b. beze změny.
-Guardy: baseline ≤ 0 → stupeň neplatný, propadnout dál. Žádná reference → realPct null +
+Pro own/omnibus: `realPct = round((baseline − current) / baseline × 100)` na celkové ceně za
+osobu. Pro hotel/locality/market: `realPct = round((baselinePN − currentPN) / baselinePN × 100)`
+na per-noc ceně; zobrazená baseline je ekvivalent `baselinePN × nights`. Fake flag ≥15 p.b. beze
+změny. Guardy: baseline ≤ 0 → stupeň neplatný, propadnout dál. Žádná reference → realPct null +
 „sbírám historii".
 
 **Popisky reference (UI i Telegram):** own → „30denní medián", omnibus → „Omnibus 30denní min.",

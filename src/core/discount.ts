@@ -143,6 +143,12 @@ export function computeRealDiscount(input: ComputeRealDiscountInput): DiscountRe
     return { realPct: null, reference: null, baseline: null, fake: false };
   }
 
+  // Note: for the per-night tiers (hotel/locality/market), the displayed
+  // `baseline` (baseForPct*nights, rounded once) and `realPct` (derived from
+  // per-night baseForPct/currentForPct, each already rounded) can drift by
+  // ≤1pp from a hypothetical "recompute realPct straight off the displayed
+  // baseline" figure, because both go through independent rounding steps.
+  // Known and accepted (spec §15) — not worth a shared unrounded intermediate.
   const realPct = Math.round(((baseForPct - currentForPct) / baseForPct) * 100);
   const fake = input.claimedPct != null && realPct != null && input.claimedPct - realPct >= FAKE_THRESHOLD_PP;
 
