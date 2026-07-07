@@ -69,8 +69,8 @@ export interface StatsResponse {
   medianByProfile: Record<string, number | null>;
 }
 
-/** The three profile filters shown as single-select chips (mockup order). */
-export type ProfileFilter = 'all' | 'leto-more' | 'last-minute';
+/** The profile filters shown as single-select chips (mockup order). */
+export type ProfileFilter = 'all' | 'leto-more' | 'last-minute' | 'exotika';
 
 /** One price observation in an offer's history (oldest→newest). */
 export interface HistoryPoint {

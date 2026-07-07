@@ -96,6 +96,7 @@ describe('profileParam', () => {
     expect(profileParam('all')).toBeUndefined();
     expect(profileParam('leto-more')).toBe('leto-more');
     expect(profileParam('last-minute')).toBe('last-minute');
+    expect(profileParam('exotika')).toBe('exotika');
   });
 });
 

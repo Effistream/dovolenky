@@ -45,6 +45,7 @@ const PROFILES: { key: ProfileFilter; label: string }[] = [
   { key: 'all', label: 'Vše' },
   { key: 'leto-more', label: 'Léto u moře' },
   { key: 'last-minute', label: 'Last-minute' },
+  { key: 'exotika', label: 'Exotika' },
 ];
 
 const SORTS: { key: SortKey; label: string }[] = [
