@@ -6,3 +6,9 @@ logs/
 web/dist/
 web/node_modules/
 .playwright-mcp/
+
+# Playwright e2e (Task 28): browser artifacts + reports + the throwaway seed DB
+# that playwright.config.ts writes under test-results/.
+test-results/
+playwright-report/
+playwright/.cache/

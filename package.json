@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "web": "tsx src/web/server.ts",
     "web:dev": "npm --prefix web run dev",
-    "web:build": "npm --prefix web run build"
+    "web:build": "npm --prefix web run build",
+    "test:e2e": "playwright test"
   },
   "keywords": [],
   "author": "",
@@ -35,6 +36,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "^26.1.0",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.23.0",
