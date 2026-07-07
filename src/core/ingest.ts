@@ -28,6 +28,16 @@ export interface IngestResult {
   isNew: boolean;
   snapshotWritten: boolean;
   previousPrice: number | null;
+  /**
+   * The title actually persisted to the offers row (post sticky-name-guard, see
+   * ingestExistingOffer below): for a new offer this is offer.title; for an existing offer it's
+   * offer.title UNLESS the incoming title is a placeholder and the stored title is real, in which
+   * case it's the stored (real) title. Callers that recompute match_key/hotel_key or query the
+   * per-night bucket tables at scan time (run.ts#processOffers) MUST build their offer from this
+   * persisted title, not the raw incoming offer.title — otherwise their scan-time keys diverge
+   * from what's actually stored in the DB (2026-07-07 fix).
+   */
+  persistedTitle: string;
 }
 
 // Does `err` look like a libsql/SQLite unique-constraint violation? Checks the
@@ -129,7 +139,7 @@ async function ingestExistingOffer(
     })
     .where(eq(offers.id, offerId));
 
-  return { offerId, isNew: false, snapshotWritten: shouldWriteSnapshot, previousPrice };
+  return { offerId, isNew: false, snapshotWritten: shouldWriteSnapshot, previousPrice, persistedTitle: nextTitle };
 }
 
 export async function ingestOffer(db: Db, offer: NormalizedOffer, now: Date = new Date()): Promise<IngestResult> {
@@ -187,7 +197,7 @@ export async function ingestOffer(db: Db, offer: NormalizedOffer, now: Date = ne
         omnibusLowestPrice: offer.omnibusLowestPrice,
       });
 
-      return { offerId, isNew: true, snapshotWritten: true, previousPrice: null };
+      return { offerId, isNew: true, snapshotWritten: true, previousPrice: null, persistedTitle: offer.title };
     } catch (err) {
       if (!isUniqueConstraintError(err)) {
         throw err;

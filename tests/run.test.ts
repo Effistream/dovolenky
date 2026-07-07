@@ -1264,4 +1264,131 @@ describe('runScan', () => {
     expect(d.reference).toBe('hotel');
     expect(d.realPct).toBe(-50); // round((2000-3000)/2000*100) → a markup, not a discount
   });
+
+  it('scenario 16: scan-time keys use the PERSISTED (sticky-guarded) title, not a placeholder incoming title (2026-07-07 fix)', async () => {
+    const t0 = new Date('2026-07-04T09:00:00.000Z');
+    const now = new Date('2026-07-04T10:00:00.000Z');
+
+    // The subject offer, already ingested once with its real, resolved title.
+    const resolved = makeOffer({
+      source: 'dv',
+      sourceOfferKey: 'dv-subject',
+      title: 'Creek Hotel Resort',
+      url: 'https://example.com/dv-subject',
+    });
+    await ingestOffer(db, resolved, t0);
+
+    // 4 other terms of the SAME hotel (same resolved title → same hotel_key), so the "hotel" rung
+    // (≥4) qualifies for the subject — mirrors seedHotelTerms but keyed off the resolved title.
+    const hotelKey = computeHotelKey(resolved);
+    for (let i = 0; i < 4; i += 1) {
+      const [row] = await db
+        .insert(offers)
+        .values({
+          source: 'seed',
+          sourceOfferKey: `dv-sibling-${i}`,
+          title: 'Creek Hotel Resort',
+          country: 'Řecko',
+          locality: 'Kréta',
+          stars: 4,
+          board: 'AI',
+          transport: 'flight',
+          departureAirport: 'PRG',
+          departureDate: `2026-08-${String(10 + i).padStart(2, '0')}`,
+          nights: 7,
+          tourOperator: 'Seed',
+          url: `https://example.com/dv-sibling-${i}`,
+          firstSeenAt: t0.toISOString(),
+          lastSeenAt: t0.toISOString(),
+          active: true,
+          misses: 0,
+          matchKey: null,
+          hotelKey,
+        })
+        .returning({ id: offers.id });
+      await db.insert(priceSnapshots).values({
+        offerId: row!.id,
+        capturedAt: t0.toISOString(),
+        pricePerPerson: 21000, // 21000/7 = 3000/night
+        priceTotal: 42000,
+        claimedOriginalPrice: null,
+        claimedDiscountPct: null,
+        omnibusLowestPrice: null,
+      });
+    }
+
+    // Now the SAME dovolenkovani-style offer re-arrives with a placeholder title (its per-run
+    // resolution cap was exhausted this time). ingestOffer's sticky-name guard keeps "Creek Hotel
+    // Resort" persisted in the DB — but before the fix, run.ts fed the raw incoming (placeholder)
+    // offer into computeHotelKey/hotelTermPricesPN, so the scan-time hotel_key would NOT match the
+    // siblings' persisted hotel_key (derived from "Creek Hotel Resort") and the ladder would fall
+    // through past "hotel" to "market" (or null, since there's no market bucket seeded here).
+    const placeholderIncoming = makeOffer({
+      source: 'dv',
+      sourceOfferKey: 'dv-subject',
+      title: 'Hotel 320645',
+      url: 'https://example.com/dv-subject',
+      pricePerPerson: 12000, // 12000/7 ≈ 1714/night, well below the 3000/night sibling median
+    });
+
+    let capturedTitle: string | undefined;
+    const spy: SourceAdapter = {
+      name: 'dv',
+      async fetchOffers() {
+        return [placeholderIncoming];
+      },
+    };
+
+    await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: [spy],
+      now,
+    });
+
+    // The DB must still hold the resolved title (sticky-name guard) — sanity check.
+    const [subjectRow] = await db
+      .select()
+      .from(offers)
+      .where(and(eq(offers.source, 'dv'), eq(offers.sourceOfferKey, 'dv-subject')));
+    expect(subjectRow?.title).toBe('Creek Hotel Resort');
+    capturedTitle = subjectRow?.title;
+    expect(capturedTitle).toBe('Creek Hotel Resort');
+
+    // Recompute the discount exactly as processOffers now does: build the key-offer from the
+    // PERSISTED title (what the fix does), not the raw placeholder incoming offer.
+    const { hotelTermPricesPN, localityBucketPricesPN, marketBucketPrices, ownSnapshotsFor } = await import(
+      '../src/core/market.js'
+    );
+    const { computeRealDiscount } = await import('../src/core/discount.js');
+    const keyOffer = { ...placeholderIncoming, title: subjectRow!.title };
+    const hotelPN = await hotelTermPricesPN(db, subjectRow!.id, keyOffer);
+    const localityPN = await localityBucketPricesPN(db, subjectRow!.id, keyOffer);
+    const marketPN = await marketBucketPrices(db, subjectRow!.id, keyOffer);
+    const own = await ownSnapshotsFor(db, subjectRow!.id, now);
+    const d = computeRealDiscount({
+      current: 12000,
+      ownSnapshots: own,
+      omnibus: null,
+      nights: 7,
+      hotelTermPricesPN: hotelPN,
+      localityPricesPN: localityPN,
+      marketPricesPN: marketPN,
+      claimedPct: null,
+      now,
+    });
+
+    // With the persisted-title fix, the hotel pool is found (4 siblings) → reference resolves to
+    // 'hotel', not falling through to 'market' (which would be null here — no market bucket seeded).
+    expect(hotelPN).toHaveLength(4);
+    expect(d.reference).toBe('hotel');
+    expect(d.realPct).toBe(43); // round((3000-1714)/3000*100), same math as scenario 14
+
+    // And confirm the raw-incoming-offer (pre-fix) key would have MISSED the pool entirely —
+    // proving this scenario actually exercises the drift the fix closes.
+    const staleHotelPN = await hotelTermPricesPN(db, subjectRow!.id, placeholderIncoming);
+    expect(staleHotelPN).toHaveLength(0);
+  });
 });
