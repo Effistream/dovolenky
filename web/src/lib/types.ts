@@ -5,7 +5,7 @@
  */
 
 /** Which baseline the real discount was measured against (null = collecting). */
-export type Reference = 'own' | 'omnibus' | 'market' | null;
+export type Reference = 'own' | 'omnibus' | 'hotel' | 'locality' | 'market' | null;
 
 /** A pricier cross-source twin of the representative offer. */
 export interface Alternative {

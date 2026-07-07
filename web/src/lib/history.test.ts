@@ -322,10 +322,11 @@ describe('buildVerdict', () => {
       realPct: 15,
       reference: 'market',
       baseline: 19400,
+      country: 'Řecko',
     });
     const v = buildVerdict(o, history());
     expect(v).toBe(
-      `Exim počítá slevu 52 % z ceny ${czk(34300)}. Za tu se termín posledních 30 dní neprodával. Proti reálnému trhu ušetříš 15 %.`,
+      `Exim počítá slevu 52 % z ceny ${czk(34300)}. Za tu se termín posledních 30 dní neprodával. Ušetříš 15 % (vs. Řecko).`,
     );
   });
 
@@ -352,9 +353,10 @@ describe('buildVerdict', () => {
       realPct: 24,
       reference: 'market',
       baseline: 19700,
+      country: 'Řecko',
     });
     const v = buildVerdict(o, history());
-    expect(v).toBe(`Reálná sleva 24 % proti mediánu ${czk(19700)} za posledních 30 dní.`);
+    expect(v).toBe(`Reálná sleva 24 % vs. Řecko ${czk(19700)}.`);
   });
 
   it('honest but price rose → states the rise instead of a discount', () => {
@@ -364,8 +366,34 @@ describe('buildVerdict', () => {
       realPct: -4,
       reference: 'market',
       baseline: 10900,
+      country: 'Řecko',
     });
     const v = buildVerdict(o, history());
-    expect(v).toBe(`Cena je o 4 % nad mediánem ${czk(10900)} za posledních 30 dní. Zdražuje.`);
+    expect(v).toBe(`Cena je o 4 % výš (vs. Řecko ${czk(10900)}). Zdražuje.`);
+  });
+
+  it('honest discount uses the "hotel" label as "tento hotel"', () => {
+    const o = offer({
+      source: 'invia',
+      fake: false,
+      realPct: 12,
+      reference: 'hotel',
+      baseline: 15000,
+    });
+    const v = buildVerdict(o, history());
+    expect(v).toBe(`Reálná sleva 12 % vs. tento hotel ${czk(15000)}.`);
+  });
+
+  it('honest discount uses the offer locality as the "locality" label', () => {
+    const o = offer({
+      source: 'invia',
+      fake: false,
+      realPct: 8,
+      reference: 'locality',
+      baseline: 14700,
+      locality: 'Kréta',
+    });
+    const v = buildVerdict(o, history());
+    expect(v).toBe(`Reálná sleva 8 % vs. Kréta ${czk(14700)}.`);
   });
 });

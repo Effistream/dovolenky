@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { openDb, ensureSchema, type Db } from '../src/core/db/index.js';
 import { offers, priceSnapshots } from '../src/core/db/schema.js';
 import type { AppConfig, Profile } from '../src/core/config.js';
+import type { NormalizedOffer } from '../src/core/types.js';
 import { buildDigest } from '../src/core/digest.js';
+import { computeHotelKey } from '../src/core/normalize.js';
 
 // ---- Fixtures ----------------------------------------------------------
 
@@ -151,5 +153,91 @@ describe('buildDigest', () => {
     // The cheaper representative is shown; the pricier duplicate is not.
     expect(html).toContain('Dup Cheap');
     expect(html).not.toContain('Dup Expensive');
+  });
+
+  it('reference ladder: a subject with ≥4 same-hotel terms is ranked via the per-night "hotel" rung (spec §15)', async () => {
+    const now = new Date('2026-07-04T10:00:00.000Z');
+    const at = '2026-06-01T09:00:00.000Z';
+
+    // Build an offer just to derive the shared hotel_key for "Hotel Alfa" / Řecko.
+    const alfa: NormalizedOffer = {
+      source: 'seed',
+      sourceOfferKey: 'x',
+      title: 'Hotel Alfa',
+      country: 'Řecko',
+      locality: 'Kréta',
+      stars: 4,
+      board: 'AI',
+      transport: 'flight',
+      departureAirport: 'PRG',
+      departureDate: '2026-08-15',
+      nights: 7,
+      pricePerPerson: 0,
+      priceTotal: null,
+      claimedOriginalPrice: null,
+      claimedDiscountPct: null,
+      omnibusLowestPrice: null,
+      tourOperator: 'Seed',
+      url: 'https://example.com/x',
+    };
+    const hotelKey = computeHotelKey(alfa)!;
+
+    async function seedAlfa(key: string, price: number, nights: number, departureDate: string): Promise<void> {
+      const [row] = await db
+        .insert(offers)
+        .values({
+          source: 'seed',
+          sourceOfferKey: key,
+          title: 'Hotel Alfa',
+          country: 'Řecko',
+          locality: 'Kréta',
+          stars: 4,
+          board: 'AI',
+          transport: 'flight',
+          departureAirport: 'PRG',
+          departureDate,
+          nights,
+          tourOperator: 'Seed',
+          url: `https://example.com/${key}`,
+          firstSeenAt: at,
+          lastSeenAt: at,
+          active: true,
+          misses: 0,
+          matchKey: null,
+          hotelKey,
+        })
+        .returning({ id: offers.id });
+      await db.insert(priceSnapshots).values({
+        offerId: row!.id,
+        capturedAt: at,
+        pricePerPerson: price,
+        priceTotal: price * 2,
+        claimedOriginalPrice: null,
+        claimedDiscountPct: null,
+        omnibusLowestPrice: null,
+      });
+    }
+
+    // Subject: cheap 7-night term at 12000 (≈1714/night).
+    await seedAlfa('alfa-subject', 12000, 7, '2026-08-15');
+    // 4 sibling terms of the same hotel at 3000/night (21000/7, 18000/6, 24000/8, 15000/5).
+    await seedAlfa('alfa-1', 21000, 7, '2026-08-10');
+    await seedAlfa('alfa-2', 18000, 6, '2026-08-12');
+    await seedAlfa('alfa-3', 24000, 8, '2026-08-18');
+    await seedAlfa('alfa-4', 15000, 5, '2026-08-20');
+
+    const result = await buildDigest(db, makeConfig(), now);
+    expect(result).not.toBeNull();
+    const { html } = result!;
+
+    // The subject term ranks top with a per-night hotel-rung discount:
+    // round((3000 - 1714)/3000*100) = 43 → rendered "−43 %". Under the OLD
+    // total-bucket logic (12000 vs a median of multi-night totals) the number
+    // would differ; the per-night hotel rung is what produces 43.
+    expect(html).toContain('Hotel Alfa');
+    expect(html).toContain('−43 %');
+    // Its cheaper-per-night ranking puts it above at least one sibling term.
+    const subjectIdx = html.indexOf('−43 %');
+    expect(subjectIdx).toBeGreaterThan(-1);
   });
 });

@@ -127,12 +127,48 @@ describe('formatOffer', () => {
 
   it('uses the "omnibus" reference label', () => {
     const msg = formatOffer('hot_deal', offer(), discount({ realPct: 10, reference: 'omnibus', baseline: 18000 }));
-    expect(msg).toContain('zákonné 30denní minimum');
+    expect(msg).toContain('Omnibus 30denní min.');
   });
 
-  it('uses the "market" reference label', () => {
-    const msg = formatOffer('hot_deal', offer(), discount({ realPct: 10, reference: 'market', baseline: 18000 }));
-    expect(msg).toContain('medián trhu');
+  it('uses the "hotel" reference label ("tento hotel")', () => {
+    const msg = formatOffer('hot_deal', offer(), discount({ realPct: 10, reference: 'hotel', baseline: 18000 }));
+    expect(msg).toContain('vs. tento hotel 18 000 Kč');
+  });
+
+  it('uses the offer\'s locality as the "locality" reference label', () => {
+    const msg = formatOffer(
+      'hot_deal',
+      offer({ locality: 'Kréta' }),
+      discount({ realPct: 10, reference: 'locality', baseline: 14700 }),
+    );
+    expect(msg).toContain('vs. Kréta 14 700 Kč');
+  });
+
+  it('falls back to "lokalita" when the offer has no locality', () => {
+    const msg = formatOffer(
+      'hot_deal',
+      offer({ locality: null }),
+      discount({ realPct: 10, reference: 'locality', baseline: 14700 }),
+    );
+    expect(msg).toContain('vs. lokalita 14 700 Kč');
+  });
+
+  it('uses the offer\'s country as the "market" reference label', () => {
+    const msg = formatOffer(
+      'hot_deal',
+      offer({ country: 'Řecko' }),
+      discount({ realPct: 10, reference: 'market', baseline: 15200 }),
+    );
+    expect(msg).toContain('vs. Řecko 15 200 Kč');
+  });
+
+  it('falls back to "trh" when the offer has no country', () => {
+    const msg = formatOffer(
+      'hot_deal',
+      offer({ country: null }),
+      discount({ realPct: 10, reference: 'market', baseline: 15200 }),
+    );
+    expect(msg).toContain('vs. trh 15 200 Kč');
   });
 
   it('falls back to "sbírám historii" when realPct is null', () => {

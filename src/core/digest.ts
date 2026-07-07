@@ -5,7 +5,7 @@ import type { AppConfig } from './config.js';
 import type { NormalizedOffer } from './types.js';
 import { computeRealDiscount, type DiscountResult } from './discount.js';
 import { formatDigest } from './format.js';
-import { marketBucketPrices, ownSnapshotsFor } from './market.js';
+import { hotelTermPricesPN, localityBucketPricesPN, marketBucketPrices, ownSnapshotsFor } from './market.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DIGEST_TOP_N = 10;
@@ -85,12 +85,18 @@ export async function buildDigest(
     };
 
     const ownSnapshots = await ownSnapshotsFor(db, row.id, now);
-    const marketPrices = await marketBucketPrices(db, row.id, offer);
+    // Per-night reference ladder (spec §15): same assembly as run.ts processOffers.
+    const hotelPricesPN = await hotelTermPricesPN(db, row.id, offer);
+    const localityPricesPN = await localityBucketPricesPN(db, row.id, offer);
+    const marketPricesPN = await marketBucketPrices(db, row.id, offer);
     const d = computeRealDiscount({
       current: snap.pricePerPerson,
       ownSnapshots,
       omnibus: snap.omnibusLowestPrice,
-      marketPrices,
+      nights: offer.nights,
+      hotelTermPricesPN: hotelPricesPN,
+      localityPricesPN,
+      marketPricesPN,
       claimedPct: snap.claimedDiscountPct,
       now,
     });

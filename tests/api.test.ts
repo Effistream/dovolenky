@@ -49,10 +49,14 @@ const PROFILES: Record<string, Profile> = { 'leto-more': LETO_MORE };
 const NOW = new Date('2026-07-04T10:00:00.000Z');
 
 /**
- * Seed `n` active market-bucket offers matching the hot offer's bucket
- * (Řecko × month 8 × nights 6-8 × AI × 4★), each at `price`, via the real
- * ingest pipeline so match_key/snapshots are populated exactly like production.
+ * Seed `n` active offers matching the hot offer's bucket (Řecko × Kréta ×
+ * month 8 × nights 6-8 × AI × 4★), each at `price`, via the real ingest
+ * pipeline so match_key/snapshots are populated exactly like production.
  * Distinct hotel titles → distinct match_keys, so none collapse into a group.
+ * Note: since these rows also share the hot offer's locality (Kréta), they
+ * populate BOTH the locality and market buckets — the discount ladder picks
+ * locality first (spec §15 priority), so this is used to test whichever of
+ * the two rungs a given test cares about.
  */
 async function seedMarketBucket(db: Db, n: number, price: number): Promise<void> {
   for (let i = 0; i < n; i += 1) {
@@ -116,9 +120,11 @@ describe('web api', () => {
       expect(twin.alternatives[0].source).toBe('skrz');
       expect(twin.alternatives[0].pricePerPerson).toBe(13500);
 
-      // Real discount computed from the market bucket median (25000).
+      // Real discount computed from the locality bucket median (25000) — the
+      // seed rows share Kréta with the hot offer, and locality (min 8) outranks
+      // market in the ladder (spec §15), so this resolves to 'locality' here.
       expect(twin.realPct).toBe(52); // round((25000-12000)/25000*100)
-      expect(twin.reference).toBe('market');
+      expect(twin.reference).toBe('locality');
       expect(twin.fake).toBe(false);
       expect(twin.sparkline.length).toBeGreaterThan(0);
       expect(twin.sparkline.length).toBeLessThanOrEqual(14);
@@ -127,6 +133,39 @@ describe('web api', () => {
       const solo = body.offers.find((o: any) => o.title === 'Solo Resort');
       expect(solo).toBeDefined();
       expect(solo.alternatives).toHaveLength(0);
+    });
+
+    it('resolves the "hotel" tier when ≥4 other active terms of the same hotel_key exist (spec §15)', async () => {
+      // 4 other terms of the SAME hotel (same title+country → same hotel_key),
+      // different departure dates (within ±30d) and nights (within ±2), each
+      // pricier per-night than the subject — qualifies the hotel rung (min 4),
+      // which outranks locality/market in the ladder.
+      for (let i = 0; i < 4; i += 1) {
+        await ingestOffer(
+          db,
+          makeOffer({
+            source: 'seed',
+            sourceOfferKey: `hotel-term-${i}`,
+            departureDate: `2026-08-${10 + i}`,
+            pricePerPerson: 20000, // 20000/7 ≈ 2857/night
+            url: `https://seed.example/hotel-${i}`,
+          }),
+          NOW,
+        );
+      }
+      await ingestOffer(
+        db,
+        makeOffer({ source: 'invia', sourceOfferKey: 'cheap-term', pricePerPerson: 10500, url: 'https://invia.example/cheap' }), // 10500/7 = 1500/night
+        NOW,
+      );
+
+      const client = makeClient(db);
+      const { body } = await client('/api/offers');
+      const cheap = body.offers.find((o: any) => o.pricePerPerson === 10500);
+      expect(cheap).toBeDefined();
+      expect(cheap.reference).toBe('hotel');
+      // baseline = hotel median per-night (2857) * nights (7) = 19999 (round(20000/7)=2857, *7=19999)
+      expect(cheap.baseline).toBe(19999);
     });
 
     it('filters by country, source, and profile', async () => {

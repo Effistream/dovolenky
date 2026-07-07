@@ -5,7 +5,7 @@ import { offers, priceSnapshots, sourceRuns } from '../core/db/schema.js';
 import type { Profile } from '../core/config.js';
 import type { NormalizedOffer, Board, Transport } from '../core/types.js';
 import { computeRealDiscount, median, type DiscountResult } from '../core/discount.js';
-import { marketBucketPrices, ownSnapshotsFor } from '../core/market.js';
+import { hotelTermPricesPN, localityBucketPricesPN, marketBucketPrices, ownSnapshotsFor } from '../core/market.js';
 import { matchProfiles } from '../core/filters.js';
 import { RECENT_RUN_SCAN_LIMIT, backoffUntilFrom } from '../core/backoff.js';
 
@@ -158,12 +158,20 @@ async function buildOffers(
 
     const ownSnapshots = await ownSnapshotsFor(db, rep.row.id, now);
     marketComputeCount += 1;
-    const marketPrices = await marketBucketPrices(db, rep.row.id, offer);
+    // Full per-night reference ladder (spec §15): hotel → locality → market,
+    // same wiring as run.ts/digest.ts, so the board shows exactly the same
+    // tier/baseline/label a Telegram notification would for this offer.
+    const hotelPricesPN = await hotelTermPricesPN(db, rep.row.id, offer);
+    const localityPricesPN = await localityBucketPricesPN(db, rep.row.id, offer);
+    const marketPricesPN = await marketBucketPrices(db, rep.row.id, offer);
     const discount = computeRealDiscount({
       current: offer.pricePerPerson,
       ownSnapshots,
       omnibus: offer.omnibusLowestPrice,
-      marketPrices,
+      nights: offer.nights,
+      hotelTermPricesPN: hotelPricesPN,
+      localityPricesPN,
+      marketPricesPN,
       claimedPct: offer.claimedDiscountPct,
       now,
     });

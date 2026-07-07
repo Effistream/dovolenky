@@ -5,6 +5,7 @@ import {
   discountTone,
   formatDiscount,
   profileParam,
+  referenceLabel,
   sparklinePath,
 } from './format.js';
 
@@ -63,6 +64,30 @@ describe('formatDiscount', () => {
   });
   it('null → empty', () => {
     expect(formatDiscount(null)).toBe('');
+  });
+});
+
+describe('referenceLabel', () => {
+  it('own → static "30denní medián"', () => {
+    expect(referenceLabel('own', { locality: null, country: null })).toBe('30denní medián');
+  });
+  it('omnibus → static "Omnibus 30denní min."', () => {
+    expect(referenceLabel('omnibus', { locality: null, country: null })).toBe('Omnibus 30denní min.');
+  });
+  it('hotel → static "tento hotel"', () => {
+    expect(referenceLabel('hotel', { locality: 'Kréta', country: 'Řecko' })).toBe('tento hotel');
+  });
+  it('locality → the offer\'s locality', () => {
+    expect(referenceLabel('locality', { locality: 'Kréta', country: 'Řecko' })).toBe('Kréta');
+  });
+  it('locality → falls back to "lokalita" when null', () => {
+    expect(referenceLabel('locality', { locality: null, country: 'Řecko' })).toBe('lokalita');
+  });
+  it('market → the offer\'s country', () => {
+    expect(referenceLabel('market', { locality: 'Kréta', country: 'Řecko' })).toBe('Řecko');
+  });
+  it('market → falls back to "trh" when null', () => {
+    expect(referenceLabel('market', { locality: 'Kréta', country: null })).toBe('trh');
   });
 });
 

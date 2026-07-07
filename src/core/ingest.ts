@@ -2,7 +2,7 @@ import { and, eq, notInArray, desc } from 'drizzle-orm';
 import type { Db } from './db/index.js';
 import { offers, priceSnapshots } from './db/schema.js';
 import type { NormalizedOffer } from './types.js';
-import { computeMatchKey } from './normalize.js';
+import { computeMatchKey, computeHotelKey } from './normalize.js';
 
 const HEARTBEAT_MS = 24 * 60 * 60 * 1000;
 const MAX_MISSES = 2;
@@ -122,6 +122,10 @@ async function ingestExistingOffer(
       active: true,
       misses: 0,
       matchKey: computeMatchKey(offerForMatchKey),
+      // Recomputed from offerForMatchKey (which carries nextTitle, the sticky-guarded
+      // persisted title) for the exact same reason as matchKey above: a guarded-away
+      // placeholder title must not poison the stored hotel_key either (spec §15).
+      hotelKey: computeHotelKey(offerForMatchKey),
     })
     .where(eq(offers.id, offerId));
 
@@ -167,6 +171,7 @@ export async function ingestOffer(db: Db, offer: NormalizedOffer, now: Date = ne
           active: true,
           misses: 0,
           matchKey: computeMatchKey(offer),
+          hotelKey: computeHotelKey(offer),
         })
         .returning({ id: offers.id });
 

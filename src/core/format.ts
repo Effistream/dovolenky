@@ -17,11 +17,29 @@ const KIND_EMOJI: Record<'hot_deal' | 'price_drop' | 'new_offer', string> = {
   new_offer: '🆕',
 };
 
-const REFERENCE_LABEL: Record<'own' | 'omnibus' | 'market', string> = {
-  own: '30denní medián',
-  omnibus: 'zákonné 30denní minimum',
-  market: 'medián trhu',
-};
+/**
+ * Reference-tier label (spec §15): own/omnibus are static phrases; hotel is a
+ * fixed phrase too ("tento hotel" — the subject *is* the hotel, no further
+ * detail needed); locality/market interpolate the offer's own locality/country
+ * so the label names the actual comparison bucket ("Kréta", "Řecko") rather
+ * than a generic "medián lokality/trhu". Falls back to the generic noun when
+ * the offer lacks that field (should be rare — the bucket query itself
+ * requires a non-null locality/country to populate, but we stay defensive).
+ */
+function referenceLabel(reference: NonNullable<DiscountResult['reference']>, offer: NormalizedOffer): string {
+  switch (reference) {
+    case 'own':
+      return '30denní medián';
+    case 'omnibus':
+      return 'Omnibus 30denní min.';
+    case 'hotel':
+      return 'tento hotel';
+    case 'locality':
+      return offer.locality ?? 'lokalita';
+    case 'market':
+      return offer.country ?? 'trh';
+  }
+}
 
 export function escapeHtml(s: string): string {
   return s
@@ -67,11 +85,11 @@ function signedPct(pct: number): string {
   return pct >= 0 ? `−${pct} %` : `+${Math.abs(pct)} %`;
 }
 
-function realDiscountLine(d: DiscountResult): string {
+function realDiscountLine(d: DiscountResult, offer: NormalizedOffer): string {
   if (d.realPct == null || d.reference == null || d.baseline == null) {
     return '📊 reálná sleva: sbírám historii';
   }
-  const label = REFERENCE_LABEL[d.reference];
+  const label = referenceLabel(d.reference, offer);
   const line = `📊 Reálná sleva ${signedPct(d.realPct)} vs. ${label} ${formatCzk(d.baseline)}`;
   return d.fake ? `${line} ⚠️ nadsazená sleva` : line;
 }
@@ -161,7 +179,7 @@ export function formatOffer(
   if (extra?.alternatives && extra.alternatives.length > 0) {
     lines.push(alternativesLine(extra.alternatives));
   }
-  lines.push(realDiscountLine(d));
+  lines.push(realDiscountLine(d, offer));
   lines.push(linkLine(offer));
 
   return lines.join('\n');

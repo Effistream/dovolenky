@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import { openDb, ensureSchema, type Db } from '../src/core/db/index.js';
 import { offers, priceSnapshots } from '../src/core/db/schema.js';
 import { ingestOffer, markMissedOffers, isPlaceholderTitle } from '../src/core/ingest.js';
-import { computeMatchKey } from '../src/core/normalize.js';
+import { computeMatchKey, computeHotelKey } from '../src/core/normalize.js';
 import type { NormalizedOffer } from '../src/core/types.js';
 
 function makeOffer(overrides: Partial<NormalizedOffer> = {}): NormalizedOffer {
@@ -240,6 +240,38 @@ describe('ingestOffer', () => {
     expect(row?.matchKey).not.toBeNull();
   });
 
+  it('hotel_key is computed and stored on insert', async () => {
+    const now = new Date('2026-07-04T10:00:00.000Z');
+    const offer = makeOffer();
+    const result = await ingestOffer(db, offer, now);
+
+    const [row] = await db.select().from(offers).where(sql`${offers.id} = ${result.offerId}`);
+    expect(row?.hotelKey).toBe(computeHotelKey(offer));
+    expect(row?.hotelKey).not.toBeNull();
+  });
+
+  it('hotel_key is refreshed on update (e.g. title change alters the key)', async () => {
+    const t0 = new Date('2026-07-04T10:00:00.000Z');
+    const first = await ingestOffer(db, makeOffer(), t0);
+
+    const t1 = new Date('2026-07-04T12:00:00.000Z');
+    const updatedOffer = makeOffer({ title: 'Hotel X Renamed' });
+    await ingestOffer(db, updatedOffer, t1);
+
+    const [row] = await db.select().from(offers).where(sql`${offers.id} = ${first.offerId}`);
+    expect(row?.hotelKey).toBe(computeHotelKey(updatedOffer));
+    expect(row?.hotelKey).not.toBe(computeHotelKey(makeOffer()));
+  });
+
+  it('hotel_key is null when country is null, and stays null on update', async () => {
+    const now = new Date('2026-07-04T10:00:00.000Z');
+    const offer = makeOffer({ country: null });
+    const result = await ingestOffer(db, offer, now);
+
+    const [row] = await db.select().from(offers).where(sql`${offers.id} = ${result.offerId}`);
+    expect(row?.hotelKey).toBeNull();
+  });
+
   it('match_key is refreshed on update (e.g. title/board change alters the key)', async () => {
     const t0 = new Date('2026-07-04T10:00:00.000Z');
     const first = await ingestOffer(db, makeOffer(), t0);
@@ -309,6 +341,53 @@ describe('ingestOffer', () => {
     expect(after?.matchKey).toBeNull();
   });
 
+  it('backfill: pre-existing row without hotel_key gets populated by ensureSchema', async () => {
+    // Simulate a DB written before hotel_key existed: insert a raw row via SQL
+    // that never goes through ingestOffer, leaving hotel_key NULL.
+    const nowIso = new Date('2026-07-04T10:00:00.000Z').toISOString();
+    await db.run(`
+      INSERT INTO offers (
+        source, source_offer_key, title, country, locality, stars, board, transport,
+        departure_airport, departure_date, nights, tour_operator, url,
+        first_seen_at, last_seen_at, active, misses
+      ) VALUES (
+        'invia', 'legacy-key-hotel', 'Hotel X', 'Řecko', 'Kréta', 4, 'AI', 'flight',
+        'PRG', '2026-07-15', 7, 'Invia', 'https://example.com/legacy-hotel',
+        '${nowIso}', '${nowIso}', 1, 0
+      )
+    `);
+
+    const [before] = await db.select().from(offers).where(sql`${offers.sourceOfferKey} = 'legacy-key-hotel'`);
+    expect(before?.hotelKey).toBeNull();
+
+    // Re-running ensureSchema triggers the backfill pass.
+    await ensureSchema(db);
+
+    const [after] = await db.select().from(offers).where(sql`${offers.sourceOfferKey} = 'legacy-key-hotel'`);
+    expect(after?.hotelKey).not.toBeNull();
+    expect(after?.hotelKey).toBe(computeHotelKey(makeOffer({ source: 'invia', sourceOfferKey: 'legacy-key-hotel', url: 'https://example.com/legacy-hotel' })));
+  });
+
+  it('backfill: legacy row that resolves to null hotel_key (e.g. missing country) stays null', async () => {
+    const nowIso = new Date('2026-07-04T10:00:00.000Z').toISOString();
+    await db.run(`
+      INSERT INTO offers (
+        source, source_offer_key, title, country, locality, stars, board, transport,
+        departure_airport, departure_date, nights, tour_operator, url,
+        first_seen_at, last_seen_at, active, misses
+      ) VALUES (
+        'invia', 'legacy-key-hotel-no-country', 'Hotel Y', NULL, 'Kréta', 4, 'AI', 'flight',
+        'PRG', '2026-07-15', 7, 'Invia', 'https://example.com/legacy-hotel2',
+        '${nowIso}', '${nowIso}', 1, 0
+      )
+    `);
+
+    await ensureSchema(db);
+
+    const [after] = await db.select().from(offers).where(sql`${offers.sourceOfferKey} = 'legacy-key-hotel-no-country'`);
+    expect(after?.hotelKey).toBeNull();
+  });
+
   describe('isPlaceholderTitle', () => {
     it('matches "Hotel <digits>" exactly', () => {
       expect(isPlaceholderTitle('Hotel 320645')).toBe(true);
@@ -347,6 +426,9 @@ describe('ingestOffer', () => {
 
       const [row] = await db.select().from(offers).where(sql`${offers.id} = ${first.offerId}`);
       expect(row?.title).toBe('Creek Hotel');
+      // hotel_key must be recomputed from the persisted (real) title, not the discarded
+      // placeholder — mirrors the match_key sticky-title guard exactly (spec §15).
+      expect(row?.hotelKey).toBe(computeHotelKey(makeOffer({ source: 'dovolenkovani', sourceOfferKey: 'dv-1', title: 'Creek Hotel' })));
     });
 
     it('a placeholder stored title DOES get updated once a real name is resolved', async () => {
@@ -439,6 +521,8 @@ describe('ingestOffer', () => {
     const cols = (await db.all(`PRAGMA table_info(offers)`)) as Array<{ name: string }>;
     const matchKeyCols = cols.filter(c => c.name === 'match_key');
     expect(matchKeyCols.length).toBe(1);
+    const hotelKeyCols = cols.filter(c => c.name === 'hotel_key');
+    expect(hotelKeyCols.length).toBe(1);
 
     const notifCols = (await db.all(`PRAGMA table_info(notifications_log)`)) as Array<{ name: string }>;
     const notifMatchKeyCols = notifCols.filter(c => c.name === 'match_key');
