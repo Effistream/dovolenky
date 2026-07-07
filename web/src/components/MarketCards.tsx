@@ -1,0 +1,77 @@
+/**
+ * The two quiet light cards below the board: TRH DNES (three market numbers from
+ * /api/stats) and ZDROJE (a status grid from /api/sources). Green dot = latest
+ * run ok; warn dot = failed / in backoff. Times are the latest run's start.
+ */
+import { formatNumber } from '../lib/format.js';
+import { sourceLabel } from '../lib/term.js';
+import type { SourceStatus, StatsResponse } from '../lib/types.js';
+
+interface Props {
+  stats: StatsResponse | null;
+  sources: SourceStatus[] | null;
+}
+
+/** Latest source_run start "…T14:05…" → "14:05". */
+function hhmm(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return `${String(d.getUTCHours()).padStart(2, '0')}:${String(
+    d.getUTCMinutes(),
+  ).padStart(2, '0')}`;
+}
+
+/** The median for the "léto u moře" set, the headline market number. */
+function letoMedian(stats: StatsResponse | null): number | null {
+  if (!stats) return null;
+  return stats.medianByProfile['leto-more'] ?? null;
+}
+
+export function MarketCards({ stats, sources }: Props) {
+  const median = letoMedian(stats);
+
+  return (
+    <div className="cards">
+      <section className="card" aria-label="Stav trhu">
+        <h3>TRH DNES</h3>
+        <div className="market">
+          <div className="m">
+            <div className="num">{stats ? formatNumber(stats.activeCount) : '—'}</div>
+            <div className="lbl">aktivních nabídek</div>
+          </div>
+          <div className="m">
+            <div className="num">{stats ? formatNumber(stats.new24h) : '—'}</div>
+            <div className="lbl">nových za 24 h</div>
+          </div>
+          <div className="m">
+            <div className="num">{median != null ? formatNumber(median) : '—'}</div>
+            <div className="lbl">medián léto u moře, Kč/os.</div>
+          </div>
+        </div>
+      </section>
+
+      <section className="card" aria-label="Stav zdrojů">
+        <h3>ZDROJE</h3>
+        <div className="sources">
+          {(sources ?? []).map((s) => {
+            const healthy = s.status === 'ok' && !s.backoff;
+            return (
+              <div className="sourc" key={s.source}>
+                <span className={`dot${healthy ? '' : ' warn'}`} />
+                {sourceLabel(s.source)}
+                {s.backoff && <span className="via">v pauze</span>}
+                <time>{hhmm(s.startedAt)}</time>
+              </div>
+            );
+          })}
+          {(!sources || sources.length === 0) && (
+            <div className="sourc">
+              <span className="via">zatím žádné běhy zdrojů</span>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
