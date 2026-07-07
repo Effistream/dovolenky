@@ -14,6 +14,12 @@ const ACCOMMODATIONS_XML_URL = `${SITE_BASE_URL}/accommodations.xml`;
 // Politeness ceiling: at most 2 accommodation-sitemap shards are fetched even if the index
 // lists more (budget math in the header comment already counts exactly 2).
 const MAX_ACCOMMODATION_SITEMAPS = 2;
+// Politeness ceiling on per-hotel detail-page redirect lookups (see header comment: the
+// sitemap only covers ~3 hotels, so most master_ids need this fallback). Capped at 40 distinct
+// hotels per scan run; any further unresolved hotels are logged as skipped and keep the
+// "Hotel <id>" fallback for this run (they may resolve on a later run once revisited, or once
+// the sitemap grows).
+const MAX_NAME_LOOKUPS = 40;
 
 /**
  * Dovolenkovani.cz is a white-label storefront on the CESYS platform (operated by TRAVEL
@@ -100,10 +106,32 @@ const MAX_ACCOMMODATION_SITEMAPS = 2;
  * Per compliance (§9 / spec row 10 note): dovolenkovani.cz's robots.txt blocks ClaudeBot BY
  * NAME, so this adapter must NEVER send any Claude-identifying UA — it relies entirely on the
  * project's standard Chrome UA (HttpClient's default). api-ng.cesys.eu is a third-party
- * internal API with no robots.txt of its own; using it is a conscious §9 deviation, budgeted at
- * a hard ceiling of ~6 requests/scan (here: 1 sitemap index + up to 2 accommodation shards + 1
- * countries + 2 dates-list = 6 — we are now AT the ceiling; do not add further live requests to
- * this adapter without dropping one elsewhere first).
+ * internal API with no robots.txt of its own; using it is a conscious §9 deviation.
+ *
+ * Hotel id -> name resolution (2026-07-07 fix: most master_ids showed "Hotel <id>" because the
+ * sitemap only lists ~3 hotels). Two sources are merged, sitemap first (free, already-fetched):
+ *   1. `accommodations.xml` / `am-accommodations.xml` sitemap slugs (see above) — free, but
+ *      covers only a handful of hotels live.
+ *   2. Per-hotel detail-page redirect: `GET /detail-zajezdu/x/<master_id>a` (any dummy slug
+ *      works) 301-redirects to the canonical `/detail-zajezdu/<real-slug>/<master_id>a` URL,
+ *      whose page contains the real hotel name both in a `<script type="application/ld+json">`
+ *      `LodgingBusiness.name` and in the page's `<h1>` (verified live 2026-07-07, e.g. master_id
+ *      320645 -> "Creek Hotel & Residences El Gouna"). `HttpClient.text` follows redirects via
+ *      fetch's default `redirect: 'follow'`, so a plain `ctx.http.text(url)` call is enough.
+ *      `parseHotelNameFromDetail` extracts the name (ld+json preferred, `<h1>` fallback).
+ *      After building offers, `fetchOffers` collects the distinct master_ids still on the
+ *      numeric "Hotel <id>" fallback and resolves up to `MAX_NAME_LOOKUPS` (40) of them this
+ *      way, applying the resolved name to every offer for that hotel. A failed lookup
+ *      (network error, no name found) is not fatal: that hotel simply keeps the "Hotel <id>"
+ *      fallback and the loop continues. A `SourceBlockedError` from a lookup stops further
+ *      lookups for this run (politeness) but keeps every name resolved so far. Any hotels beyond
+ *      the 40-lookup cap are logged as skipped, not resolved this run.
+ * Merge order per hotel: sitemap name > redirect-resolved name > "Hotel <id>" fallback.
+ *
+ * Request budget: 1 sitemap index + up to 2 accommodation shards + 1 countries + 2 dates-list +
+ * up to `MAX_NAME_LOOKUPS` (40) detail-page lookups. The detail lookups are same-host as the
+ * sitemap, so HttpClient's per-host politeness gap (3s default) applies between them; at the
+ * project's 2h scan cadence this is a non-issue even at the 40-lookup ceiling.
  */
 
 interface CesysPriceFrom {
@@ -232,6 +260,47 @@ export function extractAccommodationSitemapUrls(xml: string): string[] {
   });
 
   return urls;
+}
+
+/**
+ * Extracts the real hotel name from a `detail-zajezdu/<slug>/<id>a` detail page (reached via the
+ * 301 redirect described in the header comment). Prefers a `<script type="application/ld+json">`
+ * block whose `@type` contains "Lodging" (e.g. `LodgingBusiness`) -> `.name`; falls back to the
+ * first `<h1>` element's text. Both sources are run through cheerio's `.text()`, which decodes
+ * HTML entities (e.g. `&amp;` -> `&`). Pure function: no I/O. Returns null if neither source is
+ * present, parsing fails, or the resolved name is empty/whitespace-only.
+ */
+export function parseHotelNameFromDetail(html: string): string | null {
+  if (!html || !html.trim()) return null;
+
+  let $: cheerio.CheerioAPI;
+  try {
+    $ = cheerio.load(html);
+  } catch {
+    return null;
+  }
+
+  let ldJsonName: string | null = null;
+  $('script[type="application/ld+json"]').each((_, el) => {
+    if (ldJsonName) return; // first match wins
+    const raw = $(el).text();
+    if (!raw || !raw.trim()) return;
+    try {
+      const parsed = JSON.parse(raw) as { '@type'?: unknown; name?: unknown };
+      const type = parsed['@type'];
+      const typeStr = Array.isArray(type) ? type.join(' ') : String(type ?? '');
+      if (!/Lodging/i.test(typeStr)) return;
+      const name = typeof parsed.name === 'string' ? parsed.name.trim() : '';
+      if (name) ldJsonName = name;
+    } catch {
+      // malformed JSON in this block: ignore and keep looking / fall back to <h1>
+    }
+  });
+
+  if (ldJsonName) return ldJsonName;
+
+  const h1Text = $('h1').first().text().trim();
+  return h1Text ? h1Text : null;
 }
 
 function resolveCountry(countryId: CesysDateRow['country'], countries: CesysCountriesResponse): string | null {
@@ -466,8 +535,99 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
+  await resolveUnknownHotelNames(ctx, all);
+
   ctx.log(`dovolenkovani: fetched ${all.length} offers across ${QUERIES.length} queries`);
   return all;
+}
+
+/** Matches the numeric fallback title assigned in `mapRow` ("Hotel <id>"), capturing the id. */
+const FALLBACK_TITLE_RE = /^Hotel (\d+)$/;
+
+/**
+ * Fills in real hotel names for offers still on the numeric "Hotel <id>" fallback (i.e. not
+ * resolved by the sitemap), via two sources, cheapest first:
+ *
+ *   1. `ctx.priorTitles` (2026-07-07 fix, spec: feed prior titles to avoid re-lookup): a
+ *      sourceOfferKey -> title map of this source's previously-resolved (non-placeholder) names,
+ *      loaded by run.ts from the DB. dovolenkovani's sourceOfferKey is per-TERM (hash of
+ *      [master_id, date_from, duration_night, boarding_id]), not per-hotel, so it can't be
+ *      reverse-mapped to a master_id directly. Instead: after `offers` are built (each one already
+ *      carries both its master_id-derived fallback title and its own sourceOfferKey), look up
+ *      `ctx.priorTitles.get(offer.sourceOfferKey)` for every still-unresolved offer. If ANY one of
+ *      a hotel's terms has a matching prior title, that resolves the WHOLE hotel (master_id) for
+ *      this run: the resolved name is applied to all of that master_id's offers, and the id is
+ *      removed from the set that would otherwise consume a detail-page lookup. This works in
+ *      practice because at least one prior term of a previously-seen hotel usually persists
+ *      across runs (dates roll forward gradually; full term turnover in a single 2h scan interval
+ *      is rare).
+ *   2. Per-hotel detail-page redirect lookup (unchanged from before), for any master_id NOT
+ *      resolved by step 1: `GET /detail-zajezdu/x/<master_id>a` (see header comment). Mutates
+ *      `offers` in place (updates `title`). Best-effort: a failed lookup for one hotel leaves its
+ *      offers on the fallback and does not affect other hotels. Capped at `MAX_NAME_LOOKUPS`
+ *      distinct hotels per call; any beyond that are logged as skipped. A `SourceBlockedError`
+ *      from a lookup stops further lookups for this run (politeness) but keeps whatever names
+ *      were already resolved.
+ */
+async function resolveUnknownHotelNames(ctx: SourceContext, offers: NormalizedOffer[]): Promise<void> {
+  const unresolvedIds = new Set<number>();
+  for (const offer of offers) {
+    const match = offer.title.match(FALLBACK_TITLE_RE);
+    if (!match) continue;
+    unresolvedIds.add(Number(match[1]));
+  }
+  if (unresolvedIds.size === 0) return;
+
+  // Step 1: resolve from ctx.priorTitles first — free, no network cost, and frees up the
+  // detail-page lookup cap for genuinely-new hotels.
+  const resolvedNames = new Map<number, string>();
+  if (ctx.priorTitles && ctx.priorTitles.size > 0) {
+    for (const offer of offers) {
+      const match = offer.title.match(FALLBACK_TITLE_RE);
+      if (!match) continue;
+      const id = Number(match[1]);
+      if (resolvedNames.has(id)) continue;
+      const prior = ctx.priorTitles.get(offer.sourceOfferKey);
+      if (prior) resolvedNames.set(id, prior);
+    }
+    for (const id of resolvedNames.keys()) {
+      unresolvedIds.delete(id);
+    }
+  }
+
+  // Step 2: detail-page lookup for whatever's still unresolved after step 1.
+  if (unresolvedIds.size > 0) {
+    const idsToLookUp = [...unresolvedIds].slice(0, MAX_NAME_LOOKUPS);
+    const skipped = unresolvedIds.size - idsToLookUp.length;
+    if (skipped > 0) {
+      ctx.log(`dovolenkovani: ${skipped} hotel(s) beyond the ${MAX_NAME_LOOKUPS}-lookup cap skipped this run, keeping "Hotel <id>" fallback`);
+    }
+
+    for (const id of idsToLookUp) {
+      try {
+        const html = await ctx.http.text(`${SITE_BASE_URL}/detail-zajezdu/x/${id}a`);
+        const name = parseHotelNameFromDetail(html);
+        if (name) resolvedNames.set(id, name);
+      } catch (err) {
+        if (err instanceof SourceBlockedError) {
+          ctx.log(`dovolenkovani: hotel-name detail-page lookup blocked (${err.message}), stopping further lookups`);
+          break;
+        }
+        const message = err instanceof Error ? err.message : String(err);
+        ctx.log(`dovolenkovani: hotel-name detail-page lookup failed for id ${id} (${message}), keeping fallback`);
+        // Not fatal: this hotel keeps its "Hotel <id>" fallback title, loop continues.
+      }
+    }
+  }
+
+  if (resolvedNames.size === 0) return;
+
+  for (const offer of offers) {
+    const match = offer.title.match(FALLBACK_TITLE_RE);
+    if (!match) continue;
+    const resolved = resolvedNames.get(Number(match[1]));
+    if (resolved) offer.title = resolved;
+  }
 }
 
 export const dovolenkovani: SourceAdapter = {

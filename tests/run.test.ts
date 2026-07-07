@@ -6,6 +6,7 @@ import type { AppConfig, Profile } from '../src/core/config.js';
 import type { NormalizedOffer, SourceAdapter, SourceContext } from '../src/core/types.js';
 import { HttpClient, SourceBlockedError } from '../src/core/http.js';
 import { runScan } from '../src/core/run.js';
+import { ingestOffer } from '../src/core/ingest.js';
 
 // ---- Fixtures ----------------------------------------------------------
 
@@ -1020,5 +1021,51 @@ describe('runScan', () => {
     });
     expect(summary2.notificationsSent).toBe(0);
     expect(tg2.messages.filter((m) => m.includes('🔥'))).toHaveLength(0);
+  });
+
+  it('scenario 13: priorTitles is populated from non-placeholder stored titles for that source and passed to fetchOffers', async () => {
+    const t0 = new Date('2026-07-04T10:00:00.000Z');
+
+    // Seed the DB directly (bypassing the adapter) to simulate offers already ingested in a
+    // previous run: one with a real resolved name, one still on the "Hotel <id>" placeholder,
+    // and one belonging to a DIFFERENT source (must not leak into this source's priorTitles map).
+    await ingestOffer(
+      db,
+      makeOffer({ source: 'dv', sourceOfferKey: 'dv-real', title: 'Creek Hotel' }),
+      t0,
+    );
+    await ingestOffer(
+      db,
+      makeOffer({ source: 'dv', sourceOfferKey: 'dv-placeholder', title: 'Hotel 999' }),
+      t0,
+    );
+    await ingestOffer(
+      db,
+      makeOffer({ source: 'other', sourceOfferKey: 'dv-real', title: 'Should Not Leak' }),
+      t0,
+    );
+
+    let capturedPriorTitles: Map<string, string> | undefined;
+    const spy: SourceAdapter = {
+      name: 'dv',
+      async fetchOffers(ctx: SourceContext) {
+        capturedPriorTitles = ctx.priorTitles;
+        return [];
+      },
+    };
+
+    await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: [spy],
+      now: new Date(t0.getTime() + 60 * 60 * 1000),
+    });
+
+    expect(capturedPriorTitles).toBeDefined();
+    expect(capturedPriorTitles?.get('dv-real')).toBe('Creek Hotel');
+    expect(capturedPriorTitles?.has('dv-placeholder')).toBe(false);
+    expect(capturedPriorTitles?.size).toBe(1);
   });
 });

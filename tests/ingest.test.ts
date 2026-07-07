@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { openDb, ensureSchema, type Db } from '../src/core/db/index.js';
 import { offers, priceSnapshots } from '../src/core/db/schema.js';
-import { ingestOffer, markMissedOffers } from '../src/core/ingest.js';
+import { ingestOffer, markMissedOffers, isPlaceholderTitle } from '../src/core/ingest.js';
 import { computeMatchKey } from '../src/core/normalize.js';
 import type { NormalizedOffer } from '../src/core/types.js';
 
@@ -307,6 +307,129 @@ describe('ingestOffer', () => {
 
     const [after] = await db.select().from(offers).where(sql`${offers.sourceOfferKey} = 'legacy-key-no-country'`);
     expect(after?.matchKey).toBeNull();
+  });
+
+  describe('isPlaceholderTitle', () => {
+    it('matches "Hotel <digits>" exactly', () => {
+      expect(isPlaceholderTitle('Hotel 320645')).toBe(true);
+      expect(isPlaceholderTitle('Hotel 1')).toBe(true);
+    });
+
+    it('does not match real hotel names, even ones containing "Hotel"', () => {
+      expect(isPlaceholderTitle('Creek Hotel & Residences El Gouna')).toBe(false);
+      expect(isPlaceholderTitle('Hotel California')).toBe(false);
+      expect(isPlaceholderTitle('Grand Hotel')).toBe(false);
+    });
+
+    it('does not match malformed variants (extra text, no digits, leading/trailing junk)', () => {
+      expect(isPlaceholderTitle('Hotel')).toBe(false);
+      expect(isPlaceholderTitle('Hotel 123 Resort')).toBe(false);
+      expect(isPlaceholderTitle(' Hotel 123')).toBe(false);
+      expect(isPlaceholderTitle('hotel 123')).toBe(false);
+    });
+  });
+
+  describe('placeholder-title guard on update (sticky resolved names)', () => {
+    it('a real stored title is NOT clobbered by an incoming placeholder re-ingest', async () => {
+      const t0 = new Date('2026-07-04T10:00:00.000Z');
+      const first = await ingestOffer(
+        db,
+        makeOffer({ source: 'dovolenkovani', sourceOfferKey: 'dv-1', title: 'Creek Hotel' }),
+        t0,
+      );
+
+      const t1 = new Date('2026-07-05T10:00:00.000Z');
+      await ingestOffer(
+        db,
+        makeOffer({ source: 'dovolenkovani', sourceOfferKey: 'dv-1', title: 'Hotel 320645' }),
+        t1,
+      );
+
+      const [row] = await db.select().from(offers).where(sql`${offers.id} = ${first.offerId}`);
+      expect(row?.title).toBe('Creek Hotel');
+    });
+
+    it('a placeholder stored title DOES get updated once a real name is resolved', async () => {
+      const t0 = new Date('2026-07-04T10:00:00.000Z');
+      const first = await ingestOffer(
+        db,
+        makeOffer({ source: 'dovolenkovani', sourceOfferKey: 'dv-2', title: 'Hotel 320645' }),
+        t0,
+      );
+
+      const t1 = new Date('2026-07-05T10:00:00.000Z');
+      await ingestOffer(
+        db,
+        makeOffer({ source: 'dovolenkovani', sourceOfferKey: 'dv-2', title: 'Creek Hotel' }),
+        t1,
+      );
+
+      const [row] = await db.select().from(offers).where(sql`${offers.id} = ${first.offerId}`);
+      expect(row?.title).toBe('Creek Hotel');
+    });
+
+    it('two placeholders in a row is a no-op (title stays the same placeholder)', async () => {
+      const t0 = new Date('2026-07-04T10:00:00.000Z');
+      const first = await ingestOffer(
+        db,
+        makeOffer({ source: 'dovolenkovani', sourceOfferKey: 'dv-3', title: 'Hotel 320645' }),
+        t0,
+      );
+
+      const t1 = new Date('2026-07-05T10:00:00.000Z');
+      await ingestOffer(
+        db,
+        makeOffer({ source: 'dovolenkovani', sourceOfferKey: 'dv-3', title: 'Hotel 320645' }),
+        t1,
+      );
+
+      const [row] = await db.select().from(offers).where(sql`${offers.id} = ${first.offerId}`);
+      expect(row?.title).toBe('Hotel 320645');
+    });
+
+    it('two real titles in a row still refreshes to the newest (guard only blocks placeholder-over-real)', async () => {
+      const t0 = new Date('2026-07-04T10:00:00.000Z');
+      const first = await ingestOffer(
+        db,
+        makeOffer({ source: 'dovolenkovani', sourceOfferKey: 'dv-4', title: 'Creek Hotel' }),
+        t0,
+      );
+
+      const t1 = new Date('2026-07-05T10:00:00.000Z');
+      await ingestOffer(
+        db,
+        makeOffer({ source: 'dovolenkovani', sourceOfferKey: 'dv-4', title: 'Creek Hotel Renamed' }),
+        t1,
+      );
+
+      const [row] = await db.select().from(offers).where(sql`${offers.id} = ${first.offerId}`);
+      expect(row?.title).toBe('Creek Hotel Renamed');
+    });
+
+    it('the placeholder guard does not interact with snapshot/price logic (snapshot still written on price change)', async () => {
+      const t0 = new Date('2026-07-04T10:00:00.000Z');
+      const first = await ingestOffer(
+        db,
+        makeOffer({ source: 'dovolenkovani', sourceOfferKey: 'dv-5', title: 'Creek Hotel', pricePerPerson: 16781 }),
+        t0,
+      );
+
+      const t1 = new Date('2026-07-04T12:00:00.000Z'); // same day, price changed, placeholder incoming
+      const second = await ingestOffer(
+        db,
+        makeOffer({ source: 'dovolenkovani', sourceOfferKey: 'dv-5', title: 'Hotel 320645', pricePerPerson: 14000 }),
+        t1,
+      );
+
+      expect(second.snapshotWritten).toBe(true);
+      expect(second.previousPrice).toBe(16781);
+
+      const [row] = await db.select().from(offers).where(sql`${offers.id} = ${first.offerId}`);
+      expect(row?.title).toBe('Creek Hotel'); // guard still applies regardless of price/snapshot outcome
+
+      const snapCount = await countSnapshots(db, first.offerId);
+      expect(snapCount).toBe(2);
+    });
   });
 
   it('ensureSchema is idempotent: running it twice does not error and does not duplicate columns', async () => {

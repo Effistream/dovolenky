@@ -1,10 +1,10 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, and, not, like } from 'drizzle-orm';
 import type { Db } from './db/index.js';
-import { notificationsLog, sourceRuns } from './db/schema.js';
+import { notificationsLog, offers, sourceRuns } from './db/schema.js';
 import type { AppConfig } from './config.js';
 import type { Telegram } from './telegram.js';
 import type { NormalizedOffer, SourceAdapter } from './types.js';
-import { ingestOffer, markMissedOffers } from './ingest.js';
+import { ingestOffer, markMissedOffers, isPlaceholderTitle } from './ingest.js';
 import { SourceBlockedError } from './http.js';
 import { computeRealDiscount, type DiscountResult } from './discount.js';
 import { matchProfiles } from './filters.js';
@@ -218,6 +218,29 @@ async function blockedBackoffUntil(db: Db, source: string, now: Date): Promise<s
   return liftsAt != null ? new Date(liftsAt).toISOString() : null;
 }
 
+/**
+ * Loads a sourceOfferKey -> title map for every currently-stored offer of `source` whose title
+ * is NOT a placeholder (see ingest.ts#isPlaceholderTitle), fed to the adapter as
+ * `ctx.priorTitles` (2026-07-07 fix). Lets an adapter (e.g. dovolenkovani.ts) skip re-resolving a
+ * hotel/property name it already knows from a previous run, so its per-run resolution cap is
+ * spent only on genuinely-new hotels rather than being re-consumed every run by hotels that
+ * happen to fall outside the cap this time. One cheap indexed query per source per run; adapters
+ * that don't use it (all but dovolenkovani, currently) pay a negligible, unused query cost.
+ */
+async function loadPriorTitles(db: Db, source: string): Promise<Map<string, string>> {
+  const rows = await db
+    .select({ sourceOfferKey: offers.sourceOfferKey, title: offers.title })
+    .from(offers)
+    .where(and(eq(offers.source, source), not(like(offers.title, 'Hotel %'))));
+
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    if (isPlaceholderTitle(row.title)) continue; // belt-and-braces: LIKE is a coarse pre-filter
+    map.set(row.sourceOfferKey, row.title);
+  }
+  return map;
+}
+
 export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
   const { db, cfg, telegram, adapters } = deps;
   const now = deps.now ?? new Date();
@@ -258,7 +281,8 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
     }
 
     try {
-      const fetched = await adapter.fetchOffers({ http: deps.http, adults: cfg.scan.adults, log });
+      const priorTitles = await loadPriorTitles(db, adapter.name);
+      const fetched = await adapter.fetchOffers({ http: deps.http, adults: cfg.scan.adults, log, priorTitles });
       offersFound = fetched.length;
 
       const processed = await processOffers(db, cfg, fetched, now, log);

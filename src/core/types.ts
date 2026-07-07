@@ -28,6 +28,14 @@ export interface SourceContext {
   http: HttpClient;
   adults: number;               // z config scan.adults
   log: (msg: string) => void;
+  /**
+   * Optional map of sourceOfferKey -> last known non-placeholder title for THIS source, loaded
+   * by run.ts from the DB before each adapter's fetchOffers call (2026-07-07 fix). Lets an
+   * adapter skip re-resolving a hotel/property name it already knows from a previous run instead
+   * of spending a slot in its per-run resolution cap (see dovolenkovani.ts). Optional so existing
+   * adapters/tests that don't use it are unaffected.
+   */
+  priorTitles?: Map<string, string>;
 }
 
 export interface SourceAdapter {
