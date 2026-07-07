@@ -701,3 +701,25 @@ Zadání od uživatele 2026-07-07: „Proč se tam nahoře dají vybrat jen něk
 - Vše ostatní client-side nad načteným setem (API vrací kompletní aktivní set — ověřit, žádný cap).
 
 - [ ] Čisté predikáty + testy (každý filtr + kombinace + URL round-trip); FilterBar UI dle tokenů; e2e: kombinace filtrů zúží tabuli + URL restore; plný suite + build zelené; commit `feat: terminal filter panel`.
+
+---
+
+### Task 30: hotel_key (identita hotelu pro referenční žebřík)
+
+**Files:** normalize.ts (+computeHotelKey), db/schema.ts + db/index.ts (offers.hotel_key + index + ensureColumn + backfill — kopíruj match_key mašinérii z Tasku 23), ingest.ts (compute + refresh, sticky guard neovlivňuje). Test: normalize.test.ts, ingest.test.ts.
+- [ ] `computeHotelKey(o): string|null` = offerKeyHash([normalizeHotelName(title), country]); null když normalizeHotelName prázdné NEBO country null. offers.hotel_key TEXT + index. ensureColumn (PRAGMA guard) + backfill NULL řádků. ingest ukládá na insert i update (z persistovaného title, konzistentně s match_key). Testy: dva termíny téhož hotelu (různá data) → stejný hotel_key; různé match_key; prázdné jméno/null země → null. Plný suite zelený → commit `feat: hotel_key identity for reference ladder`.
+
+### Task 31: Discount engine v2 (per-noc, 5 příček)
+
+**Files:** discount.ts (rozšířit vstup + DiscountResult.reference), types dle potřeby. Test: discount.test.ts (rozšířit).
+- [ ] `computeRealDiscount` vstup rozšířit o `hotelTermPricesPN: number[]`, `localityPricesPN: number[]` (per-noc pole), a `nights` subjektu (pro per-noc přepočet current). `DiscountResult.reference` = 'own'|'omnibus'|'hotel'|'locality'|'market'|null. Žebřík dle spec §15: own(≥3,rozpětí≥5d) > omnibus > hotel(≥4) > locality(≥8) > market(≥8, per-noc). Vše per-noc: currentPN = round(current/nights). realPct = round((basePN−currentPN)/basePN×100). baseline v resultu = basePN × nights (ekvivalent). Guardy ≤0 → propadnout. fake ≥15 p.b. Testy: každá příčka vyhrává za správných podmínek, min-count gaty (hotel 3 vs 4, locality 7 vs 8, market 7 vs 8), per-noc math (různé délky srovnány férově), nights null → own/omnibus jen, fallthrough při prázdných polích. Commit `feat: per-night 5-tier discount reference ladder`.
+
+### Task 32: Market dotazy v2 (hotel + lokalita + per-noc country)
+
+**Files:** market.ts (+hotelTermPricesPN, +localityBucketPricesPN, country bucket → per-noc), run.ts + digest.ts (předat nové vstupy do computeRealDiscount). Test: market.test.ts (rozšířit), run.test.ts, digest.test.ts.
+- [ ] `hotelTermPricesPN(db, offerId, offer)` = SELECT per-noc (price/nights) posledních snapshotů aktivních offers se stejným hotel_key, stejná strava, |nights−offer.nights|≤2, |dateDiff|≤30 dní, vyloučit offer.id i řádky se stejným match_key jako subjekt (twin-exclusion jako Task 24 fix), nights≥1. `localityBucketPricesPN(db, offerId, offer)` = koš locality×měsíc(departureDate)×board×stars, per-noc, twin+self exclusion. `marketBucketPrices` → vracet per-noc. run.ts processOffers + digest buildDigest: naplnit hotelTermPricesPN/localityPricesPN/nights a předat. Testy: hotel se 4 termíny → hotel příčka; lokalita koš ≥8 → locality; country per-noc opravuje jednonocový nesmysl (1noc pobyt už nevychází „levně" proti vícenocovým). Commit `feat: hotel/locality per-night market queries wired into scan+digest`.
+
+### Task 33: Popisky reference (Telegram + web) + finální review
+
+**Files:** format.ts (referenceLabel per stupeň + baseline jako ekvivalent), web/src (board REÁLNÁ buňka + detail verdikt: „vs. tento hotel" / „vs. Kréta" / „vs. Řecko"), api.ts pokud vrací reference (vrací — jen doplnit label mapu na FE). Test: format.test.ts, web unit.
+- [ ] format.ts: `referenceLabel(reference, offer): string` (own „30denní medián", omnibus „Omnibus 30denní min.", hotel „tento hotel", locality → offer.locality, market → offer.country). Board buňka „−22 % vs. <label> <ekvivalent Kč>". Detail verdikt zmíní stupeň. Telegram formatOffer taktéž. Testy všech větví. Poté: whole-branch review (fable) → fix vlna → merge do main. Commit `feat: reference-tier labels in notifications and dashboard`.

@@ -302,3 +302,42 @@ jen čisté helpery (formátování, seskupení) — UI se ověřuje Playwright 
 (board se vyrenderuje, filtr filtruje, detail se rozbalí) proti dev serveru se seed DB.
 
 **Mimo scope:** auth (localhost only), mutace (ztlumení nabídek), mobilní aplikace.
+
+## 15. Reálná sleva v2 — žebřík referencí + per-noc (přidáno 2026-07-07, na požadavek uživatele)
+
+Kritika uživatele: srovnávat reálnou slevu proti mediánu příliš hrubého koše (jen země) je
+nespravedlivé; medián má být pro podobné hotely/hvězdy v podobné destinaci, a různě dlouhé
+pobyty se nesmí míchat.
+
+**Normalizace na cenu za osobu a noc.** Všechny koše i porovnání se počítají na
+`pricePerNight = round(pricePerPerson / nights)` (nights ≥ 1; při nights null nelze normalizovat
+→ daný stupeň se přeskočí). Sledovaná cena v notifikaci/UI zůstává celková za osobu; zobrazená
+baseline se ukazuje jako **ekvivalent na délku této nabídky** = `baselinePerNight × offer.nights`
+(stejná jednotka jako cena nabídky), aby bylo srovnání čitelné. `realPct` se počítá z per-noc
+(matematicky totožné s ekvivalentem).
+
+**Identita hotelu (nová):** `hotelKey = sha1[normalizeHotelName(title), country]` — bez termínu
+a nocí (na rozdíl od `matchKey`, který termín má). Null když jméno prázdné nebo země null.
+Sloupec `offers.hotel_key` (index, backfill, výpočet v ingest — stejná mašinérie jako match_key).
+
+**Žebřík referencí (priorita, první dostupná vyhrává; `reference` v DiscountResult):**
+1. **own** — medián vlastní historie *téhož termínu* (≥3 snapshoty, rozpětí ≥5 dní, 30denní okno
+   bez dneška). Beze změny; per-noc.
+2. **omnibus** — zákonné 30denní minimum (jen eTravel). Per-noc.
+3. **hotel** (NOVÉ) — medián `pricePerNight` ostatních aktivních termínů **téhož hotelu**
+   (`hotel_key`), stejná strava, nights ±2, departureDate ±30 dní; vyloučit subjekt i jeho
+   cross-source dvojčata (`match_key`); min. 4 termíny. „Je tenhle termín levný na tenhle hotel?"
+4. **locality** (NOVÉ) — medián `pricePerNight` koše `locality × měsíc odletu × strava × hvězdy`
+   (aktivní nabídky, poslední snapshot, per-noc, vyloučit subjekt+dvojčata); min. 8.
+5. **market** (dnešní koš, upravený) — `country × měsíc × pásmo nocí × strava × hvězdy`, ale nově
+   **per-noc**; min. 8. Poslední záchrana.
+
+`realPct = round((baselinePN − currentPN) / baselinePN × 100)`; fake flag ≥15 p.b. beze změny.
+Guardy: baseline ≤ 0 → stupeň neplatný, propadnout dál. Žádná reference → realPct null +
+„sbírám historii".
+
+**Popisky reference (UI i Telegram):** own → „30denní medián", omnibus → „Omnibus 30denní min.",
+hotel → „tento hotel", locality → „<lokalita>" (např. „Kréta"), market → „<země>" (např. „Řecko").
+Board buňka i detail-verdikt vždy uvedou, se kterým stupněm se srovnává, aby uživatel viděl sílu.
+
+Mimo scope v2: fuzzy matching jmen hotelů (jen kanonizace + exact hotel_key).
