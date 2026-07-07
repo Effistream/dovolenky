@@ -24,7 +24,7 @@ jednou denně navíc souhrnný digest top 10 nabídek.
 | FIRO Travel | CESYS white-label API (`dates-list`, stejná továrna jako Dovolenkovani.cz) — exotické lety, agreguje mj. zájezdy Fischer CK |
 | Alexandria | `bck-new` JSON API (`web-search`) — dotazy na exotické location id; cena za skupinu → dopočet na osobu, sleva z `original_price` |
 | Deluxea | Nette `data-json` embedded v HTML — nabídky přímo ze stránky, bez API |
-| ESO travel | JSON API; 100% letecký operátor, karty bez markeru dopravy (transport `unknown`) |
+| ESO travel | SSR HTML listingy; 100% letecký operátor, karty bez markeru dopravy (transport `unknown`) |
 | Adventura | okružní a expediční zájezdy (Nepál, Peru, Madagaskar aj.); část karet bez markeru dopravy |
 | Datour | `anchoice.cz` white-label JSON API (`web-search`) — termíny za osobu (`unit_price`), agreguje 23k+ nabídek napříč CK |
 | Slevomat | přímo neběží (Cloudflare) — nabídky bereme přes **Skrz.cz**, který je agreguje |
