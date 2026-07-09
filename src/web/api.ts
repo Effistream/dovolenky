@@ -14,7 +14,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const SPARKLINE_POINTS = 14;
 const HISTORY_MEDIAN_DAYS = 30;
 const MAX_ALTERNATIVES = 3;
-const CACHE_TTL_MS = 5 * 60 * 1000;
+// 30 min: the board's discount ladder recomputes N+1 market-bucket queries for the whole active
+// set, which is heavy at full scale (~1200+ offers). The scan only writes every ~2h, so a longer
+// cache trades a little staleness for far fewer expensive recomputations (a cache miss can take
+// tens of seconds — hence api/index.ts's raised maxDuration).
+const CACHE_TTL_MS = 30 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // Test observability: a module-level counter incremented once per market-bucket
