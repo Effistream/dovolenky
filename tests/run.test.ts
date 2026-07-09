@@ -128,6 +128,16 @@ function blockedAdapter(): SourceAdapter {
   };
 }
 
+// An adapter whose fetchOffers never settles — simulates a host that tarpits our IP.
+function hangingAdapter(): SourceAdapter {
+  return {
+    name: 'hanging',
+    fetchOffers(): Promise<NormalizedOffer[]> {
+      return new Promise<NormalizedOffer[]>(() => {});
+    },
+  };
+}
+
 // ---- DB seeding helpers ------------------------------------------------
 
 /**
@@ -1532,5 +1542,25 @@ describe('runScan', () => {
       { source: 'broken', status: 'failed', offersFound: 0 },
     ]);
     expect(shape(summaryCon)).toEqual(shape(summarySeq));
+  });
+
+  it('scenario 19: an adapter whose fetch never settles is timed out — that source fails, the scan continues', async () => {
+    const now = new Date('2026-07-04T10:00:00.000Z');
+    const tg = new TelegramMock();
+    const summary = await runScan({
+      db,
+      cfg: makeConfig(),
+      http: makeHttp(),
+      telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [hangingAdapter(), happyAdapter([makeOffer()])],
+      now,
+      adapterTimeoutMs: 50, // tiny budget so the never-settling fetch aborts fast
+    });
+    const hanging = summary.perSource.find((s) => s.source === 'hanging');
+    const happy = summary.perSource.find((s) => s.source === 'happy');
+    expect(hanging?.status).toBe('failed');
+    expect(hanging?.error).toContain('exceeded');
+    expect(happy?.status).toBe('ok'); // the responsive source still completes
+    expect(happy?.offersFound).toBe(1);
   });
 });

@@ -21,6 +21,29 @@ import { BLOCKED_PREFIX, BACKOFF_MARKER, RECENT_RUN_SCAN_LIMIT, isBackoffRow, ba
  * because they match no watch profile (so it can never drive a notification). */
 const NO_DISCOUNT: DiscountResult = { realPct: null, reference: null, baseline: null, fake: false };
 
+/**
+ * Overall wall-clock ceiling for a single adapter's fetchOffers. The per-request 25s HttpClient
+ * timeout bounds one request, but an adapter that makes many requests to a host that tarpits our
+ * IP (some sites do this to datacenter IPs like a GitHub Actions runner) would still take
+ * minutes — and since the fetch phase runs all adapters concurrently, one such adapter would
+ * stall the whole scan. This caps each adapter: on timeout its fetch is abandoned and that source
+ * is recorded 'failed', while every responsive source completes normally. Set comfortably above
+ * the slowest legit adapter (adventura ~25 pages × 3s ≈ 80s; zajezdy 12 slugs × 5s ≈ 65s).
+ */
+const ADAPTER_FETCH_TIMEOUT_MS = 120000;
+
+/** Reject with an Error after `ms` if `p` hasn't settled. Does not cancel `p` (its in-flight
+ * requests still settle via their own per-request timeout); the caller just stops waiting. */
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label}: fetch exceeded ${ms}ms budget`)), ms);
+    p.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
+
 export interface RunScanDeps {
   db: Db;
   cfg: AppConfig;
@@ -40,6 +63,9 @@ export interface RunScanDeps {
    * shared HttpClient's per-host request serialization; no throttling is added here.
    */
   concurrency?: 'sequential' | 'concurrent';
+  /** Per-adapter fetch timeout override (ms). Defaults to ADAPTER_FETCH_TIMEOUT_MS. Injectable so
+   * tests can use a small value without waiting out the real budget. */
+  adapterTimeoutMs?: number;
 }
 
 export interface SourceSummary {
@@ -343,7 +369,11 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
     if (backoffUntil) return { adapter, kind: 'backoff', backoffUntil };
     try {
       const priorTitles = await loadPriorTitles(db, adapter.name);
-      const fetched = await adapter.fetchOffers({ http: deps.http, adults: cfg.scan.adults, log, priorTitles });
+      const fetched = await withTimeout(
+        adapter.fetchOffers({ http: deps.http, adults: cfg.scan.adults, log, priorTitles }),
+        deps.adapterTimeoutMs ?? ADAPTER_FETCH_TIMEOUT_MS,
+        adapter.name,
+      );
       return { adapter, kind: 'fetched', fetched };
     } catch (err) {
       return { adapter, kind: 'error', err };
