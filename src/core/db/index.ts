@@ -1,4 +1,5 @@
 import { createClient } from '@libsql/client';
+import { createClient as createWebClient } from '@libsql/client/web';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import { sql } from 'drizzle-orm';
 import * as schema from './schema.js';
@@ -8,9 +9,27 @@ import type { NormalizedOffer } from '../types.js';
 
 export type Db = LibSQLDatabase<typeof schema>;
 
+/**
+ * Open a libSQL connection using the NATIVE `@libsql/client`. Supports local
+ * `file:`/`:memory:` DBs as well as remote `libsql://` (Turso). Used by the CLI
+ * and the local dev server. `authToken: undefined` is a no-op for local files.
+ */
 export function openDb(url: string, authToken?: string): Db {
   const resolvedUrl = url === ':memory:' ? 'file::memory:' : url;
   const client = createClient({ url: resolvedUrl, authToken });
+  return drizzle(client, { schema });
+}
+
+/**
+ * Open a remote Turso connection using the HTTP-only web client
+ * (`@libsql/client/web`). The native client's binding hangs on Vercel's
+ * serverless runtime (FUNCTION_INVOCATION_TIMEOUT — confirmed live 2026-07-09),
+ * so the Vercel entrypoints (api/) use this instead. It talks to Turso over
+ * HTTPS with no native dependency. Does NOT support `file:` URLs — remote only,
+ * which is exactly the cloud case; local/CLI keep {@link openDb}.
+ */
+export function openDbWeb(url: string, authToken?: string): Db {
+  const client = createWebClient({ url, authToken });
   return drizzle(client, { schema });
 }
 

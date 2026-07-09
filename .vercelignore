@@ -1,0 +1,9 @@
+data/
+.env
+.git/
+node_modules/
+web/node_modules/
+.superpowers/
+.claude/
+test-results/
+playwright-report/
