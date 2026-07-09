@@ -1,0 +1,28 @@
+name: scan
+# Spouští plný scan (16 zdrojů) proti Turso a posílá notifikace na Telegram.
+# GitHub-hosted runner nemá 300s limit jako Vercel funkce → write-heavy scan v pohodě doběhne.
+on:
+  schedule:
+    - cron: '0 */2 * * *'   # každé 2 h (UTC); public repo = neomezené free minuty
+  workflow_dispatch:          # ruční spuštění z Actions UI / gh workflow run
+concurrency:
+  group: scan
+  cancel-in-progress: false   # nech doběhnout, nepřekrývej běhy
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: run scan
+        run: npm run scan
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
