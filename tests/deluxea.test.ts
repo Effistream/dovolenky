@@ -31,6 +31,7 @@ interface BakedOpts {
   price?: string;
   total?: string;
   old?: string;
+  oldTotal?: string;
   meal?: string;
   date?: string;
   tickets?: string;
@@ -42,7 +43,7 @@ function bakedJson(o: BakedOpts = {}): Record<string, unknown> {
     price: { '7': o.price ?? '37 690' },
     total: { '7': o.total ?? '71 130' },
     old_price: { '7': o.old ?? o.price ?? '37 690' },
-    old_total: { '7': 0 },
+    old_total: { '7': o.oldTotal ?? 0 },
     diff_total: { '7': '0' },
     meal: { '7': o.meal ?? 'Snídaně' },
     date_from: { '7': o.date ?? '10.09.2026' },
@@ -103,8 +104,8 @@ describe('parseDeluxeaListing: hotely-maledivy fixture (real, fully-baked prices
     expect(first!.board).toBe('BB'); // "Snídaně"
     expect(first!.transport).toBe('flight'); // tickets "16 800" / Etihad Airways present
     expect(first!.nights).toBe(7); // key of the price dict
-    expect(first!.pricePerPerson).toBe(37690); // "37 690" (space thousands)
-    expect(first!.priceTotal).toBe(71130); // total "71 130"
+    expect(first!.pricePerPerson).toBe(71130); // total "71 130" — per-person ALL-IN (hotel+flight+transfer), not `price`
+    expect(first!.priceTotal).toBeNull(); // `total` is per-person, so no honest party total is exposed
     expect(first!.departureDate).toBe('2026-09-10'); // date_from "10.09.2026"
     expect(first!.claimedOriginalPrice).toBeNull(); // old_price == price on this page
     expect(first!.claimedDiscountPct).toBeNull();
@@ -161,8 +162,8 @@ describe('parseDeluxeaListing: hotely-zanzibar fixture (real, second country)', 
     expect(first!.board).toBe('AI'); // "All Inclusive"
     expect(first!.transport).toBe('flight'); // Turkish Airlines
     expect(first!.nights).toBe(7);
-    expect(first!.pricePerPerson).toBe(29690);
-    expect(first!.priceTotal).toBe(54450);
+    expect(first!.pricePerPerson).toBe(54450); // `total` (all-in per person), not `price` 29690
+    expect(first!.priceTotal).toBeNull();
     expect(first!.departureDate).toBe('2026-09-10');
     expect(first!.url).toBe('https://www.deluxea.cz/zanzibar/hotel-melia-zanzibar/');
   });
@@ -213,19 +214,19 @@ describe('parseDeluxeaListing: edge cases (synthetic cards)', () => {
     expect(offers.map((o) => o.title)).toEqual(['Fine']);
   });
 
-  it('derives claimedOriginalPrice/claimedDiscountPct when old_price > price', () => {
+  it('derives claimedOriginalPrice/claimedDiscountPct from old_total (all-in) when it exceeds total', () => {
     const html = page([
       card({
         name: 'Discounted Hotel',
         href: '/maledivy/hotel-disc/',
-        json: bakedJson({ price: '37 690', old: '45 000' }),
+        json: bakedJson({ total: '71 130', oldTotal: '85 000' }),
       }),
     ]);
     const offers = parseDeluxeaListing(html, MALEDIVY_URL);
     expect(offers.length).toBe(1);
-    expect(offers[0]!.pricePerPerson).toBe(37690);
-    expect(offers[0]!.claimedOriginalPrice).toBe(45000);
-    // round((45000 - 37690) / 45000 * 100) = round(16.24) = 16
+    expect(offers[0]!.pricePerPerson).toBe(71130); // all-in total
+    expect(offers[0]!.claimedOriginalPrice).toBe(85000);
+    // round((85000 - 71130) / 85000 * 100) = round(16.32) = 16
     expect(offers[0]!.claimedDiscountPct).toBe(16);
   });
 

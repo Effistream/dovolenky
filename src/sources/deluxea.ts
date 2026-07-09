@@ -29,11 +29,17 @@ import { SourceBlockedError } from '../core/http.js';
  *
  * data-json shape (verified key inventory — every price-bearing field is a dict KEYED BY NIGHTS,
  * e.g. `{"7": …}` where "7" = 7 nights; a single card observed to carry exactly one nights key):
- *  - price            {"7":"37 690"} per-person "od" price, regular-space thousands → pricePerPerson
- *                     (parseCzk strips the 0x20 space). "-" / unparsable → SKIP the card.
- *  - total            {"7":"71 130"} → priceTotal (party total; not necessarily price*persons).
- *  - old_price        {"7":"37 690"} crossed-out per-person price; == price when no discount.
- *  - old_total/diff_total/diff_total_abs — discount deltas; diff_total "0" ⇒ no discount.
+ *  - total            {"7":"44 090"} per-person ALL-INCLUSIVE price (hotel + flight + transfer/tax),
+ *                     regular-space thousands → pricePerPerson. This is the honest per-person price
+ *                     deluxea.cz displays. Proven per-person by `childs` (each child's total − price
+ *                     == the adult `tickets`); observed total ≈ price + tickets + transfer across 24
+ *                     cards / 3 destinations. priceTotal is left null (no honest party sum exposed).
+ *  - price            {"7":"18 710"} HOTEL-only "od" per-person component — NOT the headline; using
+ *                     it underpriced every flight package by the ticket+transfer cost. Used only to
+ *                     detect a real priced term: "-" / unparsable ⇒ price on demand ⇒ SKIP the card.
+ *  - old_total        {"7":…} crossed-out per-person all-in price → claimedOriginalPrice when
+ *                     strictly above total; old_total 0 / == total (the default) ⇒ no discount.
+ *  - old_price/diff_total/diff_total_abs — hotel-only / delta variants (not used for the headline).
  *  - meal             {"7":"Snídaně"|"All&nbsp;Inclusive"|"Polopenze"} → normalizeBoard.
  *  - date_from/date_to {"7":"10.09.2026"} DD.MM.YYYY → parseCzDate → ISO departureDate.
  *  - full_date        {"7":"10. 09. - 19. 09. 2026"} (unused; date_from is the clean source).
@@ -140,36 +146,43 @@ function mapCard($: cheerio.CheerioAPI, card: ReturnType<cheerio.CheerioAPI>, li
     return null; // malformed data-json → skip, never throw
   }
 
-  // nights + pricePerPerson come from the price dict: first key whose value parses to a positive
-  // CZK. A "-" placeholder (price on demand) yields no parsable value → skip the card.
+  // Pick the term (nights key) and the honest per-person price. That price is `total` — the
+  // ALL-INCLUSIVE figure (hotel + flight + transfer/tax), which is what deluxea.cz shows as the
+  // per-person price. `price` is only the HOTEL-only "od" component and must NOT be the headline:
+  // using it underprices every flight package by the ticket+transfer cost (e.g. Mauricius Telfair
+  // 18 710 `price` vs the real 44 090 `total`). Proven per-person by the `childs` dict, where each
+  // child's (total − price) equals the adult `tickets`. We iterate `price` to find a real, priced
+  // term (a "-" placeholder = price on demand → skip), then take that term's `total`.
   const priceDict = j.price;
   let nightsKey: string | null = null;
   let pricePerPerson: number | null = null;
   if (priceDict !== null && typeof priceDict === 'object' && !Array.isArray(priceDict)) {
     for (const [k, v] of Object.entries(priceDict as Record<string, unknown>)) {
-      const p = toCzk(v);
-      if (p !== null) {
-        nightsKey = k;
-        pricePerPerson = p;
-        break;
-      }
+      if (toCzk(v) === null) continue; // no hotel price for this term → "-" on demand, skip
+      const allIn = toCzk(atKey(j.total, k)); // all-in per-person price = the honest headline
+      if (allIn === null) continue; // no total → can't price this term honestly
+      nightsKey = k;
+      pricePerPerson = allIn;
+      break;
     }
   }
   if (nightsKey === null || pricePerPerson === null) return null;
 
   const nights = Number.isFinite(Number(nightsKey)) ? Number(nightsKey) : null;
-  const priceTotal = toCzk(atKey(j.total, nightsKey));
+  // No honest whole-party total is exposed (`total` is per-person all-in, not a party sum), so
+  // leave priceTotal null rather than mislabel a per-person figure as the booking total.
+  const priceTotal: number | null = null;
 
-  // Discount: an old_price strictly above the current per-person price is an honest crossed-out
-  // price (equivalently diff_total > 0). old_price == price (the ubiquitous no-discount default) →
-  // both claimed fields null.
-  const oldPerPerson = toCzk(atKey(j.old_price, nightsKey));
+  // Discount from the ALL-IN figures (old_total vs total), matching pricePerPerson's basis. An
+  // old_total strictly above the current all-in price is an honest crossed-out price; the ubiquitous
+  // no-discount default (old_total 0 / == total) → both claimed fields null.
+  const oldAllIn = toCzk(atKey(j.old_total, nightsKey));
   let claimedOriginalPrice: number | null = null;
   let claimedDiscountPct: number | null = null;
-  if (oldPerPerson !== null && oldPerPerson > pricePerPerson) {
-    const pct = Math.round(((oldPerPerson - pricePerPerson) / oldPerPerson) * 100);
+  if (oldAllIn !== null && oldAllIn > pricePerPerson) {
+    const pct = Math.round(((oldAllIn - pricePerPerson) / oldAllIn) * 100);
     if (pct > 0 && pct < 100) {
-      claimedOriginalPrice = oldPerPerson;
+      claimedOriginalPrice = oldAllIn;
       claimedDiscountPct = pct;
     }
   }
