@@ -1,4 +1,3 @@
-import { sql } from 'drizzle-orm';
 import type { Db } from './index.js';
 import { excludedCountries } from './schema.js';
 import { isKnownCountry } from '../normalize.js';
