@@ -30,7 +30,7 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const cfg = loadConfig({ configPath: `${projectRoot}config/watch.yaml` });
 
-  const db = openDb(cfg.databaseUrl);
+  const db = openDb(cfg.databaseUrl, cfg.databaseAuthToken ?? undefined);
   await ensureSchema(db);
 
   const http = new HttpClient({

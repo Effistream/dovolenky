@@ -14,7 +14,7 @@ async function main(): Promise<void> {
   // Load .env (real env wins), then config + DB — same bootstrap as the CLI.
   loadDotEnv(fileURLToPath(new URL('../../.env', import.meta.url)), process.env);
   const cfg = loadConfig();
-  const db = openDb(cfg.databaseUrl);
+  const db = openDb(cfg.databaseUrl, cfg.databaseAuthToken ?? undefined);
   await ensureSchema(db);
 
   const app = new Hono();

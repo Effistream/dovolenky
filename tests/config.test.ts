@@ -76,6 +76,21 @@ describe('loadConfig', () => {
     expect(cfg.databaseUrl).toBe('file:./custom.db');
   });
 
+  it('defaults databaseAuthToken to null when env is empty', () => {
+    const cfg = loadConfig({ configPath: CONFIG_PATH, env: {} });
+
+    expect(cfg.databaseAuthToken).toBeNull();
+  });
+
+  it('reads databaseAuthToken from the provided env map', () => {
+    const cfg = loadConfig({
+      configPath: CONFIG_PATH,
+      env: { DATABASE_AUTH_TOKEN: 'tok' },
+    });
+
+    expect(cfg.databaseAuthToken).toBe('tok');
+  });
+
   it('throws a clear error when the config file is missing', () => {
     expect(() => loadConfig({ configPath: '/nonexistent/path/watch.yaml', env: {} })).toThrow(
       /watch\.yaml|config|ENOENT|not found/i,
