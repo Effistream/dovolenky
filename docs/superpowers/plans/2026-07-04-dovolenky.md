@@ -818,3 +818,503 @@ Kadence testovacích requestů: max ~5 na host, ≥3 s rozestup.
 Po Task 41: whole-branch review (SDD konvence), fix vlna, merge `feature/exotika` do main,
 poté plný `npm run scan` (uživatelův požadavek „nový scan včetně nových exotik — ať je to full")
 a ověření dashboardu (exotické země ve filtrech, profil exotika).
+
+---
+
+## Fáze Negativní filtr (Tasky 42–45, spec §17)
+
+Branch `feature/negative-filter` (spec §17 už commitnut). Globální exclude zemí v DB: skryje na
+tabuli (buildOffers/buildStats), umlčí na Telegramu (run.ts guard) i v digestu, spravovatelný
+živě z webu. **Ingest se NEmění** — vyloučené nabídky se dál ukládají do historie.
+
+### Task 42: DB tabulka `excluded_countries` + helpery
+
+**Files:**
+- Modify: `src/core/db/schema.ts` (drizzle tabulka), `src/core/db/index.ts` (`ensureSchema` CREATE TABLE)
+- Create: `src/core/db/exclusions.ts` (`getExcludedCountries`, `setExcludedCountries`)
+- Test: `tests/exclusions.test.ts`
+
+**Interfaces:**
+- Consumes: `isKnownCountry` z `src/core/normalize.ts` (vrací true pro kanonickou zemi).
+- Produces:
+  - tabulka `excluded_countries(country TEXT PRIMARY KEY, created_at INTEGER NOT NULL)`
+  - `getExcludedCountries(db: Db): Promise<string[]>` — vrací uložené země, seřazené `localeCompare('cs')`.
+  - `setExcludedCountries(db: Db, countries: string[]): Promise<string[]>` — validace přes `isKnownCountry` (neznámé tiše zahodí), dedup, **nahradí celou množinu** (DELETE all + INSERT), vrací uloženou množinu seřazenou.
+
+- [ ] **Step 1: Failing test** — `tests/exclusions.test.ts`:
+
+```ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { openDb, ensureSchema, type Db } from '../src/core/db/index.js';
+import { getExcludedCountries, setExcludedCountries } from '../src/core/db/exclusions.js';
+
+describe('excluded_countries helpers', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = openDb(':memory:');
+    await ensureSchema(db);
+  });
+
+  it('starts empty', async () => {
+    expect(await getExcludedCountries(db)).toEqual([]);
+  });
+
+  it('stores, dedups and sorts (cs); round-trips via get', async () => {
+    const stored = await setExcludedCountries(db, ['Turecko', 'Egypt', 'Egypt']);
+    expect(stored).toEqual(['Egypt', 'Turecko']);
+    expect(await getExcludedCountries(db)).toEqual(['Egypt', 'Turecko']);
+  });
+
+  it('replaces the whole set (not merge)', async () => {
+    await setExcludedCountries(db, ['Egypt']);
+    const stored = await setExcludedCountries(db, ['Řecko']);
+    expect(stored).toEqual(['Řecko']);
+    expect(await getExcludedCountries(db)).toEqual(['Řecko']);
+  });
+
+  it('drops unknown (non-canonical) countries', async () => {
+    const stored = await setExcludedCountries(db, ['Egypt', 'Absurdistán', '']);
+    expect(stored).toEqual(['Egypt']);
+  });
+});
+```
+
+- [ ] **Step 2: Run — expect FAIL** (`getExcludedCountries` not defined):
+
+Run: `npx vitest run tests/exclusions.test.ts`
+Expected: FAIL — module `../src/core/db/exclusions.js` not found.
+
+- [ ] **Step 3: schema.ts — add drizzle table** (after `notificationsLog`/`sourceRuns` defs):
+
+```ts
+export const excludedCountries = sqliteTable('excluded_countries', {
+  country: text('country').primaryKey(),
+  createdAt: integer('created_at').notNull(),
+});
+```
+
+- [ ] **Step 4: index.ts — CREATE TABLE in `ensureSchema`** (add a `db.run` block beside the other `CREATE TABLE IF NOT EXISTS`, before the `ensureColumn` calls):
+
+```ts
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS excluded_countries (
+      country TEXT PRIMARY KEY,
+      created_at INTEGER NOT NULL
+    )
+  `);
+```
+
+- [ ] **Step 5: Create `src/core/db/exclusions.ts`:**
+
+```ts
+import { sql } from 'drizzle-orm';
+import type { Db } from './index.js';
+import { excludedCountries } from './schema.js';
+import { isKnownCountry } from '../normalize.js';
+
+/** Excluded countries, canonical names, sorted cs. */
+export async function getExcludedCountries(db: Db): Promise<string[]> {
+  const rows = await db.select({ country: excludedCountries.country }).from(excludedCountries);
+  return rows.map((r) => r.country).sort((a, b) => a.localeCompare(b, 'cs'));
+}
+
+/**
+ * Replace the whole exclusion set with `countries` (validated to canonical
+ * countries via isKnownCountry, deduped). Unknown/empty entries are silently
+ * dropped. Returns the stored set, sorted cs.
+ */
+export async function setExcludedCountries(db: Db, countries: string[]): Promise<string[]> {
+  const valid = [...new Set(countries.filter((c) => isKnownCountry(c)))];
+  const createdAt = Date.now();
+  await db.delete(excludedCountries);
+  if (valid.length > 0) {
+    await db.insert(excludedCountries).values(valid.map((country) => ({ country, createdAt })));
+  }
+  return valid.sort((a, b) => a.localeCompare(b, 'cs'));
+}
+```
+
+- [ ] **Step 6: Run — expect PASS:**
+
+Run: `npx vitest run tests/exclusions.test.ts`
+Expected: PASS (4 tests).
+
+- [ ] **Step 7: Full suite + typecheck:**
+
+Run: `npm test && npm run typecheck`
+Expected: all green (563 + 4 new).
+
+- [ ] **Step 8: Commit:**
+
+```bash
+git add src/core/db/schema.ts src/core/db/index.ts src/core/db/exclusions.ts tests/exclusions.test.ts
+git commit -m "feat: excluded_countries table + get/set helpers"
+```
+
+### Task 43: Backend umlčení — run.ts guard + digest filter
+
+**Files:**
+- Modify: `src/core/run.ts` (read excluded once in `runScan`, thread to `processOffers` + `buildDigest`, guard `matches`), `src/core/digest.ts` (`buildDigest` accepts excluded set, filters `activeRows`)
+- Test: `tests/run.test.ts` (excluded → no notification, snapshot STILL written), `tests/digest.test.ts` (excluded country absent from digest)
+
+**Interfaces:**
+- Consumes: `getExcludedCountries` (Task 42).
+- Produces: `buildDigest(db, cfg, now, excluded: Set<string>)` — new 4th param. `processOffers(db, cfg, sourceOffers, now, log, excluded: Set<string>)` — new 6th param.
+
+- [ ] **Step 1: Prep the seed helper.** The file's `seedOffer(db, opts)` hardcodes `country: 'Řecko'`. Add an optional `country?: string` to its `opts` and use `opts.country ?? 'Řecko'` for the inserted `country`, so a seeded offer can be Egypt. (One-line change; existing callers unaffected.)
+
+- [ ] **Step 2: Failing test — digest** (`tests/digest.test.ts`, add a case using the real `seedOffer`/`makeConfig` helpers). `buildDigest` gains a 4th `excluded: Set<string>` arg:
+
+```ts
+it('omits offers whose country is excluded', async () => {
+  const now = new Date('2026-07-04T10:00:00.000Z');
+  const at = '2026-07-04T00:00:00.000Z';
+  await seedOffer(db, { key: 'gr', price: 12000, country: 'Řecko', firstSeenAt: at, capturedAt: at });
+  await seedOffer(db, { key: 'eg', price: 12000, country: 'Egypt', firstSeenAt: at, capturedAt: at });
+  const digest = await buildDigest(db, makeConfig(), now, new Set(['Egypt']));
+  expect(digest).not.toBeNull();
+  expect(digest!.html).toContain('Řecko');
+  expect(digest!.html).not.toContain('Egypt');
+});
+```
+
+(`seedOffer`'s title defaults to `Seed Hotel <key>`; the digest renders the country, so the
+Egypt row is detectable by the country string. If the existing digest HTML doesn't surface the
+raw country name, assert on the seeded title instead — give the Egypt offer `title: 'EgyptHotel'`
+and assert `not.toContain('EgyptHotel')`.)
+
+- [ ] **Step 2: Run — expect FAIL** (`buildDigest` takes 3 args, extra arg ignored → Egypt still present):
+
+Run: `npx vitest run tests/digest.test.ts`
+Expected: FAIL — digest html contains 'Egypt'.
+
+- [ ] **Step 3: digest.ts — add `excluded` param + filter.** Change the signature and filter `activeRows` right after they're fetched:
+
+```ts
+export async function buildDigest(
+  db: Db,
+  cfg: AppConfig,
+  now: Date,
+  excluded: Set<string>,
+): Promise<DigestResult | null> {
+  const activeRowsRaw = await db.select().from(offers).where(eq(offers.active, true));
+  const activeRows = activeRowsRaw.filter((r) => r.country == null || !excluded.has(r.country));
+  if (activeRows.length === 0) return null;
+  // …rest unchanged (dedup, ranking use `activeRows`)…
+```
+
+- [ ] **Step 4: Failing test — run.ts** (`tests/run.test.ts`, add a scenario). Use the file's REAL harness — `TelegramMock` captures into `.messages` (string[]), and `runScan` takes `{ db, cfg, http, telegram, adapters, now }` (see the existing `throwingAdapter` scenario ~line 244). Model this on whichever existing scenario asserts `tg.messages.length > 0` (a notification actually sent), then make an excluded Egypt twin. `setExcludedCountries` is the Task 42 helper (import from `../src/core/db/exclusions.js`):
+
+```ts
+it('excluded country: no notification sent, but snapshot IS written', async () => {
+  await setExcludedCountries(db, ['Egypt']);
+  const tg = new TelegramMock();
+  // makeOffer overrides so this Egypt offer WOULD notify if not excluded — copy the
+  // field values (country/board/transport/departureDate/price) from the file's existing
+  // notification-producing scenario, only switching country to 'Egypt'. If that scenario
+  // needs seeded buckets (seedMarketBucket/seedHotelTerms) to compute a hot_deal, seed them
+  // for Egypt too.
+  const egyptOffer = makeOffer({ country: 'Egypt', sourceOfferKey: 'eg-1' });
+  const summary = await runScan({
+    db,
+    cfg: makeConfig(),
+    http: makeHttp(),
+    telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
+    adapters: [happyAdapter([egyptOffer])],
+    now,
+  });
+  expect(tg.messages.some((m) => m.includes('Egypt'))).toBe(false);
+  // ingest still happened: a snapshot row exists for the excluded offer
+  const snaps = await db.select().from(priceSnapshots);
+  expect(snaps.length).toBeGreaterThanOrEqual(1);
+});
+```
+
+Note: `summary` is unused above only if you don't assert on it — feel free to also
+`expect(summary.notificationsSent).toBe(0)` for a stronger check.
+
+- [ ] **Step 5: Run — expect FAIL** (notification for Egypt currently sent):
+
+Run: `npx vitest run tests/run.test.ts`
+Expected: FAIL — an Egypt hot_deal message was sent.
+
+- [ ] **Step 6: run.ts — read excluded once, thread + guard.** In `runScan`, after `db`/`cfg` are ready and before per-source processing:
+
+```ts
+  const excluded = new Set(await getExcludedCountries(db));
+```
+
+Pass it into `processOffers(db, cfg, fetched, now, log, excluded)` and
+`maybeSendDigest(db, cfg, now, telegram, dryRun, excluded)` (thread through to `buildDigest`).
+In `processOffers`, change the signature to accept `excluded: Set<string>` and gate the matches:
+
+```ts
+      const isExcluded = offer.country != null && excluded.has(offer.country);
+      const matches = isExcluded ? [] : matchProfiles(offer, cfg.profiles, now);
+```
+
+Everything else in `processOffers` stays — ingest (snapshot write) already happened above this
+line, so excluded offers keep their price history; only candidate generation is suppressed.
+
+- [ ] **Step 7: Run — expect PASS:**
+
+Run: `npx vitest run tests/run.test.ts tests/digest.test.ts`
+Expected: PASS (existing + 2 new).
+
+- [ ] **Step 8: Full suite + typecheck, then commit:**
+
+Run: `npm test && npm run typecheck`
+
+```bash
+git add src/core/run.ts src/core/digest.ts tests/run.test.ts tests/digest.test.ts
+git commit -m "feat: mute Telegram + digest for excluded countries (ingest preserved)"
+```
+
+### Task 44: API — GET/PUT /api/exclusions + server-side exclude + cache-bust
+
+**Files:**
+- Modify: `src/web/api.ts` (routes + `buildOffers`/`buildStats` filter + PUT clears cache)
+- Test: `tests/api.test.ts`
+
+**Interfaces:**
+- Consumes: `getExcludedCountries`, `setExcludedCountries` (Task 42).
+- Produces: `GET /api/exclusions` → `{ countries: string[] }`; `PUT /api/exclusions` body `{ countries: string[] }` → validates+stores+busts cache, returns `{ countries: string[] }`. `buildOffers`/`buildStats` skip excluded-country rows.
+
+- [ ] **Step 1: Failing tests** (`tests/api.test.ts`, add). The harness here builds the app via `createApi({ db, profiles: PROFILES, now: () => NOW })` and calls `app.request('http://local' + path)` (the `makeClient` helper is GET-only, so for PUT build the app directly). Insert offer rows with `db.insert(offers).values({...})` following the shape used inside `seedMarketBucket` (source/sourceOfferKey/title/country/url/firstSeenAt/lastSeenAt/active + a `price_snapshots` row so the offer surfaces on the board):
+
+```ts
+it('GET /api/exclusions is empty by default', async () => {
+  const app = createApi({ db, profiles: PROFILES, now: () => NOW });
+  const res = await app.request('http://local/api/exclusions');
+  expect(await res.json()).toEqual({ countries: [] });
+});
+
+it('PUT stores exclusions (unknown dropped), GET reflects, board omits them', async () => {
+  // seed one Egypt + one Řecko active offer, each with a price snapshot (copy the insert
+  // shape from seedMarketBucket in this file; give them distinct sourceOfferKey + country).
+  await seedActiveOffer(db, { key: 'eg', country: 'Egypt', price: 12000 });
+  await seedActiveOffer(db, { key: 'gr', country: 'Řecko', price: 12000 });
+  const app = createApi({ db, profiles: PROFILES, now: () => NOW });
+
+  const put = await app.request('http://local/api/exclusions', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ countries: ['Egypt', 'Absurdistán'] }),
+  });
+  expect(await put.json()).toEqual({ countries: ['Egypt'] }); // unknown dropped
+
+  const board = await (await app.request('http://local/api/offers')).json();
+  expect(board.offers.some((o: any) => o.country === 'Egypt')).toBe(false);
+  expect(board.offers.some((o: any) => o.country === 'Řecko')).toBe(true);
+});
+```
+
+Add a small local `seedActiveOffer(db, { key, country, price })` helper in this test file (insert
+one `offers` row `active: true` with that country + one `price_snapshots` row at `price`), or
+inline the two inserts — whichever matches the file's style. `PROFILES` and `NOW` already exist
+in this file.
+
+- [ ] **Step 2: Run — expect FAIL** (routes 404 / board still shows Egypt):
+
+Run: `npx vitest run tests/api.test.ts`
+Expected: FAIL.
+
+- [ ] **Step 3: api.ts — filter excluded in `buildOffers`.** After `activeRows` is fetched, drop excluded countries before grouping:
+
+```ts
+  const excluded = new Set(await getExcludedCountries(db));
+  const activeRows = activeRowsRaw.filter((r) => r.country == null || !excluded.has(r.country));
+```
+
+(Rename the existing `db.select()...` result to `activeRowsRaw`.) Do the identical two lines in
+`buildStats` (rename its `activeRows` fetch to `activeRowsRaw`, then filter).
+
+- [ ] **Step 4: api.ts — add routes** inside `createApi` (after `/api/stats`), and clear the cache on PUT:
+
+```ts
+  app.get('/api/exclusions', async (c) => {
+    return c.json({ countries: await getExcludedCountries(db) });
+  });
+
+  app.put('/api/exclusions', async (c) => {
+    let body: unknown;
+    try { body = await c.req.json(); } catch { return c.json({ error: 'invalid json' }, 400); }
+    const countries = (body as { countries?: unknown })?.countries;
+    if (!Array.isArray(countries) || !countries.every((x) => typeof x === 'string')) {
+      return c.json({ error: 'countries must be string[]' }, 400);
+    }
+    const stored = await setExcludedCountries(db, countries);
+    cache.clear(); // exclusions change the offers/stats sets → drop the 5-min cache
+    return c.json({ countries: stored });
+  });
+```
+
+Add the import at the top of `api.ts`:
+
+```ts
+import { getExcludedCountries, setExcludedCountries } from '../core/db/exclusions.js';
+```
+
+- [ ] **Step 5: Run — expect PASS:**
+
+Run: `npx vitest run tests/api.test.ts`
+Expected: PASS (existing + 2 new).
+
+- [ ] **Step 6: Full suite + typecheck, then commit:**
+
+Run: `npm test && npm run typecheck`
+
+```bash
+git add src/web/api.ts tests/api.test.ts
+git commit -m "feat: /api/exclusions GET+PUT, exclude countries from board+stats, bust cache"
+```
+
+### Task 45: Frontend — „Nechci vidět" sekce + refetch (not in URL)
+
+**Files:**
+- Modify: `web/src/lib/api.ts` (`fetchExclusions`, `putExclusions`), `web/src/lib/types.ts` (`ExclusionsResponse`), `web/src/App.tsx` (load exclusions, hold state, update+refetch), `web/src/components/FilterBar.tsx` (new „Nechci vidět" section in the „Více filtrů" panel)
+- Test: `web/src/lib/api.test.ts` (if present; else add) for the client wrappers; `web/src/components/FilterBar.test.ts` for the section.
+
+**Interfaces:**
+- Consumes: `GET/PUT /api/exclusions` (Task 44); `countryFacets(offers)` from `web/src/lib/filters.js` (the add-picker lists countries currently on the board — no canonical list duplicated to the FE).
+- Produces: FilterBar prop additions `excluded: string[]` + `onExcluded: (next: string[]) => void`.
+
+- [ ] **Step 1: types.ts — add response type:**
+
+```ts
+export interface ExclusionsResponse { countries: string[]; }
+```
+
+- [ ] **Step 2: api.ts — client wrappers:**
+
+```ts
+export function fetchExclusions(signal?: AbortSignal): Promise<ExclusionsResponse> {
+  return getJson<ExclusionsResponse>('/api/exclusions', signal);
+}
+
+export async function putExclusions(countries: string[]): Promise<ExclusionsResponse> {
+  const res = await fetch('/api/exclusions', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({ countries }),
+  });
+  if (!res.ok) throw new Error(`/api/exclusions → ${res.status}`);
+  return (await res.json()) as ExclusionsResponse;
+}
+```
+
+Import `ExclusionsResponse` in the type import block.
+
+- [ ] **Step 3: Failing test — client wrapper** (`web/src/lib/api.test.ts`, create if missing):
+
+```ts
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { putExclusions } from './api.js';
+
+afterEach(() => vi.restoreAllMocks());
+
+it('putExclusions PUTs the list and returns stored set', async () => {
+  const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    new Response(JSON.stringify({ countries: ['Egypt'] }), { status: 200 }),
+  );
+  const out = await putExclusions(['Egypt', 'Řecko']);
+  expect(out).toEqual({ countries: ['Egypt'] });
+  const [, init] = fetchMock.mock.calls[0]!;
+  expect(init).toMatchObject({ method: 'PUT' });
+  expect(JSON.parse((init as RequestInit).body as string)).toEqual({ countries: ['Egypt', 'Řecko'] });
+});
+```
+
+- [ ] **Step 4: Run — expect FAIL then implement passes** (wrappers from Step 2 make it green):
+
+Run: `cd web && npx vitest run src/lib/api.test.ts`
+Expected: PASS after Step 2 is in place.
+
+- [ ] **Step 5: App.tsx — load exclusions, hold state, update + refetch.** Add near the other `useAsync` hooks:
+
+```ts
+  const exclusionsState = useAsync((signal) => fetchExclusions(signal), []);
+  const excluded = exclusionsState.data?.countries ?? [];
+
+  const onExcluded = async (next: string[]): Promise<void> => {
+    await putExclusions(next);
+    exclusionsState.reload(); // refresh the chip list
+    offersState.reload();     // board refetch — excluded rows disappear, counts adjust
+  };
+```
+
+(Use the actual variable names this file gives the offers `useAsync` result — it's the hook whose
+deps are `[profile]`. If it's inlined, name it `offersState` via `const offersState = useAsync(...)`.)
+Pass `excluded={excluded}` and `onExcluded={onExcluded}` into `<FilterBar />`. Import
+`fetchExclusions, putExclusions` from `./lib/api.js`.
+
+- [ ] **Step 6: FilterBar.tsx — „Nechci vidět" section.** Add the two props to `Props`:
+
+```ts
+  excluded: string[];
+  onExcluded: (next: string[]) => void;
+```
+
+Inside the „Více filtrů" expanded panel (the secondary rows behind the toggle), add a fieldset.
+The add-picker offers countries currently on the board (`countryFacets(offers)`) that aren't
+already excluded; each excluded country is a removable chip:
+
+```tsx
+<fieldset className="filter-group">
+  <legend>NECHCI VIDĚT</legend>
+  {excluded.map((c) => (
+    <button
+      key={c}
+      type="button"
+      className="chip chip--active"
+      aria-pressed="true"
+      onClick={() => onExcluded(excluded.filter((x) => x !== c))}
+      title="Zrušit vyloučení"
+    >
+      {c} ✕
+    </button>
+  ))}
+  <select
+    aria-label="Přidat vyloučenou zemi"
+    value=""
+    onChange={(e) => {
+      const v = e.target.value;
+      if (v) onExcluded([...excluded, v]);
+    }}
+  >
+    <option value="">+ přidat zemi…</option>
+    {countryFacets(offers)
+      .filter((f) => !excluded.includes(f.value))
+      .map((f) => (
+        <option key={f.value} value={f.value}>{f.value} ({f.count})</option>
+      ))}
+  </select>
+</fieldset>
+```
+
+(`countryFacets` is already imported in FilterBar. Match the existing chip/fieldset class names
+in this file — copy them from the neighbouring board/source sections rather than inventing new
+ones. Exclusion is NOT part of `FilterState`, so it never touches `serializeFilterState`/the URL.)
+
+- [ ] **Step 7: Failing→passing component test** (`web/src/components/FilterBar.test.ts`): render FilterBar with `excluded=['Egypt']` + offers containing Řecko/Egypt, assert an „Egypt ✕" removable chip is present and that the add-`<select>` lists Řecko but not Egypt; simulate removing Egypt calls `onExcluded([])`. (Follow the render/query pattern in the existing `Board.test.ts`.)
+
+Run: `cd web && npx vitest run src/components/FilterBar.test.ts`
+Expected: PASS.
+
+- [ ] **Step 8: Web suite + build + root suite:**
+
+Run: `cd web && npx vitest run && npm run build && cd .. && npm test && npm run typecheck`
+Expected: all green.
+
+- [ ] **Step 9: Commit:**
+
+```bash
+git add web/src/lib/api.ts web/src/lib/types.ts web/src/App.tsx web/src/components/FilterBar.tsx web/src/lib/api.test.ts web/src/components/FilterBar.test.ts
+git commit -m "feat: 'Nechci vidět' exclusion management in filter bar"
+```
+
+### Finále fáze
+
+Po Task 45: whole-branch review (`feature/negative-filter`), fix vlna, merge do main. Živé
+ověření: vyloučit Egypt ve webu → zmizí z tabule + přepočet facetů; další scan → Egypt hot_deal
+nedorazí na Telegram; odškrtnout → Egypt se vrátí (historie zachována).
