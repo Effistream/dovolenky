@@ -555,26 +555,35 @@ sémantika beze změny (per-source, jen se vyhodnotí v process fázi).
 
 ### 18.3 Cron route `/api/cron/scan`
 
-Nová Hono route (v `createApi` nebo samostatný modul): `GET /api/cron/scan?secret=<CRON_SECRET>`.
-- Ověří `secret` proti `env.CRON_SECRET` **konstantním časem** (`crypto.timingSafeEqual`, ošetřit
-  délkový mismatch); chybný/chybějící → `401`. Secret se **nikdy neloguje**.
-- Spustí `runScan({ db, cfg, telegram, adapters, http, now })` s reálnými adaptéry + Telegramem
-  (ne dry-run), `concurrency: 'concurrent'`. Vrátí souhrn JSON (perSource, notificationsSent,
-  digestSent) — cron-job.org uvidí 200 + tělo pro monitoring.
-- `export const maxDuration = 300` (Vercel) na funkci s touto route.
+Samostatný serverless entrypoint `api/cron/scan.ts` (Hono + `handle`), route `GET /api/cron/scan`.
+- Autorizace **hlavičkou** `Authorization: Bearer <CRON_SECRET>` (NE query `?secret=` — to se
+  loguje v přístupových logách). Ověřit proti `env.CRON_SECRET` **konstantním časem** přes čistý
+  helper `checkCronSecret(header, secret): boolean` (v `src/web/`, `crypto.timingSafeEqual`,
+  délkový mismatch → false, chybějící secret/header → false) — tak je bezpečnostní kontrola
+  unit-testovatelná bez deployi. Chybný/chybějící → `401`. Secret se **nikdy neloguje**.
+- Spustí `runScan({ db, cfg, telegram, adapters, http, log })` s reálnými adaptéry + Telegramem
+  (ne dry-run), `concurrency: 'concurrent'`. HttpClient/Telegram se staví identicky jako v
+  `scan.ts`. Vrátí souhrn JSON — cron-job.org uvidí 200 + tělo pro monitoring.
+- `maxDuration: 300` na funkci (přes `vercel.json functions`); v roce 2026 je to i default Hobby.
 - Idempotence/překryv: běhy 2 h od sebe, scan ~90 s → bez rizika překryvu; žádný zámek nutný.
 
-### 18.4 Vercel build + vercel.json
+### 18.4 Vercel build + vercel.json (ověřeno 2026-07-09)
 
-Hono app běží na Vercelu přes adapter `hono/vercel` (`handle(app)`) v serverless entrypointu
-(`api/index.ts` nebo `api/[[...route]].ts`). `vercel.json`:
-- `buildCommand` builduje web (`npm run web:build` → `web/dist`) a případně nic pro API (tsx/esbuild
-  přes Vercel Node runtime).
-- rewrites: `/api/*` → serverless funkce (Hono); vše ostatní → statické `web/dist` (SPA fallback na
-  `index.html`).
-- `functions`: entrypoint s `maxDuration: 300`, Node runtime.
-- Přesné tvary ověřit proti aktuální Vercel + Hono dokumentaci při implementaci (context7 /
-  vercel skill) — API se mění.
+Hono app běží na Vercelu přes `hono/vercel` (`handle(app)`, potvrzeno hono@4.12.28). Struktura:
+`api/` v **rootu** (ne pod `src/`): `api/index.ts` (dashboard — offers/sources/stats/exclusions,
+`maxDuration 30`), `api/cron/scan.ts` (scan, `maxDuration 300`, matchne se filesystem-exact →
+rewrite ho nezastíní), `api/_lib/bootstrap.ts` (podtržítko = Vercel nevytvoří route; lazy
+singleton `openDb`+`ensureSchema` per cold start). `vercel.json`: `framework: null`,
+`buildCommand: "npm run web:build"`, `installCommand: "npm install && npm install --prefix web"`
+(⚠️ `web/` NENÍ npm workspace → root install ho nenainstaluje), `outputDirectory: "web/dist"`,
+`functions` s `maxDuration` + `includeFiles: "config/**"` (watch.yaml se čte `readFileSync` →
+bundler ho jinak vynechá), `rewrites`: `/api/:path* → /api/index` PŘED SPA catch-all
+`/(.*) → /index.html` (pořadí rozhoduje). `config/watch.yaml` načíst explicitní cestou
+`path.join(process.cwd(),'config','watch.yaml')` (import.meta.url math je po bundlingu křehká).
+⚠️ **libsql native bindings na Vercel Node**: obvykle fungují (npm doinstaluje linux-x64-gnu na
+build stroji), ale ne 100% jisté — **ověřit preview deployem na `/api/offers`**; fallback
+`@libsql/client/web` (Turso HTTP klient bez nativních závislostí) JEN ve Vercel entrypointu
+(nemá `file:` podporu → nerozbít local/CLI, který sdílí `openDb`).
 
 ### 18.5 Env proměnné (Vercel dashboard/CLI)
 
