@@ -8,9 +8,9 @@ import type { NormalizedOffer } from '../types.js';
 
 export type Db = LibSQLDatabase<typeof schema>;
 
-export function openDb(url: string): Db {
+export function openDb(url: string, authToken?: string): Db {
   const resolvedUrl = url === ':memory:' ? 'file::memory:' : url;
-  const client = createClient({ url: resolvedUrl });
+  const client = createClient({ url: resolvedUrl, authToken });
   return drizzle(client, { schema });
 }
 

@@ -1318,3 +1318,210 @@ git commit -m "feat: 'Nechci vidět' exclusion management in filter bar"
 Po Task 45: whole-branch review (`feature/negative-filter`), fix vlna, merge do main. Živé
 ověření: vyloučit Egypt ve webu → zmizí z tabule + přepočet facetů; další scan → Egypt hot_deal
 nedorazí na Telegram; odškrtnout → Egypt se vrátí (historie zachována).
+
+---
+
+## Fáze Vercel deploy (Tasky 46–48, spec §18)
+
+Branch `feature/vercel-deploy` (spec §18 commitnut). Cíl: scan běží v cloudu (Vercel serverless
++ cron-job.org každé 2 h), frontend veřejně, Turso DB. Recept ověřen 2026-07-09 proti Vercel/Hono
+docs + nainstalovaným balíčkům. Kód (46–48) udělám já + testy; samotný deploy (účty, `vercel`,
+`turso`, cron-job.org) dělá uživatel dle runbooku (§18.7).
+
+### Task 46: Turso auth token v openDb + config
+
+**Files:** Modify `src/core/db/index.ts` (openDb signatura), `src/core/config.ts` (databaseAuthToken), `src/cli/scan.ts` + `src/web/server.ts` (předat token). Test: `tests/config.test.ts`, `tests/db.test.ts` (nový, malý).
+
+**Interfaces:** Produces: `openDb(url: string, authToken?: string): Db`; `AppConfig.databaseAuthToken: string | null`.
+
+- [ ] **Step 1: Failing test** — v `tests/config.test.ts` přidat: `loadConfig({env:{DATABASE_AUTH_TOKEN:'tok'}}).databaseAuthToken === 'tok'` a bez něj `=== null`. Nový `tests/db.test.ts`: `openDb(':memory:')` i `openDb(':memory:', undefined)` vrátí funkční Db (ensureSchema + jednoduchý select proběhne) — token undefined je no-op pro local.
+
+- [ ] **Step 2: Run — FAIL** (`databaseAuthToken` neexistuje). `npx vitest run tests/config.test.ts tests/db.test.ts`.
+
+- [ ] **Step 3: openDb** — `src/core/db/index.ts`:
+```ts
+export function openDb(url: string, authToken?: string): Db {
+  const resolvedUrl = url === ':memory:' ? 'file::memory:' : url;
+  const client = createClient({ url: resolvedUrl, authToken });
+  return drizzle(client, { schema });
+}
+```
+(`authToken: undefined` je bezpečný no-op pro `file:`/`:memory:` — ověřeno proti @libsql/core config typu.)
+
+- [ ] **Step 4: config.ts** — do `AppConfig` přidat `databaseAuthToken: string | null;`, do návratu `loadConfig`: `databaseAuthToken: env.DATABASE_AUTH_TOKEN ?? null,`.
+
+- [ ] **Step 5: callers** — `src/cli/scan.ts` a `src/web/server.ts`: `openDb(cfg.databaseUrl)` → `openDb(cfg.databaseUrl, cfg.databaseAuthToken ?? undefined)`.
+
+- [ ] **Step 6: Run — PASS**, pak `npm test && npm run typecheck` zelené.
+
+- [ ] **Step 7: Commit** `feat: Turso auth token support in openDb + config`.
+
+### Task 47: Paralelizace runScan (fit do 300 s)
+
+**Files:** Modify `src/core/run.ts` (`RunScanDeps` + smyčka), Test: `tests/run.test.ts`.
+
+**Interfaces:** Consumes: existing runScan internals. Produces: `RunScanDeps.concurrency?: 'sequential' | 'concurrent'` (default `'concurrent'`). Chování jinak identické.
+
+- [ ] **Step 1: Failing test** — `tests/run.test.ts`: dva adaptery (`namedAdapter('a',[makeOffer({sourceOfferKey:'a1'})])`, `namedAdapter('b',[makeOffer({sourceOfferKey:'b1'})])`); spustit runScan s `concurrency:'concurrent'` a ověřit, že `summary.perSource` obsahuje OBA zdroje se `status:'ok'` a že se zapsaly oba `source_runs` řádky + oba snapshoty — tj. souběžný fetch neztratí ani nepromíchá výsledky. Druhý test: `concurrency:'sequential'` dá identický `perSource` (co do zdrojů/statusů) jako `'concurrent'` na téže sadě (determinismus výsledku).
+
+- [ ] **Step 2: Run — FAIL** (`concurrency` v RunScanDeps neexistuje / default chování je sekvenční jen).
+
+- [ ] **Step 3: Refactor smyčky** — v `run.ts` rozdělit `for (const adapter of adapters)` na dvě fáze. Zachovat VŠE (backoff skip, priorTitles, fetchOffers, processOffers, 0-offers→partial, markMissedOffers ne-dry-run, SourceBlockedError→BLOCKED prefix, sourceRuns insert, perSource push). Fáze 1 — pro každý adapter spočítat „fetch outcome" (backoff-skip | fetched offers | error), fáze 2 — sekvenčně zpracovat outcomes v pořadí `adapters`:
+```ts
+  const concurrency = deps.concurrency ?? 'concurrent';
+
+  type FetchOutcome =
+    | { adapter: SourceAdapter; kind: 'backoff'; backoffUntil: string }
+    | { adapter: SourceAdapter; kind: 'fetched'; fetched: NormalizedOffer[] }
+    | { adapter: SourceAdapter; kind: 'error'; err: unknown };
+
+  async function fetchOne(adapter: SourceAdapter): Promise<FetchOutcome> {
+    const backoffUntil = await blockedBackoffUntil(db, adapter.name, now);
+    if (backoffUntil) return { adapter, kind: 'backoff', backoffUntil };
+    try {
+      const priorTitles = await loadPriorTitles(db, adapter.name);
+      const fetched = await adapter.fetchOffers({ http: deps.http, adults: cfg.scan.adults, log, priorTitles });
+      return { adapter, kind: 'fetched', fetched };
+    } catch (err) {
+      return { adapter, kind: 'error', err };
+    }
+  }
+
+  const outcomes: FetchOutcome[] =
+    concurrency === 'concurrent'
+      ? await Promise.all(adapters.map(fetchOne))            // per-host politeness stays: shared HttpClient serializes per host
+      : await (async () => { const o: FetchOutcome[] = []; for (const a of adapters) o.push(await fetchOne(a)); return o; })();
+```
+Pak fáze 2 — sekvenčně přes `outcomes` (pořadí = `adapters`), a pro každý outcome udělat přesně to, co dělala původní tělo smyčky (backoff větev → benign partial row; fetched → processOffers/0-offers/markMissedOffers; error → failed + BLOCKED prefix), včetně `sourceRuns` insertu a `perSource.push`. `allCandidates`, dedup, cap, digest ZŮSTÁVAJÍ za smyčkou beze změny. (Pozn.: `startedAt` per source = `now.toISOString()` jako dřív; fetch je souběžný, ale časy se neřeší per-request.)
+
+- [ ] **Step 4: Run — PASS**, plný `npm test` (existující run scénáře MUSÍ projít beze změny chování) + `npm run typecheck`.
+
+- [ ] **Step 5: Commit** `feat: concurrent fetch phase in runScan (fits Vercel 300s), sequential processing preserved`.
+
+### Task 48: Vercel entrypointy + cron secret + vercel.json + runbook
+
+**Files:** Create `api/_lib/bootstrap.ts`, `api/index.ts`, `api/cron/scan.ts`, `src/web/cron-auth.ts` (+ test `tests/cron-auth.test.ts`), `vercel.json`, `.env.example`. Modify `tsconfig.json` (include `api`), `README.md` (runbook §deploy). Verifikace: unit test helperu + `npm run typecheck` (s api) + `npm run web:build`. Live smoke (libsql na Vercelu, nested /api routing) je v runbooku jako krok uživatele.
+
+**Interfaces:** Produces: `checkCronSecret(authHeader: string | undefined, secret: string | undefined): boolean` (konstantní čas).
+
+- [ ] **Step 1: Failing test** — `tests/cron-auth.test.ts`:
+```ts
+import { describe, it, expect } from 'vitest';
+import { checkCronSecret } from '../src/web/cron-auth.js';
+describe('checkCronSecret', () => {
+  it('accepts exact Bearer match', () => expect(checkCronSecret('Bearer s3cret', 's3cret')).toBe(true));
+  it('rejects wrong secret', () => expect(checkCronSecret('Bearer nope', 's3cret')).toBe(false));
+  it('rejects missing header', () => expect(checkCronSecret(undefined, 's3cret')).toBe(false));
+  it('rejects when server secret unset', () => expect(checkCronSecret('Bearer s3cret', undefined)).toBe(false));
+  it('rejects non-bearer', () => expect(checkCronSecret('s3cret', 's3cret')).toBe(false));
+  it('rejects length mismatch without throwing', () => expect(checkCronSecret('Bearer short', 'muchlongersecret')).toBe(false));
+});
+```
+
+- [ ] **Step 2: Run — FAIL** (modul neexistuje).
+
+- [ ] **Step 3: `src/web/cron-auth.ts`:**
+```ts
+import { timingSafeEqual } from 'node:crypto';
+
+/** Constant-time check of an `Authorization: Bearer <secret>` header against CRON_SECRET. */
+export function checkCronSecret(authHeader: string | undefined, secret: string | undefined): boolean {
+  if (!secret || !authHeader) return false;
+  const prefix = 'Bearer ';
+  if (!authHeader.startsWith(prefix)) return false;
+  const provided = Buffer.from(authHeader.slice(prefix.length));
+  const expected = Buffer.from(secret);
+  if (provided.length !== expected.length) return false; // timingSafeEqual throws on length mismatch
+  return timingSafeEqual(provided, expected);
+}
+```
+
+- [ ] **Step 4: Run — PASS.**
+
+- [ ] **Step 5: `api/_lib/bootstrap.ts`** (lazy singleton, podtržítko → není route):
+```ts
+import path from 'node:path';
+import { loadConfig, type AppConfig } from '../../src/core/config.js';
+import { openDb, ensureSchema, type Db } from '../../src/core/db/index.js';
+
+let cached: Promise<{ db: Db; cfg: AppConfig }> | null = null;
+export function bootstrap(): Promise<{ db: Db; cfg: AppConfig }> {
+  if (!cached) {
+    cached = (async () => {
+      const cfg = loadConfig({ configPath: path.join(process.cwd(), 'config', 'watch.yaml') });
+      const db = openDb(cfg.databaseUrl, cfg.databaseAuthToken ?? undefined);
+      await ensureSchema(db);
+      return { db, cfg };
+    })();
+  }
+  return cached;
+}
+```
+
+- [ ] **Step 6: `api/index.ts`** (dashboard):
+```ts
+import { handle } from 'hono/vercel';
+import { createApi } from '../src/web/api.js';
+import { bootstrap } from './_lib/bootstrap.js';
+const { db, cfg } = await bootstrap();
+export default handle(createApi({ db, profiles: cfg.profiles }));
+```
+
+- [ ] **Step 7: `api/cron/scan.ts`** (scan route, Bearer auth, mirrors scan.ts wiring):
+```ts
+import { Hono } from 'hono';
+import { handle } from 'hono/vercel';
+import { HttpClient } from '../../src/core/http.js';
+import { Telegram } from '../../src/core/telegram.js';
+import { adapters } from '../../src/sources/index.js';
+import { runScan } from '../../src/core/run.js';
+import { checkCronSecret } from '../../src/web/cron-auth.js';
+import { bootstrap } from '../_lib/bootstrap.js';
+
+const { db, cfg } = await bootstrap();
+const app = new Hono();
+app.get('/api/cron/scan', async (c) => {
+  if (!checkCronSecret(c.req.header('authorization'), process.env.CRON_SECRET)) {
+    return c.json({ error: 'unauthorized' }, 401);
+  }
+  const http = new HttpClient({ minGapMs: cfg.scan.minRequestGapMs, hostGapOverrides: { 'last-minute.zajezdy.cz': 5000 } });
+  const telegram = cfg.telegramToken && cfg.telegramChatId ? new Telegram(cfg.telegramToken, cfg.telegramChatId) : null;
+  const summary = await runScan({ db, cfg, http, telegram, adapters, concurrency: 'concurrent', log: (s) => console.log(s) });
+  return c.json(summary);
+});
+export default handle(app);
+```
+
+- [ ] **Step 8: `vercel.json`:**
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "npm run web:build",
+  "installCommand": "npm install && npm install --prefix web",
+  "outputDirectory": "web/dist",
+  "functions": {
+    "api/index.ts": { "maxDuration": 30, "includeFiles": "config/**" },
+    "api/cron/scan.ts": { "maxDuration": 300, "includeFiles": "config/**" }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+```
+(`api/cron/scan.ts` se matchne filesystem-exact PŘED rewrites → není zastíněn. Pořadí rewrites: /api před SPA catch-all.)
+
+- [ ] **Step 9: tsconfig + .env.example** — `tsconfig.json` `include` přidat `"api"`. `.env.example` (nový nebo doplnit): `DATABASE_URL=`, `DATABASE_AUTH_TOKEN=`, `TELEGRAM_BOT_TOKEN=`, `TELEGRAM_CHAT_ID=`, `CRON_SECRET=`.
+
+- [ ] **Step 10: README runbook** — sekce „Nasazení (Vercel + cron-job.org + Turso)" dle spec §18.7: turso create+token, vercel login+link+env(5×)+deploy, **preview smoke test `/api/offers` a `/api/sources`** (ověřit libsql + nested routing; fallback `@libsql/client/web` pokud offers hodí 500), ruční `curl -H "Authorization: Bearer <CRON_SECRET>" .../api/cron/scan`, cron-job.org job (custom header `Authorization: Bearer <CRON_SECRET>`, plán `0 6-23/2 * * *` Praha), volitelně vypnout launchd.
+
+- [ ] **Step 11: Gates** — `npm run typecheck` (teď pokrývá `api/`) + `npm test` + `cd web && npm run build`. Vše zelené. (Live deploy NEdělám — je v runbooku pro uživatele.)
+
+- [ ] **Step 12: Commit** `feat: Vercel deploy — api entrypoints, cron route, vercel.json, runbook`.
+
+### Finále fáze
+
+Po Task 48: whole-branch review (feature/vercel-deploy), fix vlna, merge do main. Deploy pak
+provede uživatel dle README runbooku; jsem k dispozici doladit vercel.json/libsql podle výsledku
+preview deploye (to je jediná část, co nejde ověřit bez reálného Vercel účtu).

@@ -34,6 +34,7 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     telegramToken: 'tok',
     telegramChatId: 'chat',
     databaseUrl: ':memory:',
+    databaseAuthToken: null,
     ...overrides,
   };
 }

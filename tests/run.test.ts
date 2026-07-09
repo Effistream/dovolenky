@@ -5,7 +5,7 @@ import { offers, priceSnapshots, notificationsLog, sourceRuns } from '../src/cor
 import type { AppConfig, Profile } from '../src/core/config.js';
 import type { NormalizedOffer, SourceAdapter, SourceContext } from '../src/core/types.js';
 import { HttpClient, SourceBlockedError } from '../src/core/http.js';
-import { runScan } from '../src/core/run.js';
+import { runScan, type ScanSummary } from '../src/core/run.js';
 import { ingestOffer } from '../src/core/ingest.js';
 import { computeHotelKey } from '../src/core/normalize.js';
 import { setExcludedCountries } from '../src/core/db/exclusions.js';
@@ -62,6 +62,7 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     telegramToken: 'tok',
     telegramChatId: 'chat',
     databaseUrl: ':memory:',
+    databaseAuthToken: null,
     ...overrides,
   };
 }
@@ -1424,5 +1425,112 @@ describe('runScan', () => {
       .where(and(eq(notificationsLog.offerId, subjectRow!.id), eq(notificationsLog.type, 'hot_deal')));
     expect(logs).toHaveLength(1);
     expect(logs[0]?.priceAtSend).toBe(12000);
+  });
+
+  it('scenario 17: concurrent fetch overlaps sources (two-party barrier) — both ok, both source_runs, both snapshots, nothing lost/mixed', async () => {
+    const now = new Date('2026-07-04T10:00:00.000Z');
+
+    // A two-party barrier: each adapter's fetchOffers blocks until BOTH have entered it, so it can
+    // only resolve if the two fetchOffers calls overlap in time — proof the fetch phase is truly
+    // concurrent. Under a sequential fetch the first adapter would await the barrier forever (the
+    // second never starts until the first returns) and runScan would never resolve → this test
+    // would time out. That deadlock-under-sequential is exactly the red before the refactor.
+    let started = 0;
+    let release!: () => void;
+    const barrier = new Promise<void>((res) => {
+      release = res;
+    });
+    const barrierAdapter = (name: string, key: string): SourceAdapter => ({
+      name,
+      async fetchOffers(): Promise<NormalizedOffer[]> {
+        started += 1;
+        if (started === 2) release();
+        await barrier; // proceeds only once BOTH adapters have started fetching
+        return [makeOffer({ source: name, sourceOfferKey: key })];
+      },
+    });
+
+    const summary = await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: [barrierAdapter('a', 'a1'), barrierAdapter('b', 'b1')],
+      now,
+      concurrency: 'concurrent',
+    });
+
+    // Both sources completed independently — order preserved, nothing lost or cross-contaminated.
+    expect(summary.perSource).toHaveLength(2);
+    const a = summary.perSource.find((s) => s.source === 'a');
+    const b = summary.perSource.find((s) => s.source === 'b');
+    expect(a?.status).toBe('ok');
+    expect(a?.offersFound).toBe(1);
+    expect(b?.status).toBe('ok');
+    expect(b?.offersFound).toBe(1);
+
+    // Both source_runs rows persisted.
+    const runs = await db.select().from(sourceRuns);
+    expect(runs.find((r) => r.source === 'a')?.status).toBe('ok');
+    expect(runs.find((r) => r.source === 'b')?.status).toBe('ok');
+
+    // Each offer ingested under its own source with its own snapshot (no mixing).
+    const aOffers = await db.select().from(offers).where(eq(offers.source, 'a'));
+    const bOffers = await db.select().from(offers).where(eq(offers.source, 'b'));
+    expect(aOffers.length).toBe(1);
+    expect(aOffers[0]?.sourceOfferKey).toBe('a1');
+    expect(bOffers.length).toBe(1);
+    expect(bOffers[0]?.sourceOfferKey).toBe('b1');
+    const aSnaps = await db.select().from(priceSnapshots).where(eq(priceSnapshots.offerId, aOffers[0]!.id));
+    const bSnaps = await db.select().from(priceSnapshots).where(eq(priceSnapshots.offerId, bOffers[0]!.id));
+    expect(aSnaps.length).toBeGreaterThanOrEqual(1);
+    expect(bSnaps.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('scenario 18: sequential and concurrent modes produce identical perSource (sources, statuses, counts)', async () => {
+    const now = new Date('2026-07-04T10:00:00.000Z');
+
+    // A mix that exercises all three outcome kinds in a fixed adapter order:
+    //   'a'      → one offer  → ok
+    //   'b'      → zero offers → partial (skips markMissedOffers)
+    //   'broken' → throws      → failed
+    const buildAdapters = (): SourceAdapter[] => [
+      namedAdapter('a', [makeOffer({ source: 'a', sourceOfferKey: 'a1' })]),
+      namedAdapter('b', []),
+      throwingAdapter(),
+    ];
+
+    const summarySeq = await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: buildAdapters(),
+      now,
+      concurrency: 'sequential',
+    });
+
+    const db2 = openDb(':memory:');
+    await ensureSchema(db2);
+    const summaryCon = await runScan({
+      db: db2,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: null,
+      adapters: buildAdapters(),
+      now,
+      concurrency: 'concurrent',
+    });
+
+    const shape = (s: ScanSummary): Array<{ source: string; status: string; offersFound: number }> =>
+      s.perSource.map((p) => ({ source: p.source, status: p.status, offersFound: p.offersFound }));
+
+    // Same sources, in the same (adapters) order, with the same statuses/counts under both modes.
+    expect(shape(summarySeq)).toEqual([
+      { source: 'a', status: 'ok', offersFound: 1 },
+      { source: 'b', status: 'partial', offersFound: 0 },
+      { source: 'broken', status: 'failed', offersFound: 0 },
+    ]);
+    expect(shape(summaryCon)).toEqual(shape(summarySeq));
   });
 });

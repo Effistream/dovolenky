@@ -130,9 +130,10 @@ helper `src/sources/der.ts` místo psaní parseru od nuly.
   managed challenge; odloženo. Ve v1 se jeho nabídky berou přes Skrz.cz.
 - **Cross-source dedup** — stejný hotel/termín u více zdrojů se ve v1 eviduje jako
   samostatné nabídky, bez sloučení.
-- **Vercel deploy** — cron route (`api/cron/scan`) + Turso DB je mimo scope v1;
-  core je bez závislosti na fs/procesech mimo config load, takže přechod je jen
-  o přepnutí `DATABASE_URL` a přidání route.
+- **Vercel deploy** — hotový ve fázi 2 (serverless `api/` + Turso + cron-job.org),
+  postup viz sekce „Nasazení" níže. Live smoke test na reálném Vercel účtu
+  (libSQL v serverless runtime, nested `/api` routing) je poslední krok, který
+  provádí uživatel dle runbooku.
 - **Telegram příkazy** (`/top`, `/pause`), web UI, více uživatelů — mimo scope v1.
 
 ## Dashboard „Terminál"
@@ -169,3 +170,183 @@ nesbírají (jiný runner).
 
 Design tokeny a pravidla copy jsou v `design-system/MASTER.md`, referenční
 mockup v `docs/design/terminal-mockup.html`.
+
+## Nasazení (Vercel + cron-job.org + Turso)
+
+Fáze 2: dashboard „Terminál" jako statické SPA na Vercelu, API + scan jako
+serverless funkce (`api/`), data v [Turso](https://turso.tech) (libSQL v cloudu),
+scan spouští externí cron ([cron-job.org](https://cron-job.org)) přes chráněnou
+route. Lokální provoz (SQLite soubor + launchd) tím není dotčen — je to jen jiný
+`DATABASE_URL`.
+
+**Co se nasazuje:**
+
+- `api/index.ts` — dashboard API (Hono přes `hono/vercel`), `maxDuration` 30 s.
+  Rewrites v `vercel.json` směrují `/api/*` sem, takže všechny nested routy
+  (`/api/offers`, `/api/offers/:id/history`, `/api/sources`, `/api/stats`,
+  `/api/exclusions`) obsluhuje jedna funkce.
+- `api/cron/scan.ts` — scan route, `maxDuration` 300 s, chráněná Bearer tokenem
+  (`CRON_SECRET`). Filesystem-exact match `/api/cron/scan` se uplatní **před**
+  rewrites, takže ji `/api/*` rewrite nezastíní.
+- `web/dist` — sestavený frontend (build `npm run web:build`).
+
+### 1. Turso databáze
+
+```sh
+turso auth login
+turso db create dovolenky
+turso db show dovolenky --url          # → libsql://dovolenky-<org>.turso.io
+turso db tokens create dovolenky       # → auth token (dlouhý JWT)
+```
+
+Prázdné schéma se vytvoří samo při prvním requestu (`bootstrap()` volá
+`ensureSchema`). Historii cen si DB naplní až běhy scanu.
+
+### 2. CRON_SECRET
+
+Náhodný tajný klíč, kterým se autorizuje scan route:
+
+```sh
+openssl rand -hex 32
+```
+
+### 3. Vercel projekt + env
+
+```sh
+npm i -g vercel
+vercel login
+vercel link                            # v rootu repa; framework „Other", build/output bere z vercel.json
+```
+
+Nastav 5 proměnných prostředí (Production, případně i Preview pro smoke test):
+
+```sh
+vercel env add DATABASE_URL            # libsql://…turso.io z kroku 1
+vercel env add DATABASE_AUTH_TOKEN     # token z kroku 1
+vercel env add TELEGRAM_BOT_TOKEN      # stejný jako lokálně
+vercel env add TELEGRAM_CHAT_ID        # stejný jako lokálně
+vercel env add CRON_SECRET             # hex z kroku 2
+```
+
+(Seznam viz `.env.example`. Nikdy je necommituj — `.env` je v `.gitignore`.)
+
+**Checkpoint: Fluid Compute.** Ověř, že je zapnutý Fluid Compute (Vercel →
+Project → Settings → Functions, sekce **Fluid Compute**) — na Hobby (free)
+plánu teprve ten zvedá `maxDuration` na 300 s (výchozí i maximum). Pro nové
+projekty je zapnutý automaticky (default od 23. dubna 2025), ale starší nebo
+ručně přenastavený projekt může být na starém 60s stropu — tam by ~90s scan
+skončil timeoutem dřív, než doběhne. Pokud toggle chybí nebo je vypnutý,
+zapni ho, ulož a nasaď znovu.
+
+**Checkpoint: Node verze.** Ověř, že Vercel funkce běží na Node **24.x**
+(Settings → Build and Deployment → **Node.js Version**) — repo má
+`engines.node: ">=24"` v `package.json`, což odpovídá aktuálnímu Vercel
+defaultu (24.x je aktuální výchozí LTS). Pokud dashboard ukazuje starší
+verzi, připni ji explicitně: `"node": "24.x"` v `engines` v `package.json`
+(přebije volbu v Project Settings).
+
+### 4. Preview deploy + smoke test
+
+Nejdřív **preview** (ne produkci), ať ověříš, že libSQL i nested routing na
+Vercelu fungují:
+
+```sh
+vercel                                 # vytvoří preview URL, vypíše ji na konci
+curl -s https://<preview>.vercel.app/api/sources | head -c 300
+curl -s https://<preview>.vercel.app/api/offers  | head -c 300
+```
+
+Obojí má vrátit JSON (klidně prázdné `{"sources":[]}` / `{"offers":[]}` u čerstvé
+DB), ne 500. Tím je potvrzené, že se `@libsql/client` v serverless runtime načte
+a že rewrite `/api/*` → `/api/index` doručuje na správné nested routy.
+
+**Fallback, když `/api/offers` hodí 500** (nativní `@libsql/client` se v runtime
+nenačte): přepni v `src/core/db/index.ts` import z `@libsql/client` na
+`@libsql/client/web` a nasaď znovu. Turso se čte přes HTTPS, takže HTTP-only web
+klient stačí; jediný konzument lokální `file:` DB je CLI dev, který pak drž na
+node klientovi (např. samostatným `openDb` pro web build).
+
+### 5. Ruční test scan route
+
+```sh
+curl -s -H "Authorization: Bearer <CRON_SECRET>" \
+  https://<preview>.vercel.app/api/cron/scan
+```
+
+Bez hlavičky (nebo se špatným tokenem) musí vrátit `401 {"error":"unauthorized"}`.
+Se správným tokenem proběhne plný scan (concurrent fetch, ~do 300 s) a vrátí
+`ScanSummary` JSON.
+
+### 6. Produkce + cron
+
+```sh
+vercel --prod
+```
+
+Na [cron-job.org](https://console.cron-job.org) založ job:
+
+- **URL:** `https://<projekt>.vercel.app/api/cron/scan`
+- **Custom header:** `Authorization: Bearer <CRON_SECRET>` (NE query parametr —
+  ten by unikl do logů)
+- **Rozvrh:** `0 6-23/2 * * *`, timezone **Europe/Prague** (každé 2 h mezi 6–24 h;
+  respektuje robots.txt okno Zajezdy.cz 08–24 h)
+- **Timeout:** ať pokrývá 300 s běh funkce
+
+### 7. Vypnout lokální launchd (volitelné)
+
+Když scan běží na Vercelu, lokální launchd job už není potřeba:
+
+```sh
+launchctl unload ~/Library/LaunchAgents/<label>.plist
+```
+
+Lokální dashboard (`npm run web`) a CLI (`npm run scan`) fungují dál beze změny —
+míří na lokální SQLite podle `DATABASE_URL` v `.env`.
+
+### 8. Zabezpečení veřejného dashboardu
+
+Po `vercel --prod` je SPA i celé `/api/*` veřejně dostupné komukoliv na
+internetu — Vercel projekt sám přístup nijak neomezuje. GET endpointy
+(`/api/offers`, `/api/offers/:id/history`, `/api/sources`, `/api/stats`,
+`/api/exclusions` GET) vrací jen veřejná data o zájezdech, žádné přihlašovací
+údaje ani interní detaily — samy o sobě problém nejsou. Jediné mutující
+místo je **`PUT /api/exclusions`**: kdokoliv zná URL, může bez ověření
+přepsat seznam vyloučených zemí, který krmí scan/notify pipeline (mute
+Telegramu i board). `/api/cron/scan` je pro srovnání už chráněná vlastním
+`CRON_SECRET` Bearer tokenem nezávisle na tomhle (krok 5–6) — týká se to
+čistě dashboardu.
+
+**Doporučená mitigace: Vercel Authentication + Protection Bypass for Automation**
+
+1. Project → Settings → **Deployment Protection** → sekce **Vercel
+   Authentication** → zapni toggle, zvol prostředí (Production i Preview),
+   **Save**. Nepřihlášený návštěvník dostane Vercel login redirect místo
+   obsahu.
+2. Na stejné stránce, sekce **Protection Bypass for Automation** → vygeneruj
+   secret (Vercel ho zároveň sám nastaví jako env proměnnou
+   `VERCEL_AUTOMATION_BYPASS_SECRET`).
+3. Na cron-job.org nastav k existující hlavičce **obě**: `Authorization:
+   Bearer <CRON_SECRET>` (aplikační auth pro `/api/cron/scan`, krok 6) a
+   `x-vercel-protection-bypass: <secret z kroku 2>` (Vercel edge auth — bez
+   ní by Vercel request zastavil dřív, než se dostane do route handleru).
+
+**Ověřené omezení (vercel.com/docs, červenec 2026): na Hobby plánu tohle
+nezakryje produkční doménu.** Jediný „protection scope" dostupný na Hobby je
+*Standard Protection* — ten chrání preview deploye a jednotlivé (hash)
+deployment URL, ale **explicitně ne produkční doménu**
+(`<projekt>.vercel.app` nebo vlastní doména), která zůstává veřejná i se
+zapnutou Vercel Authentication. Scope *All Deployments*, který zakryje i
+produkci, je jen na Pro/Enterprise (Pro $20/měsíc). Jinými slovy: na Hobby
+tenhle krok ochrání preview URL (užitečné, krok 4 preview vytváří), ale
+`PUT /api/exclusions` na ostré doméně zůstane veřejně volatelný i po něm.
+
+**Alternativa (a na Hobby reálně jediná plná ochrana pro tenhle konkrétní
+endpoint): přijmi nízké riziko.** URL je obskurní, mutace jen přepíná filtr
+zemí — žádná citlivá data neuniknou ani se neztratí, nejhorší dopad je „někdo
+mi dočasně přepne pár zemí ve filtru" — a nech dashboard veřejný.
+
+**Doporučení pro tenhle osobní deploy:** zapni Vercel Authentication (kroky
+1–3) jako defense-in-depth zdarma navíc — nic to nestojí a ochrání aspoň
+preview URL ze smoke testu (krok 4). Pro `PUT /api/exclusions` na produkci
+ale realisticky přijmi variantu „nízké riziko", pokud nechceš platit Pro
+plán jen kvůli jednomu low-stakes endpointu.

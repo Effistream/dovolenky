@@ -99,6 +99,7 @@ export interface AppConfig {
   telegramToken: string | null;
   telegramChatId: string | null;
   databaseUrl: string;
+  databaseAuthToken: string | null;
 }
 
 const DEFAULT_CONFIG_PATH = fileURLToPath(new URL('../../config/watch.yaml', import.meta.url));
@@ -131,5 +132,6 @@ export function loadConfig(opts?: {
     telegramToken: env.TELEGRAM_BOT_TOKEN ?? null,
     telegramChatId: env.TELEGRAM_CHAT_ID ?? null,
     databaseUrl: env.DATABASE_URL ?? DEFAULT_DATABASE_URL,
+    databaseAuthToken: env.DATABASE_AUTH_TOKEN ?? null,
   };
 }

@@ -26,6 +26,16 @@ export interface RunScanDeps {
   now?: Date;
   log?: (s: string) => void;
   dryRun?: boolean;
+  /**
+   * Fetch-phase dispatch (Task 47). 'concurrent' (default) runs every adapter's fetchOffers in
+   * parallel so the whole scan fits a serverless time budget (~90s, bounded by the slowest single
+   * adapter) instead of ~12min of summed per-host politeness gaps; 'sequential' runs them one at a
+   * time. Only the FETCH phase differs — the processing phase (ingest/snapshot/sourceRuns writes,
+   * markMissedOffers, candidate collection) is always sequential in `adapters` order, so both modes
+   * produce identical per-source results. Per-host politeness is preserved in either mode by the
+   * shared HttpClient's per-host request serialization; no throttling is added here.
+   */
+  concurrency?: 'sequential' | 'concurrent';
 }
 
 export interface SourceSummary {
@@ -283,22 +293,58 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
   // offers are still ingested (price history preserved); only their notifications are muted.
   const excluded = new Set(await getExcludedCountries(db));
 
-  // --- Per-source scan (sequential; shared HttpClient handles politeness) ---
-  for (const adapter of adapters) {
-    const startedAt = now.toISOString();
-    let status: 'ok' | 'partial' | 'failed';
-    let offersFound = 0;
-    let snapshotsWritten = 0;
-    let errorCount = 0;
-    let errorSample: string | null = null;
-    let errorMessage: string | undefined;
+  // --- Per-source scan: two phases (Task 47) ---
+  // Phase 1 FETCH (concurrent by default): compute one FetchOutcome per adapter. The slow part of a
+  // scan is network wait inside adapter.fetchOffers (per-host politeness gaps), so overlapping the
+  // fetches cuts wall-time from ~12min (summed) to ~90s (slowest single adapter) and fits a
+  // serverless 300s window. This does NOT hammer any host: the shared HttpClient (deps.http)
+  // serializes requests PER HOST via its promise-queue, so different adapters (different hosts)
+  // overlap while two adapters sharing a host stay serialized by that queue. No throttling is added.
+  //
+  // Phase 2 PROCESS (always sequential, in `adapters` order): replay the exact original per-source
+  // body over the outcomes. Keeping this sequential preserves allCandidates completeness/order,
+  // cross-source dedup, the message cap, digest gating, and avoids concurrent DB write contention.
+  const concurrency = deps.concurrency ?? 'concurrent';
 
-    // 24h backoff after a block (spec §9): skip the source entirely (no adapter call) while a
-    // recent block is still cooling off; record a benign 'partial'/backoff run so history stays
-    // continuous and this doesn't count toward the 3×-failed health alert.
+  type FetchOutcome =
+    | { adapter: SourceAdapter; kind: 'backoff'; backoffUntil: string }
+    | { adapter: SourceAdapter; kind: 'fetched'; fetched: NormalizedOffer[] }
+    | { adapter: SourceAdapter; kind: 'error'; err: unknown };
+
+  // Everything up to and including the network fetch for one source. The 24h backoff check (spec §9)
+  // stays OUTSIDE the try — as in the original loop, a failure reading run history is not an
+  // adapter error and propagates. loadPriorTitles + fetchOffers stay INSIDE it, so a fetch failure
+  // is captured as kind:'error' and replayed through the original catch in phase 2.
+  async function fetchOne(adapter: SourceAdapter): Promise<FetchOutcome> {
     const backoffUntil = await blockedBackoffUntil(db, adapter.name, now);
-    if (backoffUntil) {
-      log(`source ${adapter.name}: backoff po blokaci, přeskakuji do ${backoffUntil}`);
+    if (backoffUntil) return { adapter, kind: 'backoff', backoffUntil };
+    try {
+      const priorTitles = await loadPriorTitles(db, adapter.name);
+      const fetched = await adapter.fetchOffers({ http: deps.http, adults: cfg.scan.adults, log, priorTitles });
+      return { adapter, kind: 'fetched', fetched };
+    } catch (err) {
+      return { adapter, kind: 'error', err };
+    }
+  }
+
+  let outcomes: FetchOutcome[];
+  if (concurrency === 'concurrent') {
+    // Promise.all preserves input order in its result array → outcomes order === adapters order.
+    outcomes = await Promise.all(adapters.map(fetchOne));
+  } else {
+    outcomes = [];
+    for (const adapter of adapters) outcomes.push(await fetchOne(adapter));
+  }
+
+  for (const outcome of outcomes) {
+    const adapter = outcome.adapter;
+    const startedAt = now.toISOString();
+
+    // 24h backoff after a block (spec §9): the source was skipped entirely (no adapter call);
+    // record a benign 'partial'/backoff run so history stays continuous and this doesn't count
+    // toward the 3×-failed health alert.
+    if (outcome.kind === 'backoff') {
+      log(`source ${adapter.name}: backoff po blokaci, přeskakuji do ${outcome.backoffUntil}`);
       await db.insert(sourceRuns).values({
         source: adapter.name,
         startedAt,
@@ -313,9 +359,20 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
       continue;
     }
 
+    let status: 'ok' | 'partial' | 'failed';
+    let offersFound = 0;
+    let snapshotsWritten = 0;
+    let errorCount = 0;
+    let errorSample: string | null = null;
+    let errorMessage: string | undefined;
+
     try {
-      const priorTitles = await loadPriorTitles(db, adapter.name);
-      const fetched = await adapter.fetchOffers({ http: deps.http, adults: cfg.scan.adults, log, priorTitles });
+      // A fetch-phase failure is re-thrown here so it funnels through the SAME catch the original
+      // single-phase loop used — identical 'failed' handling (incl. SourceBlockedError → BLOCKED
+      // prefix) for both fetch errors and any error raised while processing below.
+      if (outcome.kind === 'error') throw outcome.err;
+
+      const fetched = outcome.fetched;
       offersFound = fetched.length;
 
       const processed = await processOffers(db, cfg, fetched, now, log, excluded);
