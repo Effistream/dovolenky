@@ -56,3 +56,8 @@ export const sourceRuns = sqliteTable('source_runs', {
   status: text('status'),
   errorSample: text('error_sample'),
 });
+
+export const excludedCountries = sqliteTable('excluded_countries', {
+  country: text('country').primaryKey(),
+  createdAt: integer('created_at').notNull(),
+});

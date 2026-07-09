@@ -75,6 +75,19 @@ async function seedMarketBucket(db: Db, n: number, price: number): Promise<void>
   }
 }
 
+/**
+ * One active offer with a given country/price, via the real ingest pipeline
+ * (same shape as seedMarketBucket: ingestOffer writes the offers row +
+ * price_snapshots row so it surfaces on the board).
+ */
+async function seedActiveOffer(db: Db, { key, country, price }: { key: string; country: string; price: number }): Promise<void> {
+  await ingestOffer(
+    db,
+    makeOffer({ source: 'seed', sourceOfferKey: key, country, pricePerPerson: price, url: `https://seed.example/${key}` }),
+    NOW,
+  );
+}
+
 // Build the app, and a fetch-style helper that returns parsed JSON.
 function makeClient(db: Db) {
   const app = createApi({ db, profiles: PROFILES, now: () => NOW });
@@ -355,6 +368,68 @@ describe('web api', () => {
       expect(body.medianByProfile).toBeDefined();
       // leto-more set = the two AI/Řecko offers → median of [10000, 20000] = 15000.
       expect(body.medianByProfile['leto-more']).toBe(15000);
+    });
+  });
+
+  describe('/api/exclusions', () => {
+    it('GET /api/exclusions is empty by default', async () => {
+      const app = createApi({ db, profiles: PROFILES, now: () => NOW });
+      const res = await app.request('http://local/api/exclusions');
+      expect(await res.json()).toEqual({ countries: [] });
+    });
+
+    it('PUT stores exclusions (unknown dropped), GET reflects, board omits them', async () => {
+      await seedActiveOffer(db, { key: 'eg', country: 'Egypt', price: 12000 });
+      await seedActiveOffer(db, { key: 'gr', country: 'Řecko', price: 12000 });
+      const app = createApi({ db, profiles: PROFILES, now: () => NOW });
+
+      const put = await app.request('http://local/api/exclusions', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ countries: ['Egypt', 'Absurdistán'] }),
+      });
+      expect(await put.json()).toEqual({ countries: ['Egypt'] }); // unknown dropped
+
+      const getRes = await app.request('http://local/api/exclusions');
+      expect(await getRes.json()).toEqual({ countries: ['Egypt'] });
+
+      const board = await (await app.request('http://local/api/offers')).json();
+      expect(board.offers.some((o: any) => o.country === 'Egypt')).toBe(false);
+      expect(board.offers.some((o: any) => o.country === 'Řecko')).toBe(true);
+    });
+
+    it('PUT rejects a non-string[] body with 400', async () => {
+      const app = createApi({ db, profiles: PROFILES, now: () => NOW });
+      const res = await app.request('http://local/api/exclusions', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ countries: 'Egypt' }),
+      });
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toBeDefined();
+    });
+
+    it('PUT busts the offers cache: a board GET cached before the PUT does not survive it', async () => {
+      await seedActiveOffer(db, { key: 'eg', country: 'Egypt', price: 12000 });
+      await seedActiveOffer(db, { key: 'gr', country: 'Řecko', price: 12000 });
+      const app = createApi({ db, profiles: PROFILES, now: () => NOW });
+
+      // Populate the /api/offers cache while Egypt is still included.
+      const before = await (await app.request('http://local/api/offers')).json();
+      expect(before.offers.some((o: any) => o.country === 'Egypt')).toBe(true);
+
+      await app.request('http://local/api/exclusions', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ countries: ['Egypt'] }),
+      });
+
+      // Same query string as `before` — would be served from the stale cache
+      // entry if PUT didn't clear it.
+      const after = await (await app.request('http://local/api/offers')).json();
+      expect(after.offers.some((o: any) => o.country === 'Egypt')).toBe(false);
+      expect(after.offers.some((o: any) => o.country === 'Řecko')).toBe(true);
     });
   });
 });

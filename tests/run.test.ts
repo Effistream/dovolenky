@@ -8,6 +8,7 @@ import { HttpClient, SourceBlockedError } from '../src/core/http.js';
 import { runScan } from '../src/core/run.js';
 import { ingestOffer } from '../src/core/ingest.js';
 import { computeHotelKey } from '../src/core/normalize.js';
+import { setExcludedCountries } from '../src/core/db/exclusions.js';
 
 // ---- Fixtures ----------------------------------------------------------
 
@@ -133,7 +134,7 @@ function blockedAdapter(): SourceAdapter {
  * (Řecko × month 8 × nights band 6-8 × AI × 4★) each priced `price`, so the
  * market median is high and the hot offer at 12000 shows a big real discount.
  */
-async function seedMarketBucket(db: Db, n: number, price: number, at: string): Promise<void> {
+async function seedMarketBucket(db: Db, n: number, price: number, at: string, country = 'Řecko'): Promise<void> {
   for (let i = 0; i < n; i += 1) {
     const [row] = await db
       .insert(offers)
@@ -141,7 +142,7 @@ async function seedMarketBucket(db: Db, n: number, price: number, at: string): P
         source: 'seed',
         sourceOfferKey: `seed-${i}`,
         title: `Seed Hotel ${i}`,
-        country: 'Řecko',
+        country,
         locality: 'Kréta',
         stars: 4,
         board: 'AI',
@@ -310,6 +311,47 @@ describe('runScan', () => {
     const logs = await db.select().from(notificationsLog).where(eq(notificationsLog.type, 'hot_deal'));
     expect(logs.length).toBe(1);
     expect(logs[0]?.priceAtSend).toBe(12000);
+  });
+
+  it('scenario 2c: an excluded country is MUTED (no notification) but STILL ingested (snapshot written)', async () => {
+    const now = new Date('2026-07-04T10:00:00.000Z');
+    // Global negative filter (Task 43) set BEFORE the scan: Egypt is muted.
+    await setExcludedCountries(db, ['Egypt']);
+
+    // Same setup as scenario 2, only in Egypt: an Egypt market bucket makes the
+    // subject Egypt offer a genuine hot_deal that WOULD notify if it weren't excluded.
+    await seedMarketBucket(db, 8, 25000, '2026-07-04T09:00:00.000Z', 'Egypt');
+    const egyptOffer = makeOffer({ country: 'Egypt', sourceOfferKey: 'eg-1' });
+    const tg = new TelegramMock();
+
+    const summary = await runScan({
+      db,
+      cfg: makeConfig(),
+      http: makeHttp(),
+      telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [happyAdapter([egyptOffer])],
+      now,
+    });
+
+    // Muted: no candidate generated for the excluded country → nothing sent.
+    expect(summary.notificationsSent).toBe(0);
+    expect(tg.messages.some((m) => m.includes('Egypt'))).toBe(false);
+    expect(tg.messages.filter((m) => m.includes('🔥'))).toHaveLength(0);
+    const hotLogs = await db.select().from(notificationsLog).where(eq(notificationsLog.type, 'hot_deal'));
+    expect(hotLogs.length).toBe(0);
+
+    // Ingest PRESERVED: the excluded offer was still stored AND got a price snapshot
+    // (the guard suppresses only candidate generation, never the snapshot write above it).
+    const [egyptRow] = await db
+      .select()
+      .from(offers)
+      .where(and(eq(offers.source, 'happy'), eq(offers.sourceOfferKey, 'eg-1')));
+    expect(egyptRow).toBeDefined();
+    const egyptSnaps = await db
+      .select()
+      .from(priceSnapshots)
+      .where(eq(priceSnapshots.offerId, egyptRow!.id));
+    expect(egyptSnaps.length).toBeGreaterThanOrEqual(1);
   });
 
   it('scenario 2b: price_drop send includes the "↓ z" previous-price line', async () => {

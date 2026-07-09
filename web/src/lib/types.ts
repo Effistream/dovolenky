@@ -72,6 +72,15 @@ export interface StatsResponse {
 /** The profile filters shown as single-select chips (mockup order). */
 export type ProfileFilter = 'all' | 'leto-more' | 'last-minute' | 'exotika';
 
+/**
+ * Global „nechci vidět" country exclusions (GET/PUT /api/exclusions). Not part
+ * of the shareable FilterState — this is server-side global state, so it never
+ * touches the URL query.
+ */
+export interface ExclusionsResponse {
+  countries: string[];
+}
+
 /** One price observation in an offer's history (oldest→newest). */
 export interface HistoryPoint {
   /** ISO capture timestamp. */

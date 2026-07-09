@@ -4,6 +4,7 @@ import { openDb, ensureSchema } from '../core/db/index.js';
 import { notificationsLog } from '../core/db/schema.js';
 import { Telegram } from '../core/telegram.js';
 import { buildDigest } from '../core/digest.js';
+import { getExcludedCountries } from '../core/db/exclusions.js';
 import { loadDotEnv } from './env.js';
 
 interface CliArgs {
@@ -31,7 +32,10 @@ async function main(): Promise<void> {
   // Manual invocation: build the digest right now, ignoring the digestHour /
   // once-per-Prague-day gating that runScan applies automatically.
   const now = new Date();
-  const digest = await buildDigest(db, cfg, now);
+  // Respect the global negative filter here too: a manually-sent digest mutes
+  // the same excluded countries as the automatic one (ingest is untouched).
+  const excluded = new Set(await getExcludedCountries(db));
+  const digest = await buildDigest(db, cfg, now, excluded);
 
   if (!digest) {
     console.log('Žádné aktivní nabídky — digest by byl prázdný, nic se neposílá.');

@@ -94,6 +94,13 @@ export async function ensureSchema(db: Db): Promise<void> {
     )
   `);
 
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS excluded_countries (
+      country TEXT PRIMARY KEY,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
   // Cross-source match key (spec §13) — added after the tables above already
   // shipped, so existing DB files need an ALTER TABLE rather than relying on
   // CREATE TABLE IF NOT EXISTS's column list.
