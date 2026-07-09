@@ -30,4 +30,9 @@ describe('excluded_countries helpers', () => {
     const stored = await setExcludedCountries(db, ['Egypt', 'Absurdistán', '']);
     expect(stored).toEqual(['Egypt']);
   });
+
+  it('canonicalizes accepted aliases / case variants', async () => {
+    const stored = await setExcludedCountries(db, ['bali', 'egypt', 'SAE']);
+    expect(stored).toEqual(['Egypt', 'Indonésie', 'Spojené arabské emiráty']);
+  });
 });

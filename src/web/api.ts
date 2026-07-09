@@ -274,8 +274,8 @@ async function buildStats(db: Db, profiles: Record<string, Profile>, now: Date) 
   const activeCount = activeRows.length;
 
   const cutoff = new Date(now.getTime() - DAY_MS).toISOString();
-  const newRows = await db.select({ id: offers.id }).from(offers).where(gte(offers.firstSeenAt, cutoff));
-  const new24h = newRows.length;
+  const newRows = await db.select({ id: offers.id, country: offers.country }).from(offers).where(gte(offers.firstSeenAt, cutoff));
+  const new24h = newRows.filter((r) => r.country == null || !excluded.has(r.country)).length;
 
   // Median latest price per profile: reuse matchProfiles over the reconstructed
   // offer so the "set" is exactly what each profile would notify on.

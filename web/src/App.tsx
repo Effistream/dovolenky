@@ -69,6 +69,7 @@ export function App() {
     await putExclusions(next);
     exclusionsState.reload(); // refresh the chip list from the stored set
     offersState.reload(); // board refetch — excluded rows disappear, counts adjust
+    statsState.reload(); // MarketCards refetch — excluded countries drop from active/new-24h/medians
   };
 
   const allOffers = offersState.data?.offers ?? [];

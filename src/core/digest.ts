@@ -126,10 +126,12 @@ export async function buildDigest(
   const activeOffers = activeRows.length;
   const cutoff = new Date(now.getTime() - DAY_MS).toISOString();
   const newRows = await db
-    .select({ id: offers.id })
+    .select({ id: offers.id, country: offers.country })
     .from(offers)
     .where(gte(offers.firstSeenAt, cutoff));
-  const newLast24h = newRows.length;
+  // Same negative filter as activeRows: excluded countries are muted from the
+  // digest, so the "new in 24h" counter must not surface them either.
+  const newLast24h = newRows.filter((r) => r.country == null || !excluded.has(r.country)).length;
 
   const html = formatDigest(top, { activeOffers, newLast24h });
 
