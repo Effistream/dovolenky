@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { eq, desc } from 'drizzle-orm';
 import { openDb, ensureSchema, type Db } from '../src/core/db/index.js';
 import { offers, priceSnapshots } from '../src/core/db/schema.js';
 import type { NormalizedOffer } from '../src/core/types.js';
-import { hotelTermPricesPN, localityBucketPricesPN, marketBucketPrices } from '../src/core/market.js';
+import { hotelTermPricesPN, localityBucketPricesPN, marketBucketPrices, bucketPricesInMemory, type ActiveOfferLite } from '../src/core/market.js';
 import { computeHotelKey, computeMatchKey } from '../src/core/normalize.js';
+import { ingestOffer } from '../src/core/ingest.js';
 
 // Every seeded market-bucket offer has nights=7, so marketBucketPrices returns
 // per-NIGHT prices = round(price / 7). PN() makes the expectations self-documenting.
@@ -352,5 +354,101 @@ describe('localityBucketPricesPN (spec §15 locality rung)', () => {
 
     const prices = await localityBucketPricesPN(db, selfId, subject);
     expect(prices).toEqual([2000]); // only the nights-known row survives
+  });
+});
+
+describe('bucketPricesInMemory ≡ SQL bucket functions (read-path parity)', () => {
+  let db: Db;
+
+  beforeEach(async () => {
+    db = openDb(':memory:');
+    await ensureSchema(db);
+  });
+
+  // Reconstruct the NormalizedOffer the way the web read path does (offers row +
+  // latest snapshot price; null board/transport → 'unknown').
+  function reconstruct(row: typeof offers.$inferSelect, price: number): NormalizedOffer {
+    return {
+      source: row.source, sourceOfferKey: row.sourceOfferKey, title: row.title,
+      country: row.country, locality: row.locality, stars: row.stars,
+      board: (row.board ?? 'unknown') as NormalizedOffer['board'],
+      transport: (row.transport ?? 'unknown') as NormalizedOffer['transport'],
+      departureAirport: row.departureAirport, departureDate: row.departureDate, nights: row.nights,
+      pricePerPerson: price, priceTotal: null, claimedOriginalPrice: null, claimedDiscountPct: null,
+      omnibusLowestPrice: null, tourOperator: row.tourOperator, url: row.url,
+    };
+  }
+  const asc = (xs: number[]): number[] => [...xs].sort((a, b) => a - b);
+
+  it('returns identical hotel/locality/market per-night buckets for every active offer', async () => {
+    const at = new Date('2026-07-04T09:00:00.000Z');
+    // A deliberately diverse fixture: same-hotel terms (date/nights window edges),
+    // cross-source twins, locality/market peers, and null-field edges — so every
+    // predicate branch (eqNullable incl. defaults, month null, nights band
+    // boundaries + null, hotel ±30d/±2, twin exclusion) is exercised.
+    const specs: NormalizedOffer[] = [
+      bucketOffer({ source: 'a', sourceOfferKey: 'alfa-1', title: 'Alfa', departureDate: '2026-08-15', nights: 7, pricePerPerson: 14000 }),
+      bucketOffer({ source: 'a', sourceOfferKey: 'alfa-2', title: 'Alfa', departureDate: '2026-08-20', nights: 7, pricePerPerson: 20000 }),
+      bucketOffer({ source: 'a', sourceOfferKey: 'alfa-3', title: 'Alfa', departureDate: '2026-08-10', nights: 9, pricePerPerson: 21000 }),
+      bucketOffer({ source: 'a', sourceOfferKey: 'alfa-4', title: 'Alfa', departureDate: '2026-08-10', nights: 5, pricePerPerson: 15000 }),
+      bucketOffer({ source: 'a', sourceOfferKey: 'alfa-5', title: 'Alfa', departureDate: '2026-09-30', nights: 7, pricePerPerson: 30000 }), // >30d
+      bucketOffer({ source: 'a', sourceOfferKey: 'alfa-6', title: 'Alfa', departureDate: '2026-08-12', nights: 10, pricePerPerson: 25000 }), // nights +3
+      bucketOffer({ source: 'skrz', sourceOfferKey: 'alfa-twin', title: 'Alfa', departureDate: '2026-08-15', nights: 7, pricePerPerson: 15500 }), // twin of alfa-1
+      bucketOffer({ source: 'b', sourceOfferKey: 'beta', title: 'Beta', pricePerPerson: 22000 }),
+      bucketOffer({ source: 'g', sourceOfferKey: 'gama', title: 'Gama', pricePerPerson: 26000 }),
+      bucketOffer({ source: 'invia', sourceOfferKey: 'beta-twin', title: 'Beta', pricePerPerson: 19000 }), // twin of beta
+      bucketOffer({ source: 'c', sourceOfferKey: 'rhodos', title: 'Rhodos H', locality: 'Rhodos', pricePerPerson: 24000 }),
+      bucketOffer({ source: 'c', sourceOfferKey: 'five', title: 'Five', stars: 5, pricePerPerson: 28000 }),
+      bucketOffer({ source: 'c', sourceOfferKey: 'nostars', title: 'NoStars', stars: null, pricePerPerson: 19500 }),
+      bucketOffer({ source: 'c', sourceOfferKey: 'hb', title: 'HB Hotel', board: 'HB', pricePerPerson: 17000 }),
+      bucketOffer({ source: 'c', sourceOfferKey: 'july', title: 'July', departureDate: '2026-07-15', pricePerPerson: 16000 }),
+      bucketOffer({ source: 'c', sourceOfferKey: 'nights8', title: 'N8', nights: 8, pricePerPerson: 21500 }),
+      bucketOffer({ source: 'c', sourceOfferKey: 'nights9', title: 'N9', nights: 9, pricePerPerson: 23000 }),
+      bucketOffer({ source: 'c', sourceOfferKey: 'nodate', title: 'NoDate', departureDate: null, pricePerPerson: 18000 }),
+      bucketOffer({ source: 'c', sourceOfferKey: 'noloc', title: 'NoLoc', locality: null, pricePerPerson: 18500 }),
+      bucketOffer({ source: 'c', sourceOfferKey: 'nonights', title: 'NoNights', nights: null, pricePerPerson: 18700 }),
+      bucketOffer({ source: 'c', sourceOfferKey: 'tr', title: 'Turk', country: 'Turecko', locality: 'Antalya', pricePerPerson: 20000 }),
+    ];
+    for (const s of specs) await ingestOffer(db, s, at);
+
+    const activeRows = await db.select().from(offers).where(eq(offers.active, true));
+    const latestPrice = new Map<number, number>();
+    for (const r of activeRows) {
+      const [snap] = await db
+        .select({ p: priceSnapshots.pricePerPerson })
+        .from(priceSnapshots)
+        .where(eq(priceSnapshots.offerId, r.id))
+        .orderBy(desc(priceSnapshots.id))
+        .limit(1);
+      if (snap) latestPrice.set(r.id, snap.p);
+    }
+    const lites: ActiveOfferLite[] = activeRows.map((r) => ({
+      id: r.id, country: r.country, locality: r.locality, board: r.board, stars: r.stars,
+      nights: r.nights, departureDate: r.departureDate, matchKey: r.matchKey, hotelKey: r.hotelKey,
+    }));
+
+    expect(activeRows.length).toBe(specs.length);
+    let sawHotel = false, sawLocality = false, sawMarket = false;
+    for (const r of activeRows) {
+      const price = latestPrice.get(r.id);
+      if (price == null) continue;
+      const offer = reconstruct(r, price);
+      const [sqlHotel, sqlLoc, sqlMarket] = await Promise.all([
+        hotelTermPricesPN(db, r.id, offer),
+        localityBucketPricesPN(db, r.id, offer),
+        marketBucketPrices(db, r.id, offer),
+      ]);
+      const mem = bucketPricesInMemory(r.id, offer, lites, latestPrice);
+      expect(asc(mem.hotelTermPricesPN), `hotel rung for offer ${r.id} (${r.sourceOfferKey})`).toEqual(asc(sqlHotel));
+      expect(asc(mem.localityPricesPN), `locality rung for offer ${r.id} (${r.sourceOfferKey})`).toEqual(asc(sqlLoc));
+      expect(asc(mem.marketPricesPN), `market rung for offer ${r.id} (${r.sourceOfferKey})`).toEqual(asc(sqlMarket));
+      if (sqlHotel.length) sawHotel = true;
+      if (sqlLoc.length) sawLocality = true;
+      if (sqlMarket.length) sawMarket = true;
+    }
+    // Prove the fixture actually populated each rung (equivalence of two empties is trivial).
+    expect(sawHotel).toBe(true);
+    expect(sawLocality).toBe(true);
+    expect(sawMarket).toBe(true);
   });
 });

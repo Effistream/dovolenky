@@ -26,51 +26,21 @@ function departureMonth(departureDate: string | null): string | null {
 }
 
 /**
- * Given a set of candidate rows (each already filtered into a bucket and carrying
- * its match_key + nights), returns the per-NIGHT prices of their latest snapshots,
- * with cross-source twin dedup (spec §13). Shared by all three per-night bucket
- * queries below.
- *
- * Per-night normalization (spec §15): each row's latest `price_per_person` is
- * divided by that row's own `nights` and rounded; rows with null/<1 nights are
- * skipped (cannot normalize). Cross-source dedup then collapses rows sharing a
- * match_key to a single MIN(per-night) contribution — the dedup is done on the
- * per-night value so the cheapest *comparable* term wins — while NULL-match_key
- * rows stay individual. Post-processed in JS (not a GROUP BY) because the
- * "latest snapshot per offer" price already needs a per-row subquery loop.
+ * Pure per-NIGHT normalization + cross-source twin dedup (spec §13/§15) over rows
+ * that already carry their latest price. Each row's `price` is divided by its own
+ * `nights` and rounded; rows with null/<1 nights are skipped (cannot normalize).
+ * Rows sharing a match_key collapse to a single MIN(per-night) contribution — the
+ * cheapest *comparable* term wins — while NULL-match_key rows stay individual.
+ * The DB path (perNightPricesFor) and the in-memory read path (bucketPricesInMemory)
+ * both funnel through this so the dedup math has ONE definition. Result order is
+ * irrelevant — computeRealDiscount only takes its median/length.
  */
-async function perNightPricesFor(
-  db: Db,
-  rows: { id: number; matchKey: string | null; nights: number | null }[],
-  latestPriceByOfferId?: ReadonlyMap<number, number>,
-): Promise<number[]> {
+function perNightReduce(rows: { matchKey: string | null; nights: number | null; price: number }[]): number[] {
   const groupMin = new Map<string, number>();
   const prices: number[] = [];
   for (const row of rows) {
     if (row.nights == null || row.nights < 1) continue; // cannot normalize per-night
-
-    // Latest per-person price of this bucket row. The read-path (web api) preloads
-    // every active offer's latest snapshot once and passes it in as
-    // latestPriceByOfferId, collapsing what was a per-bucket-row SELECT — the read
-    // path's dominant N+1 — into an in-memory lookup. Callers that don't supply it
-    // (run.ts/digest.ts, mid-scan, when the map would be stale) keep the live
-    // per-row query. A missing/absent id yields no contribution, exactly as an
-    // offer with no snapshot did before.
-    let price: number | undefined;
-    if (latestPriceByOfferId) {
-      price = latestPriceByOfferId.get(row.id);
-    } else {
-      const [snap] = await db
-        .select({ price: priceSnapshots.pricePerPerson })
-        .from(priceSnapshots)
-        .where(eq(priceSnapshots.offerId, row.id))
-        .orderBy(desc(priceSnapshots.id))
-        .limit(1);
-      price = snap?.price;
-    }
-    if (price == null) continue;
-
-    const perNight = Math.round(price / row.nights);
+    const perNight = Math.round(row.price / row.nights);
     if (row.matchKey == null) {
       prices.push(perNight);
     } else {
@@ -82,13 +52,38 @@ async function perNightPricesFor(
 }
 
 /**
+ * DB path (run.ts/digest.ts, mid-scan): fetch each candidate bucket row's latest
+ * snapshot price, then perNightReduce. Post-processed in JS (not a GROUP BY)
+ * because "latest snapshot per offer" needs a per-row subquery. The web read path
+ * does NOT use this — it preloads prices and calls bucketPricesInMemory instead.
+ */
+async function perNightPricesFor(
+  db: Db,
+  rows: { id: number; matchKey: string | null; nights: number | null }[],
+): Promise<number[]> {
+  const withPrice: { matchKey: string | null; nights: number | null; price: number }[] = [];
+  for (const row of rows) {
+    if (row.nights == null || row.nights < 1) continue; // cannot normalize per-night
+    const [snap] = await db
+      .select({ price: priceSnapshots.pricePerPerson })
+      .from(priceSnapshots)
+      .where(eq(priceSnapshots.offerId, row.id))
+      .orderBy(desc(priceSnapshots.id))
+      .limit(1);
+    if (!snap) continue;
+    withPrice.push({ matchKey: row.matchKey, nights: row.nights, price: snap.price });
+  }
+  return perNightReduce(withPrice);
+}
+
+/**
  * Market bucket baseline (spec §6/§15): per-NIGHT latest snapshot price per
  * *active* offer in the same bucket — country × departure month × nights band ×
  * board × stars — excluding the offer itself (and its cross-source twin).
  * computeRealDiscount enforces the ≥8 rule, so we return every per-night price
  * found and let it decide. This is the last-resort tier of the discount ladder.
  */
-export async function marketBucketPrices(db: Db, offerId: number, offer: NormalizedOffer, latestPriceByOfferId?: ReadonlyMap<number, number>): Promise<number[]> {
+export async function marketBucketPrices(db: Db, offerId: number, offer: NormalizedOffer): Promise<number[]> {
   const month = departureMonth(offer.departureDate);
   const band = nightsBand(offer.nights);
   // Cross-source dedup fix: computeMatchKey is pure, so we recompute the
@@ -130,7 +125,7 @@ export async function marketBucketPrices(db: Db, offerId: number, offer: Normali
     .from(offers)
     .where(and(...conditions));
 
-  return perNightPricesFor(db, rows, latestPriceByOfferId);
+  return perNightPricesFor(db, rows);
 }
 
 /**
@@ -142,7 +137,7 @@ export async function marketBucketPrices(db: Db, offerId: number, offer: Normali
  * computeRealDiscount enforces the ≥4 rule. Answers "is this term cheap *for this
  * hotel*?".
  */
-export async function hotelTermPricesPN(db: Db, offerId: number, offer: NormalizedOffer, latestPriceByOfferId?: ReadonlyMap<number, number>): Promise<number[]> {
+export async function hotelTermPricesPN(db: Db, offerId: number, offer: NormalizedOffer): Promise<number[]> {
   const hotelKey = computeHotelKey(offer);
   if (hotelKey == null) return []; // under-specified hotel identity → no pool
 
@@ -177,7 +172,7 @@ export async function hotelTermPricesPN(db: Db, offerId: number, offer: Normaliz
     .from(offers)
     .where(and(...conditions));
 
-  return perNightPricesFor(db, rows, latestPriceByOfferId);
+  return perNightPricesFor(db, rows);
 }
 
 /**
@@ -187,7 +182,7 @@ export async function hotelTermPricesPN(db: Db, offerId: number, offer: Normaliz
  * and its cross-source twins. computeRealDiscount enforces the ≥8 rule. Answers
  * "is this cheap for <locality> this month?".
  */
-export async function localityBucketPricesPN(db: Db, offerId: number, offer: NormalizedOffer, latestPriceByOfferId?: ReadonlyMap<number, number>): Promise<number[]> {
+export async function localityBucketPricesPN(db: Db, offerId: number, offer: NormalizedOffer): Promise<number[]> {
   if (offer.locality == null) return []; // no locality → this rung doesn't apply
   const month = departureMonth(offer.departureDate);
   const subjectKey = computeMatchKey(offer);
@@ -213,7 +208,7 @@ export async function localityBucketPricesPN(db: Db, offerId: number, offer: Nor
     .from(offers)
     .where(and(...conditions));
 
-  return perNightPricesFor(db, rows, latestPriceByOfferId);
+  return perNightPricesFor(db, rows);
 }
 
 /** Own-history snapshots for an offer over the last 30 days, as {price, at}. */
@@ -224,4 +219,136 @@ export async function ownSnapshotsFor(db: Db, offerId: number, now: Date): Promi
     .from(priceSnapshots)
     .where(and(eq(priceSnapshots.offerId, offerId), gte(priceSnapshots.capturedAt, windowStartIso)));
   return rows.map((r) => ({ price: r.price, at: r.at }));
+}
+
+/**
+ * The offer-row fields the in-memory bucket filter needs (a lightweight view of
+ * an active `offers` row).
+ */
+export interface ActiveOfferLite {
+  id: number;
+  country: string | null;
+  locality: string | null;
+  board: string | null;
+  stars: number | null;
+  nights: number | null;
+  departureDate: string | null;
+  matchKey: string | null;
+  hotelKey: string | null;
+}
+
+// SQL `col == null ? isNull(col) : eq(col, val)` in JS: candidate equals the
+// subject's value, treating null as a matchable value.
+function eqNullable<T>(candidate: T | null, subject: T | null): boolean {
+  return subject == null ? candidate == null : candidate === subject;
+}
+
+// SQL month predicate: `month == null ? isNull(departureDate) : substr(dd,1,7) == month`.
+function matchesMonth(candidateDeparture: string | null, month: string | null): boolean {
+  if (month == null) return candidateDeparture == null;
+  return candidateDeparture != null && candidateDeparture.slice(0, 7) === month;
+}
+
+// SQL nights-band predicate: null band → isNull(nights); else nights in [lo, hi]
+// (null candidate nights excluded, matching SQL's null-comparison → false).
+function matchesNightsBand(candidateNights: number | null, band: { lo: number | null; hi: number | null }): boolean {
+  if (band.lo == null) return candidateNights == null;
+  if (candidateNights == null) return false;
+  if (candidateNights < band.lo) return false;
+  if (band.hi != null && candidateNights > band.hi) return false;
+  return true;
+}
+
+/**
+ * In-memory equivalent of {market,locality,hotel}BucketPrices for the web read
+ * path: given the subject offer, ALL active offers (a lightweight view) and a
+ * preloaded latest-price map, it computes all three per-night reference buckets
+ * in a single pass — zero DB round-trips. The SQL functions above stay the source
+ * of truth for run.ts/digest.ts; market.test.ts asserts this returns identical
+ * results for every offer (same predicates, same perNightReduce). Ordering is
+ * irrelevant (computeRealDiscount only medians/counts each bucket).
+ */
+export function bucketPricesInMemory(
+  offerId: number,
+  offer: NormalizedOffer,
+  actives: readonly ActiveOfferLite[],
+  latestPriceByOfferId: ReadonlyMap<number, number>,
+): { hotelTermPricesPN: number[]; localityPricesPN: number[]; marketPricesPN: number[] } {
+  const subjectKey = computeMatchKey(offer);
+  const hotelKey = computeHotelKey(offer);
+  const month = departureMonth(offer.departureDate);
+  const band = nightsBand(offer.nights);
+
+  // Hotel rung ±30-day departure window (only when the subject's departure is a
+  // valid date — mirrors hotelTermPricesPN's early `return []`).
+  let hotelDepLo: string | null = null;
+  let hotelDepHi: string | null = null;
+  if (offer.departureDate != null) {
+    const dep = new Date(`${offer.departureDate}T00:00:00.000Z`).getTime();
+    if (Number.isFinite(dep)) {
+      hotelDepLo = new Date(dep - HOTEL_DATE_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10);
+      hotelDepHi = new Date(dep + HOTEL_DATE_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10);
+    }
+  }
+  // Whole-rung guards mirroring each SQL fn's early `return []`.
+  const hotelPossible = hotelKey != null && offer.nights != null && hotelDepLo != null && hotelDepHi != null;
+  const localityPossible = offer.locality != null;
+
+  const hotelRows: { matchKey: string | null; nights: number | null; price: number }[] = [];
+  const localityRows: { matchKey: string | null; nights: number | null; price: number }[] = [];
+  const marketRows: { matchKey: string | null; nights: number | null; price: number }[] = [];
+
+  for (const c of actives) {
+    if (c.id === offerId) continue; // ne(id, offerId)
+    const price = latestPriceByOfferId.get(c.id);
+    if (price == null) continue; // no snapshot → no contribution (SQL: `if (!snap) continue`)
+    // Cross-source twin exclusion: keep rows with null match_key or a differing
+    // key; drop the subject's own twin. subjectKey null → no exclusion (all kept).
+    if (subjectKey != null && c.matchKey != null && c.matchKey === subjectKey) continue;
+
+    const row = { matchKey: c.matchKey, nights: c.nights, price };
+
+    // MARKET: country × board × stars × nights band × departure month.
+    if (
+      eqNullable(c.country, offer.country) &&
+      eqNullable(c.board, offer.board) &&
+      eqNullable(c.stars, offer.stars) &&
+      matchesNightsBand(c.nights, band) &&
+      matchesMonth(c.departureDate, month)
+    ) {
+      marketRows.push(row);
+    }
+
+    // LOCALITY: same locality × board × stars × departure month (no nights band).
+    if (
+      localityPossible &&
+      c.locality === offer.locality &&
+      eqNullable(c.board, offer.board) &&
+      eqNullable(c.stars, offer.stars) &&
+      matchesMonth(c.departureDate, month)
+    ) {
+      localityRows.push(row);
+    }
+
+    // HOTEL: same hotel_key × board × nights ±2 × departure ±30 days.
+    if (
+      hotelPossible &&
+      c.hotelKey === hotelKey &&
+      eqNullable(c.board, offer.board) &&
+      c.nights != null &&
+      c.nights >= offer.nights! - HOTEL_NIGHTS_TOLERANCE &&
+      c.nights <= offer.nights! + HOTEL_NIGHTS_TOLERANCE &&
+      c.departureDate != null &&
+      c.departureDate >= hotelDepLo! &&
+      c.departureDate <= hotelDepHi!
+    ) {
+      hotelRows.push(row);
+    }
+  }
+
+  return {
+    hotelTermPricesPN: hotelPossible ? perNightReduce(hotelRows) : [],
+    localityPricesPN: localityPossible ? perNightReduce(localityRows) : [],
+    marketPricesPN: perNightReduce(marketRows),
+  };
 }

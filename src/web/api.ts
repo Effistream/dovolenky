@@ -5,7 +5,7 @@ import { offers, priceSnapshots, sourceRuns } from '../core/db/schema.js';
 import type { Profile } from '../core/config.js';
 import type { NormalizedOffer, Board, Transport } from '../core/types.js';
 import { computeRealDiscount, median, type DiscountResult } from '../core/discount.js';
-import { hotelTermPricesPN, localityBucketPricesPN, marketBucketPrices, ownSnapshotsFor } from '../core/market.js';
+import { bucketPricesInMemory, type ActiveOfferLite } from '../core/market.js';
 import { matchProfiles } from '../core/filters.js';
 import { RECENT_RUN_SCAN_LIMIT, backoffUntilFrom } from '../core/backoff.js';
 import { getExcludedCountries, setExcludedCountries } from '../core/db/exclusions.js';
@@ -14,6 +14,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const SPARKLINE_POINTS = 14;
 const HISTORY_MEDIAN_DAYS = 30;
 const MAX_ALTERNATIVES = 3;
+// Own-history window for the discount ladder's "own" tier + the sparkline source.
+// Matches market.ts OWN_WINDOW_DAYS (ownSnapshotsFor) so the board's own-baseline
+// is computed over exactly the same window a Telegram notification would use.
+const OWN_HISTORY_DAYS = 30;
 // 30 min. buildOffers now bulk-loads latest snapshots once and fans the discount
 // ladder out concurrently, so a cache miss is ~1-2s rather than the tens of
 // seconds the old per-offer N+1 cost. The scan only writes every ~2h, so this TTL
@@ -78,13 +82,11 @@ interface LatestSnap {
 
 /**
  * Latest snapshot for every ACTIVE offer, in a single query (max(id) per
- * offer_id, joined back to its row, restricted to active offers). This one bulk
- * load replaces three separate N+1 patterns on the read path: the per-row
- * latestSnapshot loop, the per-representative rebuild, and — threaded in as
- * `latestPriceByOfferId` — perNightPricesFor's per-bucket-row lookup, which was
- * the dominant cost (a popular bucket meant one SELECT per member, per
- * representative). No writes happen during a read, so the map is consistent for
- * the whole request.
+ * offer_id, joined back to its row, restricted to active offers). Replaces the
+ * per-row latestSnapshot loop and the per-representative rebuild; its price-only
+ * projection also feeds bucketPricesInMemory (the reference ladder) so no
+ * per-bucket-row snapshot query is needed. No writes happen during a read, so the
+ * map is consistent for the whole request.
  */
 async function loadLatestSnapshots(db: Db): Promise<Map<number, LatestSnap>> {
   const latestIds = db
@@ -119,31 +121,29 @@ async function loadLatestSnapshots(db: Db): Promise<Map<number, LatestSnap>> {
   return map;
 }
 
-// Per-group discount work is fanned out with this cap. Each group still issues a
-// handful of independent queries (own history + the 3 reference buckets +
-// sparkline) via Promise.all, so peak in-flight ≈ GROUP_CONCURRENCY × ~5 — kept
-// modest so the remote (Turso) connection isn't overwhelmed.
-const GROUP_CONCURRENCY = 8;
+/**
+ * All price snapshots from the last `windowDays` days, grouped by offer id and
+ * ordered oldest→newest within each offer. One bulk query that serves BOTH the
+ * own-history baseline (computeRealDiscount medians the full 30-day window) and
+ * the sparkline (last SPARKLINE_POINTS by id) — so the read path never issues a
+ * per-representative snapshot query. Active offers are seen recently, so their
+ * latest writes fall inside this window.
+ */
+async function loadRecentSnapshots(db: Db, now: Date, windowDays: number): Promise<Map<number, { price: number; at: string }[]>> {
+  const sinceIso = new Date(now.getTime() - windowDays * DAY_MS).toISOString();
+  const rows = await db
+    .select({ offerId: priceSnapshots.offerId, price: priceSnapshots.pricePerPerson, at: priceSnapshots.capturedAt })
+    .from(priceSnapshots)
+    .where(gte(priceSnapshots.capturedAt, sinceIso))
+    .orderBy(priceSnapshots.offerId, priceSnapshots.id);
 
-/** Map with a bounded number of concurrent workers, preserving input order. */
-async function mapWithConcurrency<T, R>(
-  items: readonly T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  async function worker(): Promise<void> {
-    for (;;) {
-      const i = next;
-      next += 1;
-      if (i >= items.length) return;
-      results[i] = await fn(items[i]!, i);
-    }
+  const map = new Map<number, { price: number; at: string }[]>();
+  for (const r of rows) {
+    let list = map.get(r.offerId);
+    if (!list) { list = []; map.set(r.offerId, list); }
+    list.push({ price: r.price, at: r.at });
   }
-  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
-  await Promise.all(workers);
-  return results;
+  return map;
 }
 
 interface OfferItem {
@@ -190,12 +190,33 @@ async function buildOffers(
   const excluded = new Set(await getExcludedCountries(db));
   const activeRows = activeRowsRaw.filter((r) => r.country == null || !excluded.has(r.country));
 
-  // One bulk query for every active offer's latest snapshot. Reused for the
-  // cheapest-per-group pick, the representative rebuild, and (as a price-only
-  // view) the reference-ladder buckets — collapsing the old per-offer N+1s.
+  // A handful of bulk queries; the rest is in memory. The per-representative
+  // discount ladder used to issue ~5 queries each (3 reference buckets + own
+  // history + sparkline). Against remote Turso the HTTP client does not pipeline
+  // those, so hundreds of representatives serialized into >200s. Now: latest
+  // snapshot per active offer, plus the last OWN_HISTORY_DAYS of snapshots
+  // (own-history baseline + sparkline). Bucket membership is filtered in memory.
   const snapByOfferId = await loadLatestSnapshots(db);
+  const recentByOfferId = await loadRecentSnapshots(db, now, OWN_HISTORY_DAYS);
+
   const latestPriceByOfferId = new Map<number, number>();
   for (const [id, s] of snapByOfferId) latestPriceByOfferId.set(id, s.pricePerPerson);
+
+  // Lightweight view of the FULL active set for in-memory bucket membership. Note
+  // it is built from activeRowsRaw (before the excluded-country filter): excluded
+  // countries drop off the board but still count as reference-bucket peers, exactly
+  // as the SQL bucket queries (which filter only on active=true) did.
+  const activeLites: ActiveOfferLite[] = activeRowsRaw.map((r) => ({
+    id: r.id,
+    country: r.country,
+    locality: r.locality,
+    board: r.board,
+    stars: r.stars,
+    nights: r.nights,
+    departureDate: r.departureDate,
+    matchKey: r.matchKey,
+    hotelKey: r.hotelKey,
+  }));
 
   // Group by match_key. NULL match_key → each row is its own group. The cheapest
   // row is the representative; the rest become price-ascending alternatives.
@@ -217,9 +238,8 @@ async function buildOffers(
     }
   });
 
-  // Per-group discount, fanned out with a concurrency cap (order preserved). A
-  // filtered-out group yields null and is dropped afterwards.
-  const built = await mapWithConcurrency(order, GROUP_CONCURRENCY, async (key): Promise<OfferItem | null> => {
+  const items: OfferItem[] = [];
+  for (const key of order) {
     const group = groups.get(key)!;
     const sorted = [...group].sort((a, b) => a.snap.pricePerPerson - b.snap.pricePerPerson);
     const rep = sorted[0]!;
@@ -230,35 +250,29 @@ async function buildOffers(
     const offer = rowToOffer(rep.row, rep.snap);
 
     // Filters that don't need the discount are cheapest to apply first.
-    if (filters.source && offer.source !== filters.source) return null;
-    if (filters.country && offer.country !== filters.country) return null;
+    if (filters.source && offer.source !== filters.source) continue;
+    if (filters.country && offer.country !== filters.country) continue;
     if (filters.profile) {
       const matched = matchProfiles(offer, profiles, now).some((m) => m.name === filters.profile);
-      if (!matched) return null;
+      if (!matched) continue;
     }
 
     marketComputeCount += 1;
-    // Full per-night reference ladder (spec §15): hotel → locality → market, plus
-    // own history and the sparkline. All independent, so run together; the bucket
-    // queries take the preloaded price map, making their inner lookups in-memory.
-    const [ownSnapshots, hotelPricesPN, localityPricesPN, marketPricesPN, sparkRows] = await Promise.all([
-      ownSnapshotsFor(db, rep.row.id, now),
-      hotelTermPricesPN(db, rep.row.id, offer, latestPriceByOfferId),
-      localityBucketPricesPN(db, rep.row.id, offer, latestPriceByOfferId),
-      marketBucketPrices(db, rep.row.id, offer, latestPriceByOfferId),
-      db
-        .select({ price: priceSnapshots.pricePerPerson })
-        .from(priceSnapshots)
-        .where(eq(priceSnapshots.offerId, rep.row.id))
-        .orderBy(desc(priceSnapshots.id))
-        .limit(SPARKLINE_POINTS),
-    ]);
+    // Own history (last OWN_HISTORY_DAYS) + the per-night reference ladder (spec
+    // §15: hotel → locality → market), all in memory from the preloaded maps.
+    const ownSnapshots = recentByOfferId.get(rep.row.id) ?? [];
+    const { hotelTermPricesPN, localityPricesPN, marketPricesPN } = bucketPricesInMemory(
+      rep.row.id,
+      offer,
+      activeLites,
+      latestPriceByOfferId,
+    );
     const discount = computeRealDiscount({
       current: offer.pricePerPerson,
       ownSnapshots,
       omnibus: offer.omnibusLowestPrice,
       nights: offer.nights,
-      hotelTermPricesPN: hotelPricesPN,
+      hotelTermPricesPN,
       localityPricesPN,
       marketPricesPN,
       claimedPct: offer.claimedDiscountPct,
@@ -266,13 +280,14 @@ async function buildOffers(
     });
 
     if (filters.minRealPct != null && (discount.realPct == null || discount.realPct < filters.minRealPct)) {
-      return null;
+      continue;
     }
 
-    // Sparkline = last SPARKLINE_POINTS snapshot prices, oldest→newest.
-    const sparkline = sparkRows.map((r) => r.price).reverse();
+    // Sparkline = last SPARKLINE_POINTS snapshot prices, oldest→newest (the recent
+    // list is already id-ascending).
+    const sparkline = ownSnapshots.slice(-SPARKLINE_POINTS).map((s) => s.price);
 
-    return {
+    items.push({
       id: rep.row.id,
       source: offer.source,
       title: offer.title,
@@ -296,10 +311,8 @@ async function buildOffers(
       fake: discount.fake,
       alternatives,
       sparkline,
-    };
-  });
-
-  const items = built.filter((x): x is OfferItem => x !== null);
+    });
+  }
 
   // Sort by real discount desc (nulls last) — the board's default ordering.
   items.sort((a, b) => {
