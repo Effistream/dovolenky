@@ -8,6 +8,7 @@ import { computeRealDiscount, median, type DiscountResult } from '../core/discou
 import { hotelTermPricesPN, localityBucketPricesPN, marketBucketPrices, ownSnapshotsFor } from '../core/market.js';
 import { matchProfiles } from '../core/filters.js';
 import { RECENT_RUN_SCAN_LIMIT, backoffUntilFrom } from '../core/backoff.js';
+import { getExcludedCountries, setExcludedCountries } from '../core/db/exclusions.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SPARKLINE_POINTS = 14;
@@ -112,7 +113,9 @@ async function buildOffers(
   now: Date,
   filters: { profile?: string; country?: string; source?: string; minRealPct?: number },
 ): Promise<OfferItem[]> {
-  const activeRows = await db.select().from(offers).where(eq(offers.active, true));
+  const activeRowsRaw = await db.select().from(offers).where(eq(offers.active, true));
+  const excluded = new Set(await getExcludedCountries(db));
+  const activeRows = activeRowsRaw.filter((r) => r.country == null || !excluded.has(r.country));
 
   // Attach each active row's latest price so we can pick the cheapest per group.
   const withPrice: { row: typeof offers.$inferSelect; price: number }[] = [];
@@ -265,7 +268,9 @@ async function buildSources(db: Db, now: Date) {
 
 /** Active count, new-in-24h count, and median latest price per profile-matching set. */
 async function buildStats(db: Db, profiles: Record<string, Profile>, now: Date) {
-  const activeRows = await db.select().from(offers).where(eq(offers.active, true));
+  const activeRowsRaw = await db.select().from(offers).where(eq(offers.active, true));
+  const excluded = new Set(await getExcludedCountries(db));
+  const activeRows = activeRowsRaw.filter((r) => r.country == null || !excluded.has(r.country));
   const activeCount = activeRows.length;
 
   const cutoff = new Date(now.getTime() - DAY_MS).toISOString();
@@ -393,6 +398,26 @@ export function createApi(opts: CreateApiOptions) {
   app.get('/api/stats', async (c) => {
     const payload = await cached('stats', () => buildStats(db, profiles, now()));
     return c.json(payload);
+  });
+
+  app.get('/api/exclusions', async (c) => {
+    return c.json({ countries: await getExcludedCountries(db) });
+  });
+
+  app.put('/api/exclusions', async (c) => {
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'invalid json' }, 400);
+    }
+    const countries = (body as { countries?: unknown })?.countries;
+    if (!Array.isArray(countries) || !countries.every((x) => typeof x === 'string')) {
+      return c.json({ error: 'countries must be string[]' }, 400);
+    }
+    const stored = await setExcludedCountries(db, countries);
+    cache.clear(); // exclusions change the offers/stats sets → drop the 5-min cache
+    return c.json({ countries: stored });
   });
 
   return app;
