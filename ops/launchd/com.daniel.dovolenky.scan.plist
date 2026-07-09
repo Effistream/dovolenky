@@ -1,5 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Mac FALLBACK scanner. The 24/7 primary scan runs in the cloud (GitHub Actions,
+  every 2h at :00 UTC) but its datacenter IP is tarpitted/blocked by several CZ
+  sites. This LaunchAgent runs the scan from the Mac's residential IP for exactly
+  those hard sources (SCAN_SOURCES below), so when the Mac is on they get covered.
+
+  Safe alongside the cloud scan: markMissedOffers is strictly per-source, so this
+  subset never deactivates cloud-scanned sources. Scheduled at :40 (cloud is :00,
+  ≤30-min runs) so run windows don't overlap — avoiding the same-source insert
+  collision / duplicate-notification the single-process design assumes away.
+  StartCalendarInterval coalesces slots missed while asleep into ONE catch-up run
+  on wake (Mac need not be on 24/7). DB + Telegram creds come from .env.
+-->
 <plist version="1.0">
 <dict>
 	<key>Label</key>
@@ -9,7 +22,7 @@
 	<array>
 		<string>/bin/zsh</string>
 		<string>-lc</string>
-		<string>cd '/Users/daniel/Library/CloudStorage/OneDrive-Osobní/Effistream/dovolenky' &amp;&amp; mkdir -p logs data &amp;&amp; /usr/bin/env npx tsx src/cli/scan.ts >> logs/scan.log 2>&amp;1</string>
+		<string>cd '/Users/daniel/Library/CloudStorage/OneDrive-Osobní/Effistream/dovolenky' &amp;&amp; mkdir -p logs data &amp;&amp; SCAN_SOURCES='fischer,eximtours,etravel,firo,dovolenkovani,bluestyle,zajezdy' /usr/bin/env npx tsx src/cli/scan.ts >> logs/scan.log 2>&amp;1</string>
 	</array>
 
 	<key>StartCalendarInterval</key>
@@ -18,73 +31,73 @@
 			<key>Hour</key>
 			<integer>0</integer>
 			<key>Minute</key>
-			<integer>5</integer>
+			<integer>40</integer>
 		</dict>
 		<dict>
 			<key>Hour</key>
 			<integer>2</integer>
 			<key>Minute</key>
-			<integer>5</integer>
+			<integer>40</integer>
 		</dict>
 		<dict>
 			<key>Hour</key>
 			<integer>4</integer>
 			<key>Minute</key>
-			<integer>5</integer>
+			<integer>40</integer>
 		</dict>
 		<dict>
 			<key>Hour</key>
 			<integer>6</integer>
 			<key>Minute</key>
-			<integer>5</integer>
+			<integer>40</integer>
 		</dict>
 		<dict>
 			<key>Hour</key>
 			<integer>8</integer>
 			<key>Minute</key>
-			<integer>5</integer>
+			<integer>40</integer>
 		</dict>
 		<dict>
 			<key>Hour</key>
 			<integer>10</integer>
 			<key>Minute</key>
-			<integer>5</integer>
+			<integer>40</integer>
 		</dict>
 		<dict>
 			<key>Hour</key>
 			<integer>12</integer>
 			<key>Minute</key>
-			<integer>5</integer>
+			<integer>40</integer>
 		</dict>
 		<dict>
 			<key>Hour</key>
 			<integer>14</integer>
 			<key>Minute</key>
-			<integer>5</integer>
+			<integer>40</integer>
 		</dict>
 		<dict>
 			<key>Hour</key>
 			<integer>16</integer>
 			<key>Minute</key>
-			<integer>5</integer>
+			<integer>40</integer>
 		</dict>
 		<dict>
 			<key>Hour</key>
 			<integer>18</integer>
 			<key>Minute</key>
-			<integer>5</integer>
+			<integer>40</integer>
 		</dict>
 		<dict>
 			<key>Hour</key>
 			<integer>20</integer>
 			<key>Minute</key>
-			<integer>5</integer>
+			<integer>40</integer>
 		</dict>
 		<dict>
 			<key>Hour</key>
 			<integer>22</integer>
 			<key>Minute</key>
-			<integer>5</integer>
+			<integer>40</integer>
 		</dict>
 	</array>
 

@@ -6,6 +6,7 @@ import { Telegram } from '../core/telegram.js';
 import { adapters as allAdapters } from '../sources/index.js';
 import { runScan } from '../core/run.js';
 import { loadDotEnv } from './env.js';
+import { selectSources } from './select-sources.js';
 
 interface CliArgs {
   source: string | null;
@@ -38,14 +39,17 @@ async function main(): Promise<void> {
     hostGapOverrides: { 'last-minute.zajezdy.cz': 5000 },
   });
 
-  // Select adapters (all, or a single one via --source=).
-  let adapters = allAdapters;
-  if (args.source) {
-    adapters = allAdapters.filter((a) => a.name === args.source);
-    if (adapters.length === 0) {
-      console.error(`Unknown source "${args.source}". Known: ${allAdapters.map((a) => a.name).join(', ')}`);
-      process.exit(1);
-    }
+  // Select adapters: all by default, or a comma-separated subset via --source=
+  // or the SCAN_SOURCES env var (the Mac fallback scanner uses SCAN_SOURCES to
+  // scrape only the sources the cloud IP can't reach). --source= wins over env.
+  const rawSources = args.source ?? process.env.SCAN_SOURCES ?? null;
+  const { adapters, unknown } = selectSources(allAdapters, rawSources);
+  if (unknown.length > 0) {
+    console.warn(`Ignoring unknown source(s): ${unknown.join(', ')} — known: ${allAdapters.map((a) => a.name).join(', ')}`);
+  }
+  if (adapters.length === 0) {
+    console.error(`No known sources in "${rawSources}". Known: ${allAdapters.map((a) => a.name).join(', ')}`);
+    process.exit(1);
   }
 
   // Telegram only when both token and chatId are set; otherwise warn and behave
