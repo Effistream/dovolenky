@@ -21,8 +21,15 @@ export async function buildDigest(
   db: Db,
   cfg: AppConfig,
   now: Date = new Date(),
+  excluded: Set<string> = new Set(),
 ): Promise<{ html: string; itemCount: number } | null> {
-  const activeRows = await db.select().from(offers).where(eq(offers.active, true));
+  const activeRowsRaw = await db.select().from(offers).where(eq(offers.active, true));
+  // Global negative filter (Task 43): excluded countries are still INGESTED (their
+  // price history is preserved by the scan) but MUTED from the digest. Drop them
+  // right after fetch so every downstream step — dedup, ranking, and the stats
+  // footer (activeOffers) — sees only surfaced offers. NULL-country rows never
+  // match an exclusion and always pass through.
+  const activeRows = activeRowsRaw.filter((r) => r.country == null || !excluded.has(r.country));
   if (activeRows.length === 0) return null;
 
   // Cross-source dedup (spec §13): collapse active rows sharing a match_key to a

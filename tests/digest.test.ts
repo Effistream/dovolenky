@@ -47,7 +47,7 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
  */
 async function seedOffer(
   db: Db,
-  opts: { key: string; price: number; firstSeenAt: string; capturedAt: string; matchKey?: string | null; title?: string },
+  opts: { key: string; price: number; firstSeenAt: string; capturedAt: string; matchKey?: string | null; title?: string; country?: string },
 ): Promise<number> {
   const [row] = await db
     .insert(offers)
@@ -55,7 +55,7 @@ async function seedOffer(
       source: 'seed',
       sourceOfferKey: opts.key,
       title: opts.title ?? `Seed Hotel ${opts.key}`,
-      country: 'Řecko',
+      country: opts.country ?? 'Řecko',
       locality: 'Kréta',
       stars: 4,
       board: 'AI',
@@ -93,8 +93,22 @@ describe('buildDigest', () => {
   });
 
   it('returns null when there are no active offers', async () => {
-    const result = await buildDigest(db, makeConfig(), new Date('2026-07-04T10:00:00.000Z'));
+    const result = await buildDigest(db, makeConfig(), new Date('2026-07-04T10:00:00.000Z'), new Set<string>());
     expect(result).toBeNull();
+  });
+
+  it('omits offers whose country is globally excluded (mute), keeps the rest', async () => {
+    const now = new Date('2026-07-04T10:00:00.000Z');
+    const at = '2026-07-04T00:00:00.000Z';
+    // The digest item line renders the offer TITLE (not the country string), so
+    // presence/absence is detected via a distinctive per-offer title.
+    await seedOffer(db, { key: 'gr', price: 12000, country: 'Řecko', title: 'ReckoHotel', firstSeenAt: at, capturedAt: at });
+    await seedOffer(db, { key: 'eg', price: 12000, country: 'Egypt', title: 'EgyptHotel', firstSeenAt: at, capturedAt: at });
+
+    const digest = await buildDigest(db, makeConfig(), now, new Set<string>(['Egypt']));
+    expect(digest).not.toBeNull();
+    expect(digest!.html).toContain('ReckoHotel');
+    expect(digest!.html).not.toContain('EgyptHotel');
   });
 
   it('builds top-10 by realPct desc, with stats and correct itemCount, from ~15 seeded offers', async () => {
@@ -111,7 +125,7 @@ describe('buildDigest', () => {
     // formed by the 14 high-priced offers. Also "new" (seen within 24h).
     await seedOffer(db, { key: 'cheap', price: 5000, firstSeenAt: newAt, capturedAt: newAt });
 
-    const result = await buildDigest(db, makeConfig(), now);
+    const result = await buildDigest(db, makeConfig(), now, new Set<string>());
     expect(result).not.toBeNull();
     const { html, itemCount } = result!;
 
@@ -146,7 +160,7 @@ describe('buildDigest', () => {
       await seedOffer(db, { key: `null-${i}`, title: `Null ${i}`, price: 20000 + i, matchKey: null, firstSeenAt: at, capturedAt: at });
     }
 
-    const result = await buildDigest(db, makeConfig(), now);
+    const result = await buildDigest(db, makeConfig(), now, new Set<string>());
     expect(result).not.toBeNull();
     const { html } = result!;
 
@@ -226,7 +240,7 @@ describe('buildDigest', () => {
     await seedAlfa('alfa-3', 24000, 8, '2026-08-18');
     await seedAlfa('alfa-4', 15000, 5, '2026-08-20');
 
-    const result = await buildDigest(db, makeConfig(), now);
+    const result = await buildDigest(db, makeConfig(), now, new Set<string>());
     expect(result).not.toBeNull();
     const { html } = result!;
 

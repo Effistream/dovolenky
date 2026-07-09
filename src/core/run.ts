@@ -14,6 +14,7 @@ import { formatOffer } from './format.js';
 import { pragueDayString } from './dates.js';
 import { hotelTermPricesPN, localityBucketPricesPN, marketBucketPrices, ownSnapshotsFor } from './market.js';
 import { buildDigest } from './digest.js';
+import { getExcludedCountries } from './db/exclusions.js';
 import { BLOCKED_PREFIX, BACKOFF_MARKER, RECENT_RUN_SCAN_LIMIT, isBackoffRow, backoffUntilFrom } from './backoff.js';
 
 export interface RunScanDeps {
@@ -53,6 +54,7 @@ async function processOffers(
   sourceOffers: NormalizedOffer[],
   now: Date,
   log: (s: string) => void,
+  excluded: Set<string>,
 ): Promise<OfferProcessResult> {
   const candidates: Candidate[] = [];
   let snapshotsWritten = 0;
@@ -94,7 +96,11 @@ async function processOffers(
         now,
       });
 
-      const matches = matchProfiles(offer, cfg.profiles, now);
+      // Global negative filter (Task 43): mute notifications for excluded countries.
+      // The ingest/snapshot write ABOVE this line has already run, so an excluded
+      // offer keeps its price history — only candidate generation is suppressed here.
+      const isExcluded = offer.country != null && excluded.has(offer.country);
+      const matches = isExcluded ? [] : matchProfiles(offer, cfg.profiles, now);
       const outcomes = evaluateOffer({
         offerId: ingest.offerId,
         offer,
@@ -179,6 +185,7 @@ async function maybeSendDigest(
   now: Date,
   telegram: Telegram | null,
   dryRun: boolean,
+  excluded: Set<string>,
 ): Promise<boolean> {
   // Intl can format midnight as "24" instead of "0" depending on locale/runtime; normalize
   // (mirrors the same defense in zajezdy.ts's zajezdyAllowedNow).
@@ -199,7 +206,7 @@ async function maybeSendDigest(
     .limit(1);
   if (lastDigest && pragueDayString(new Date(lastDigest.sentAt)) >= today) return false;
 
-  const digest = await buildDigest(db, cfg, now);
+  const digest = await buildDigest(db, cfg, now, excluded);
   if (!digest) return false;
 
   // A null telegram is treated like a dry run for sends: report that a digest
@@ -270,6 +277,12 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
   const perSource: SourceSummary[] = [];
   const allCandidates: Candidate[] = [];
 
+  // Global negative filter (Task 43): read the excluded-country set ONCE per scan and
+  // thread it through both muting choke points — per-offer candidate generation
+  // (processOffers) and the daily digest (buildDigest via maybeSendDigest). Excluded
+  // offers are still ingested (price history preserved); only their notifications are muted.
+  const excluded = new Set(await getExcludedCountries(db));
+
   // --- Per-source scan (sequential; shared HttpClient handles politeness) ---
   for (const adapter of adapters) {
     const startedAt = now.toISOString();
@@ -305,7 +318,7 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
       const fetched = await adapter.fetchOffers({ http: deps.http, adults: cfg.scan.adults, log, priorTitles });
       offersFound = fetched.length;
 
-      const processed = await processOffers(db, cfg, fetched, now, log);
+      const processed = await processOffers(db, cfg, fetched, now, log, excluded);
       allCandidates.push(...processed.candidates);
       snapshotsWritten = processed.snapshotsWritten;
       errorCount = processed.errored;
@@ -388,7 +401,7 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
   }
 
   // --- Digest ---
-  const digestSent = await maybeSendDigest(db, cfg, now, telegram, dryRun);
+  const digestSent = await maybeSendDigest(db, cfg, now, telegram, dryRun, excluded);
 
   // --- Health alerts (per source whose current run failed) ---
   for (const s of perSource) {
