@@ -29,7 +29,11 @@ export function openDb(url: string, authToken?: string): Db {
  * which is exactly the cloud case; local/CLI keep {@link openDb}.
  */
 export function openDbWeb(url: string, authToken?: string): Db {
-  const client = createWebClient({ url, authToken });
+  // Force pure HTTP by coercing libsql:// → https://. With a libsql:// URL the web
+  // client negotiates the Hrana WebSocket protocol, which hangs on Vercel's serverless
+  // runtime; plain HTTPS fetch is robust there (confirmed 2026-07-09).
+  const httpUrl = url.replace(/^libsql:\/\//i, 'https://');
+  const client = createWebClient({ url: httpUrl, authToken });
   return drizzle(client, { schema });
 }
 
