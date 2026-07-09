@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { and, desc, eq, gte } from 'drizzle-orm';
+import { and, desc, eq, gte, sql } from 'drizzle-orm';
 import type { Db } from '../core/db/index.js';
 import { offers, priceSnapshots, sourceRuns } from '../core/db/schema.js';
 import type { Profile } from '../core/config.js';
@@ -14,10 +14,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const SPARKLINE_POINTS = 14;
 const HISTORY_MEDIAN_DAYS = 30;
 const MAX_ALTERNATIVES = 3;
-// 30 min: the board's discount ladder recomputes N+1 market-bucket queries for the whole active
-// set, which is heavy at full scale (~1200+ offers). The scan only writes every ~2h, so a longer
-// cache trades a little staleness for far fewer expensive recomputations (a cache miss can take
-// tens of seconds — hence api/index.ts's raised maxDuration).
+// 30 min. buildOffers now bulk-loads latest snapshots once and fans the discount
+// ladder out concurrently, so a cache miss is ~1-2s rather than the tens of
+// seconds the old per-offer N+1 cost. The scan only writes every ~2h, so this TTL
+// mainly skips redundant recomputation between scans; api/index.ts keeps a
+// generous maxDuration purely as headroom.
 const CACHE_TTL_MS = 30 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
@@ -66,15 +67,83 @@ function rowToOffer(
   };
 }
 
-/** Latest snapshot for an offer id (highest id = newest write), or null. */
-async function latestSnapshot(db: Db, offerId: number) {
-  const [snap] = await db
-    .select()
+/** The subset of a price snapshot the board needs (latest per offer). */
+interface LatestSnap {
+  pricePerPerson: number;
+  priceTotal: number | null;
+  claimedOriginalPrice: number | null;
+  claimedDiscountPct: number | null;
+  omnibusLowestPrice: number | null;
+}
+
+/**
+ * Latest snapshot for every ACTIVE offer, in a single query (max(id) per
+ * offer_id, joined back to its row, restricted to active offers). This one bulk
+ * load replaces three separate N+1 patterns on the read path: the per-row
+ * latestSnapshot loop, the per-representative rebuild, and — threaded in as
+ * `latestPriceByOfferId` — perNightPricesFor's per-bucket-row lookup, which was
+ * the dominant cost (a popular bucket meant one SELECT per member, per
+ * representative). No writes happen during a read, so the map is consistent for
+ * the whole request.
+ */
+async function loadLatestSnapshots(db: Db): Promise<Map<number, LatestSnap>> {
+  const latestIds = db
+    .select({ offerId: priceSnapshots.offerId, maxId: sql<number>`max(${priceSnapshots.id})`.as('max_id') })
     .from(priceSnapshots)
-    .where(eq(priceSnapshots.offerId, offerId))
-    .orderBy(desc(priceSnapshots.id))
-    .limit(1);
-  return snap ?? null;
+    .groupBy(priceSnapshots.offerId)
+    .as('latest_ids');
+
+  const rows = await db
+    .select({
+      offerId: priceSnapshots.offerId,
+      pricePerPerson: priceSnapshots.pricePerPerson,
+      priceTotal: priceSnapshots.priceTotal,
+      claimedOriginalPrice: priceSnapshots.claimedOriginalPrice,
+      claimedDiscountPct: priceSnapshots.claimedDiscountPct,
+      omnibusLowestPrice: priceSnapshots.omnibusLowestPrice,
+    })
+    .from(priceSnapshots)
+    .innerJoin(latestIds, eq(priceSnapshots.id, latestIds.maxId))
+    .innerJoin(offers, and(eq(offers.id, priceSnapshots.offerId), eq(offers.active, true)));
+
+  const map = new Map<number, LatestSnap>();
+  for (const r of rows) {
+    map.set(r.offerId, {
+      pricePerPerson: r.pricePerPerson,
+      priceTotal: r.priceTotal,
+      claimedOriginalPrice: r.claimedOriginalPrice,
+      claimedDiscountPct: r.claimedDiscountPct,
+      omnibusLowestPrice: r.omnibusLowestPrice,
+    });
+  }
+  return map;
+}
+
+// Per-group discount work is fanned out with this cap. Each group still issues a
+// handful of independent queries (own history + the 3 reference buckets +
+// sparkline) via Promise.all, so peak in-flight ≈ GROUP_CONCURRENCY × ~5 — kept
+// modest so the remote (Turso) connection isn't overwhelmed.
+const GROUP_CONCURRENCY = 8;
+
+/** Map with a bounded number of concurrent workers, preserving input order. */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    for (;;) {
+      const i = next;
+      next += 1;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i]!, i);
+    }
+  }
+  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
 }
 
 interface OfferItem {
@@ -121,18 +190,24 @@ async function buildOffers(
   const excluded = new Set(await getExcludedCountries(db));
   const activeRows = activeRowsRaw.filter((r) => r.country == null || !excluded.has(r.country));
 
-  // Attach each active row's latest price so we can pick the cheapest per group.
-  const withPrice: { row: typeof offers.$inferSelect; price: number }[] = [];
-  for (const row of activeRows) {
-    const snap = await latestSnapshot(db, row.id);
-    if (snap) withPrice.push({ row, price: snap.pricePerPerson });
-  }
+  // One bulk query for every active offer's latest snapshot. Reused for the
+  // cheapest-per-group pick, the representative rebuild, and (as a price-only
+  // view) the reference-ladder buckets — collapsing the old per-offer N+1s.
+  const snapByOfferId = await loadLatestSnapshots(db);
+  const latestPriceByOfferId = new Map<number, number>();
+  for (const [id, s] of snapByOfferId) latestPriceByOfferId.set(id, s.pricePerPerson);
 
   // Group by match_key. NULL match_key → each row is its own group. The cheapest
   // row is the representative; the rest become price-ascending alternatives.
-  const groups = new Map<string, { row: typeof offers.$inferSelect; price: number }[]>();
+  const withSnap: { row: typeof offers.$inferSelect; snap: LatestSnap }[] = [];
+  for (const row of activeRows) {
+    const snap = snapByOfferId.get(row.id);
+    if (snap) withSnap.push({ row, snap });
+  }
+
+  const groups = new Map<string, { row: typeof offers.$inferSelect; snap: LatestSnap }[]>();
   const order: string[] = [];
-  withPrice.forEach((entry, i) => {
+  withSnap.forEach((entry, i) => {
     const key = entry.row.matchKey != null ? `k:${entry.row.matchKey}` : `u:${i}`;
     const existing = groups.get(key);
     if (existing) existing.push(entry);
@@ -142,35 +217,42 @@ async function buildOffers(
     }
   });
 
-  const items: OfferItem[] = [];
-  for (const key of order) {
+  // Per-group discount, fanned out with a concurrency cap (order preserved). A
+  // filtered-out group yields null and is dropped afterwards.
+  const built = await mapWithConcurrency(order, GROUP_CONCURRENCY, async (key): Promise<OfferItem | null> => {
     const group = groups.get(key)!;
-    const sorted = [...group].sort((a, b) => a.price - b.price);
+    const sorted = [...group].sort((a, b) => a.snap.pricePerPerson - b.snap.pricePerPerson);
     const rep = sorted[0]!;
     const alternatives = sorted
       .slice(1, 1 + MAX_ALTERNATIVES)
-      .map((e) => ({ source: e.row.source, pricePerPerson: e.price, url: e.row.url }));
+      .map((e) => ({ source: e.row.source, pricePerPerson: e.snap.pricePerPerson, url: e.row.url }));
 
-    const snap = await latestSnapshot(db, rep.row.id);
-    if (!snap) continue;
-    const offer = rowToOffer(rep.row, snap);
+    const offer = rowToOffer(rep.row, rep.snap);
 
     // Filters that don't need the discount are cheapest to apply first.
-    if (filters.source && offer.source !== filters.source) continue;
-    if (filters.country && offer.country !== filters.country) continue;
+    if (filters.source && offer.source !== filters.source) return null;
+    if (filters.country && offer.country !== filters.country) return null;
     if (filters.profile) {
       const matched = matchProfiles(offer, profiles, now).some((m) => m.name === filters.profile);
-      if (!matched) continue;
+      if (!matched) return null;
     }
 
-    const ownSnapshots = await ownSnapshotsFor(db, rep.row.id, now);
     marketComputeCount += 1;
-    // Full per-night reference ladder (spec §15): hotel → locality → market,
-    // same wiring as run.ts/digest.ts, so the board shows exactly the same
-    // tier/baseline/label a Telegram notification would for this offer.
-    const hotelPricesPN = await hotelTermPricesPN(db, rep.row.id, offer);
-    const localityPricesPN = await localityBucketPricesPN(db, rep.row.id, offer);
-    const marketPricesPN = await marketBucketPrices(db, rep.row.id, offer);
+    // Full per-night reference ladder (spec §15): hotel → locality → market, plus
+    // own history and the sparkline. All independent, so run together; the bucket
+    // queries take the preloaded price map, making their inner lookups in-memory.
+    const [ownSnapshots, hotelPricesPN, localityPricesPN, marketPricesPN, sparkRows] = await Promise.all([
+      ownSnapshotsFor(db, rep.row.id, now),
+      hotelTermPricesPN(db, rep.row.id, offer, latestPriceByOfferId),
+      localityBucketPricesPN(db, rep.row.id, offer, latestPriceByOfferId),
+      marketBucketPrices(db, rep.row.id, offer, latestPriceByOfferId),
+      db
+        .select({ price: priceSnapshots.pricePerPerson })
+        .from(priceSnapshots)
+        .where(eq(priceSnapshots.offerId, rep.row.id))
+        .orderBy(desc(priceSnapshots.id))
+        .limit(SPARKLINE_POINTS),
+    ]);
     const discount = computeRealDiscount({
       current: offer.pricePerPerson,
       ownSnapshots,
@@ -184,19 +266,13 @@ async function buildOffers(
     });
 
     if (filters.minRealPct != null && (discount.realPct == null || discount.realPct < filters.minRealPct)) {
-      continue;
+      return null;
     }
 
     // Sparkline = last SPARKLINE_POINTS snapshot prices, oldest→newest.
-    const sparkRows = await db
-      .select({ price: priceSnapshots.pricePerPerson })
-      .from(priceSnapshots)
-      .where(eq(priceSnapshots.offerId, rep.row.id))
-      .orderBy(desc(priceSnapshots.id))
-      .limit(SPARKLINE_POINTS);
     const sparkline = sparkRows.map((r) => r.price).reverse();
 
-    items.push({
+    return {
       id: rep.row.id,
       source: offer.source,
       title: offer.title,
@@ -220,8 +296,10 @@ async function buildOffers(
       fake: discount.fake,
       alternatives,
       sparkline,
-    });
-  }
+    };
+  });
+
+  const items = built.filter((x): x is OfferItem => x !== null);
 
   // Sort by real discount desc (nulls last) — the board's default ordering.
   items.sort((a, b) => {
@@ -282,12 +360,14 @@ async function buildStats(db: Db, profiles: Record<string, Profile>, now: Date) 
   const new24h = newRows.filter((r) => r.country == null || !excluded.has(r.country)).length;
 
   // Median latest price per profile: reuse matchProfiles over the reconstructed
-  // offer so the "set" is exactly what each profile would notify on.
+  // offer so the "set" is exactly what each profile would notify on. One bulk
+  // load of latest snapshots (same as the board) replaces the per-row N+1.
   const pricesByProfile = new Map<string, number[]>();
   for (const name of Object.keys(profiles)) pricesByProfile.set(name, []);
 
+  const snapByOfferId = await loadLatestSnapshots(db);
   for (const row of activeRows) {
-    const snap = await latestSnapshot(db, row.id);
+    const snap = snapByOfferId.get(row.id);
     if (!snap) continue;
     const offer = rowToOffer(row, snap);
     for (const m of matchProfiles(offer, profiles, now)) {

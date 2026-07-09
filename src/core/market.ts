@@ -42,20 +42,35 @@ function departureMonth(departureDate: string | null): string | null {
 async function perNightPricesFor(
   db: Db,
   rows: { id: number; matchKey: string | null; nights: number | null }[],
+  latestPriceByOfferId?: ReadonlyMap<number, number>,
 ): Promise<number[]> {
   const groupMin = new Map<string, number>();
   const prices: number[] = [];
   for (const row of rows) {
     if (row.nights == null || row.nights < 1) continue; // cannot normalize per-night
-    const [snap] = await db
-      .select({ price: priceSnapshots.pricePerPerson })
-      .from(priceSnapshots)
-      .where(eq(priceSnapshots.offerId, row.id))
-      .orderBy(desc(priceSnapshots.id))
-      .limit(1);
-    if (!snap) continue;
 
-    const perNight = Math.round(snap.price / row.nights);
+    // Latest per-person price of this bucket row. The read-path (web api) preloads
+    // every active offer's latest snapshot once and passes it in as
+    // latestPriceByOfferId, collapsing what was a per-bucket-row SELECT — the read
+    // path's dominant N+1 — into an in-memory lookup. Callers that don't supply it
+    // (run.ts/digest.ts, mid-scan, when the map would be stale) keep the live
+    // per-row query. A missing/absent id yields no contribution, exactly as an
+    // offer with no snapshot did before.
+    let price: number | undefined;
+    if (latestPriceByOfferId) {
+      price = latestPriceByOfferId.get(row.id);
+    } else {
+      const [snap] = await db
+        .select({ price: priceSnapshots.pricePerPerson })
+        .from(priceSnapshots)
+        .where(eq(priceSnapshots.offerId, row.id))
+        .orderBy(desc(priceSnapshots.id))
+        .limit(1);
+      price = snap?.price;
+    }
+    if (price == null) continue;
+
+    const perNight = Math.round(price / row.nights);
     if (row.matchKey == null) {
       prices.push(perNight);
     } else {
@@ -73,7 +88,7 @@ async function perNightPricesFor(
  * computeRealDiscount enforces the ≥8 rule, so we return every per-night price
  * found and let it decide. This is the last-resort tier of the discount ladder.
  */
-export async function marketBucketPrices(db: Db, offerId: number, offer: NormalizedOffer): Promise<number[]> {
+export async function marketBucketPrices(db: Db, offerId: number, offer: NormalizedOffer, latestPriceByOfferId?: ReadonlyMap<number, number>): Promise<number[]> {
   const month = departureMonth(offer.departureDate);
   const band = nightsBand(offer.nights);
   // Cross-source dedup fix: computeMatchKey is pure, so we recompute the
@@ -115,7 +130,7 @@ export async function marketBucketPrices(db: Db, offerId: number, offer: Normali
     .from(offers)
     .where(and(...conditions));
 
-  return perNightPricesFor(db, rows);
+  return perNightPricesFor(db, rows, latestPriceByOfferId);
 }
 
 /**
@@ -127,7 +142,7 @@ export async function marketBucketPrices(db: Db, offerId: number, offer: Normali
  * computeRealDiscount enforces the ≥4 rule. Answers "is this term cheap *for this
  * hotel*?".
  */
-export async function hotelTermPricesPN(db: Db, offerId: number, offer: NormalizedOffer): Promise<number[]> {
+export async function hotelTermPricesPN(db: Db, offerId: number, offer: NormalizedOffer, latestPriceByOfferId?: ReadonlyMap<number, number>): Promise<number[]> {
   const hotelKey = computeHotelKey(offer);
   if (hotelKey == null) return []; // under-specified hotel identity → no pool
 
@@ -162,7 +177,7 @@ export async function hotelTermPricesPN(db: Db, offerId: number, offer: Normaliz
     .from(offers)
     .where(and(...conditions));
 
-  return perNightPricesFor(db, rows);
+  return perNightPricesFor(db, rows, latestPriceByOfferId);
 }
 
 /**
@@ -172,7 +187,7 @@ export async function hotelTermPricesPN(db: Db, offerId: number, offer: Normaliz
  * and its cross-source twins. computeRealDiscount enforces the ≥8 rule. Answers
  * "is this cheap for <locality> this month?".
  */
-export async function localityBucketPricesPN(db: Db, offerId: number, offer: NormalizedOffer): Promise<number[]> {
+export async function localityBucketPricesPN(db: Db, offerId: number, offer: NormalizedOffer, latestPriceByOfferId?: ReadonlyMap<number, number>): Promise<number[]> {
   if (offer.locality == null) return []; // no locality → this rung doesn't apply
   const month = departureMonth(offer.departureDate);
   const subjectKey = computeMatchKey(offer);
@@ -198,7 +213,7 @@ export async function localityBucketPricesPN(db: Db, offerId: number, offer: Nor
     .from(offers)
     .where(and(...conditions));
 
-  return perNightPricesFor(db, rows);
+  return perNightPricesFor(db, rows, latestPriceByOfferId);
 }
 
 /** Own-history snapshots for an offer over the last 30 days, as {price, at}. */
