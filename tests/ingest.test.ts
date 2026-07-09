@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { openDb, ensureSchema, type Db } from '../src/core/db/index.js';
 import { offers, priceSnapshots } from '../src/core/db/schema.js';
-import { ingestOffer, markMissedOffers, isPlaceholderTitle } from '../src/core/ingest.js';
+import { ingestOffer, ingestSourceOffers, markMissedOffers, isPlaceholderTitle, type IngestResult } from '../src/core/ingest.js';
 import { computeMatchKey, computeHotelKey } from '../src/core/normalize.js';
 import type { NormalizedOffer } from '../src/core/types.js';
 
@@ -527,5 +527,205 @@ describe('ingestOffer', () => {
     const notifCols = (await db.all(`PRAGMA table_info(notifications_log)`)) as Array<{ name: string }>;
     const notifMatchKeyCols = notifCols.filter(c => c.name === 'match_key');
     expect(notifMatchKeyCols.length).toBe(1);
+  });
+});
+
+describe('ingestSourceOffers (batched == per-offer)', () => {
+  // now, plus two seed times: one 4h back (still inside the 24h heartbeat) and one 26h back
+  // (past it), so the seeded snapshots land at controllable capturedAts.
+  const now = new Date('2026-07-04T10:00:00.000Z');
+  const tSeed = new Date('2026-07-04T06:00:00.000Z'); // 4h before now → within heartbeat
+  const tStale = new Date('2026-07-03T08:00:00.000Z'); // 26h before now → past heartbeat
+
+  /**
+   * Seeds the four "existing" offers (each with a prior snapshot at a controllable capturedAt) by
+   * replaying ingestOffer at an earlier `now`. Applied identically to both DBs so they start byte-
+   * for-byte equal before the mixed re-ingest.
+   */
+  async function seed(target: Db): Promise<void> {
+    await ingestOffer(target, makeOffer({ sourceOfferKey: 'exist-change', title: 'Change Hotel', pricePerPerson: 20000 }), tSeed);
+    await ingestOffer(target, makeOffer({ sourceOfferKey: 'exist-nochange', title: 'Nochange Hotel', pricePerPerson: 18000 }), tSeed);
+    await ingestOffer(target, makeOffer({ sourceOfferKey: 'exist-stale', title: 'Stale Hotel', pricePerPerson: 17000 }), tStale);
+    await ingestOffer(target, makeOffer({ source: 'dovolenkovani', sourceOfferKey: 'exist-ph', title: 'Creek Hotel', pricePerPerson: 16000 }), tSeed);
+  }
+
+  // The mixed re-ingest set applied at `now`: 2 brand-new + all four existing cases, interleaved.
+  function mixedSet(): NormalizedOffer[] {
+    return [
+      makeOffer({ sourceOfferKey: 'new-1', title: 'New Hotel A', pricePerPerson: 11000 }),
+      makeOffer({ sourceOfferKey: 'exist-change', title: 'Change Hotel', pricePerPerson: 15000 }), // price changed → snapshot
+      makeOffer({ sourceOfferKey: 'exist-nochange', title: 'Nochange Hotel', pricePerPerson: 18000 }), // same price, within heartbeat → no snapshot
+      makeOffer({ sourceOfferKey: 'new-2', title: 'New Hotel B', pricePerPerson: 9000 }),
+      makeOffer({ sourceOfferKey: 'exist-stale', title: 'Stale Hotel', pricePerPerson: 17000 }), // same price but stale → snapshot
+      makeOffer({ source: 'dovolenkovani', sourceOfferKey: 'exist-ph', title: 'Hotel 320645', pricePerPerson: 13000 }), // placeholder over real → sticky, price change → snapshot
+    ];
+  }
+
+  interface OfferState {
+    source: string;
+    sourceOfferKey: string;
+    title: string;
+    country: string | null;
+    matchKey: string | null;
+    hotelKey: string | null;
+    active: boolean;
+    misses: number;
+    firstSeenAt: string;
+    lastSeenAt: string;
+  }
+  interface StateDump {
+    offers: OfferState[];
+    snapshotsByKey: Record<string, Array<{ pricePerPerson: number; capturedAt: string }>>;
+  }
+
+  // Logical snapshot of the whole DB, keyed by (source, sourceOfferKey) rather than by autoincrement
+  // id, and with each offer's snapshots sorted — so two DBs that differ ONLY in id-assignment order
+  // (which batching legitimately changes for price_snapshots) compare equal iff their content is.
+  async function dumpState(target: Db): Promise<StateDump> {
+    const composite = (s: string, k: string) => `${s} ${k}`;
+    const offerRows = await target.select().from(offers);
+    offerRows.sort((a, b) => composite(a.source, a.sourceOfferKey).localeCompare(composite(b.source, b.sourceOfferKey)));
+
+    const idToKey = new Map<number, string>();
+    for (const r of offerRows) idToKey.set(r.id, composite(r.source, r.sourceOfferKey));
+
+    const snapRows = await target.select().from(priceSnapshots);
+    const snapshotsByKey: Record<string, Array<{ pricePerPerson: number; capturedAt: string }>> = {};
+    for (const s of snapRows) {
+      const key = idToKey.get(s.offerId)!;
+      (snapshotsByKey[key] ??= []).push({ pricePerPerson: s.pricePerPerson, capturedAt: s.capturedAt });
+    }
+    for (const key of Object.keys(snapshotsByKey)) {
+      snapshotsByKey[key]!.sort((a, b) => a.pricePerPerson - b.pricePerPerson || a.capturedAt.localeCompare(b.capturedAt));
+    }
+
+    return {
+      offers: offerRows.map((r) => ({
+        source: r.source,
+        sourceOfferKey: r.sourceOfferKey,
+        title: r.title,
+        country: r.country,
+        matchKey: r.matchKey,
+        hotelKey: r.hotelKey,
+        active: r.active,
+        misses: r.misses,
+        firstSeenAt: r.firstSeenAt,
+        lastSeenAt: r.lastSeenAt,
+      })),
+      snapshotsByKey,
+    };
+  }
+
+  const snapsOf = (state: StateDump, sourceOfferKey: string) =>
+    Object.entries(state.snapshotsByKey).find(([k]) => k.endsWith(` ${sourceOfferKey}`))?.[1] ?? [];
+  const resultFor = (rs: IngestResult[], set: NormalizedOffer[], key: string) =>
+    rs[set.findIndex((o) => o.sourceOfferKey === key)]!;
+
+  it('produces identical offers + price_snapshots DB state as ingestOffer per offer', async () => {
+    const dbA = openDb(':memory:');
+    await ensureSchema(dbA);
+    const dbB = openDb(':memory:');
+    await ensureSchema(dbB);
+
+    await seed(dbA);
+    await seed(dbB);
+
+    // DB-A: ONE batched ingestSourceOffers call. DB-B: ingestOffer per offer, same order, same now.
+    const set = mixedSet();
+    const batchResults = await ingestSourceOffers(dbA, set, now);
+    const perOfferResults: IngestResult[] = [];
+    for (const offer of mixedSet()) perOfferResults.push(await ingestOffer(dbB, offer, now));
+
+    // (1) The whole DB — every offers row (title, country, match_key, hotel_key, active, misses,
+    // first/last seen) and every snapshot (count + prices + capturedAt) — is identical.
+    expect(await dumpState(dbA)).toEqual(await dumpState(dbB));
+
+    // (2) The returned IngestResult semantic fields match per offer (offerId can legitimately be a
+    // different integer if ids diverged — here they don't — so compare the logical fields).
+    const logical = (r: IngestResult) => ({ isNew: r.isNew, snapshotWritten: r.snapshotWritten, previousPrice: r.previousPrice, persistedTitle: r.persistedTitle });
+    expect(batchResults.map(logical)).toEqual(perOfferResults.map(logical));
+
+    // (3) Spot-check each case the mixed set is designed to exercise, so a regression corrupting
+    // BOTH DBs identically (which (1)/(2) would miss) still fails here.
+    expect(resultFor(batchResults, set, 'new-1').isNew).toBe(true);
+    expect(resultFor(batchResults, set, 'new-1').snapshotWritten).toBe(true);
+    expect(resultFor(batchResults, set, 'new-1').previousPrice).toBeNull();
+    expect(resultFor(batchResults, set, 'exist-change').isNew).toBe(false);
+    expect(resultFor(batchResults, set, 'exist-change').snapshotWritten).toBe(true); // price 20000 → 15000
+    expect(resultFor(batchResults, set, 'exist-change').previousPrice).toBe(20000);
+    expect(resultFor(batchResults, set, 'exist-nochange').snapshotWritten).toBe(false); // same price, within heartbeat
+    expect(resultFor(batchResults, set, 'exist-stale').snapshotWritten).toBe(true); // same price but > 24h old
+    expect(resultFor(batchResults, set, 'exist-ph').persistedTitle).toBe('Creek Hotel'); // sticky-title guard
+
+    // Snapshot counts reflect the write rule: nochange stayed at 1; change/stale/ph each gained one.
+    const stateA = await dumpState(dbA);
+    expect(snapsOf(stateA, 'new-1')).toHaveLength(1);
+    expect(snapsOf(stateA, 'exist-nochange')).toHaveLength(1);
+    expect(snapsOf(stateA, 'exist-change')).toHaveLength(2);
+    expect(snapsOf(stateA, 'exist-stale')).toHaveLength(2);
+    expect(snapsOf(stateA, 'exist-ph')).toHaveLength(2);
+
+    // The placeholder re-ingest kept the real stored title AND recomputed hotel_key from it (not the
+    // discarded placeholder) — the same sticky-guard invariant ingestOffer holds.
+    const phRow = stateA.offers.find((o) => o.sourceOfferKey === 'exist-ph')!;
+    expect(phRow.title).toBe('Creek Hotel');
+    expect(phRow.hotelKey).toBe(computeHotelKey(makeOffer({ source: 'dovolenkovani', sourceOfferKey: 'exist-ph', title: 'Creek Hotel' })));
+  });
+
+  it('returns results ALIGNED with input order and hands duplicates the first occurrence result', async () => {
+    const db = openDb(':memory:');
+    await ensureSchema(db);
+
+    const offerX = makeOffer({ sourceOfferKey: 'dup-x', title: 'X Hotel', pricePerPerson: 10000 });
+    const offerY = makeOffer({ sourceOfferKey: 'dup-y', title: 'Y Hotel', pricePerPerson: 11000 });
+    // Index 2 duplicates offerX's (source, sourceOfferKey) at a different price. The batch must
+    // dedupe it to the first occurrence (unique-index safety net) and give index 2 the SAME result.
+    const offerXDup = makeOffer({ sourceOfferKey: 'dup-x', title: 'X Hotel', pricePerPerson: 999 });
+
+    const results = await ingestSourceOffers(db, [offerX, offerY, offerXDup], now);
+
+    expect(results).toHaveLength(3);
+    expect(results[0]).toBe(results[2]); // exact same object → alignment preserved for duplicates
+    expect(results[1]!.offerId).not.toBe(results[0]!.offerId);
+
+    // Only two rows were created; the duplicate neither inserted a second row nor overwrote the
+    // first occurrence's price (10000, not 999).
+    const rows = await db.select().from(offers);
+    expect(rows).toHaveLength(2);
+    const xRow = rows.find((r) => r.sourceOfferKey === 'dup-x')!;
+    const xSnaps = await db.select().from(priceSnapshots).where(sql`${priceSnapshots.offerId} = ${xRow.id}`);
+    expect(xSnaps).toHaveLength(1);
+    expect(xSnaps[0]!.pricePerPerson).toBe(10000);
+  });
+
+  it('returns [] for empty input', async () => {
+    const db = openDb(':memory:');
+    await ensureSchema(db);
+    expect(await ingestSourceOffers(db, [], now)).toEqual([]);
+  });
+
+  it('markMissedOffers (batched) matches the per-row loop: misses++ and deactivate at MAX_MISSES', async () => {
+    const db = openDb(':memory:');
+    await ensureSchema(db);
+
+    // Two offers seen initially; then one disappears from the seen set across two rounds.
+    await ingestSourceOffers(db, [
+      makeOffer({ sourceOfferKey: 'keep' }),
+      makeOffer({ sourceOfferKey: 'vanish' }),
+    ], now);
+
+    await markMissedOffers(db, 'invia', ['keep'], now); // vanish misses → 1, still active
+    let [vanish] = await db.select().from(offers).where(sql`${offers.sourceOfferKey} = 'vanish'`);
+    expect(vanish?.misses).toBe(1);
+    expect(vanish?.active).toBe(true);
+
+    await markMissedOffers(db, 'invia', ['keep'], now); // vanish misses → 2 → inactive
+    [vanish] = await db.select().from(offers).where(sql`${offers.sourceOfferKey} = 'vanish'`);
+    expect(vanish?.misses).toBe(2);
+    expect(vanish?.active).toBe(false);
+
+    const [keep] = await db.select().from(offers).where(sql`${offers.sourceOfferKey} = 'keep'`);
+    expect(keep?.misses).toBe(0);
+    expect(keep?.active).toBe(true);
   });
 });

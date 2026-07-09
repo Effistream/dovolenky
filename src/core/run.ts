@@ -4,7 +4,7 @@ import { notificationsLog, offers, sourceRuns } from './db/schema.js';
 import type { AppConfig } from './config.js';
 import type { Telegram } from './telegram.js';
 import type { NormalizedOffer, SourceAdapter } from './types.js';
-import { ingestOffer, markMissedOffers, isPlaceholderTitle } from './ingest.js';
+import { ingestSourceOffers, markMissedOffers, isPlaceholderTitle } from './ingest.js';
 import { SourceBlockedError } from './http.js';
 import { computeRealDiscount, type DiscountResult } from './discount.js';
 import { matchProfiles } from './filters.js';
@@ -74,12 +74,22 @@ async function processOffers(
   let snapshotsWritten = 0;
   let errored = 0;
 
-  for (const offer of sourceOffers) {
+  // Batch the entire ingest/snapshot write path for this source into a handful of round-trips
+  // (ingestSourceOffers) instead of ~5 per offer — the dominant scan-time cost against a remote
+  // (Turso) DB. Results are ALIGNED with sourceOffers by index (ingestResults[i] ↔ sourceOffers[i]).
+  // This runs OUTSIDE the per-offer try/catch on purpose: if the batch write throws, the whole
+  // source fails and funnels to runScan's catch (status 'failed') — which matches the pre-batch
+  // "every offer errored" outcome for a DB-wide failure. The per-offer loop keeps its own try/catch
+  // to isolate the read-only discount/candidate work exactly as before.
+  const ingestResults = await ingestSourceOffers(db, sourceOffers, now);
+
+  for (let i = 0; i < sourceOffers.length; i += 1) {
+    const offer = sourceOffers[i]!;
+    const ingest = ingestResults[i]!;
     try {
-      const ingest = await ingestOffer(db, offer, now);
       if (ingest.snapshotWritten) snapshotsWritten += 1;
 
-      // Scan-time keys must match persisted keys (2026-07-07 fix): ingestOffer persists
+      // Scan-time keys must match persisted keys (2026-07-07 fix): ingestSourceOffers persists
       // match_key/hotel_key computed from the STICKY-GUARDED title (see ingest.ts), so a
       // placeholder incoming title (e.g. dovolenkovani's "Hotel 320645") does NOT overwrite an
       // already-resolved real title in the DB. If we fed the raw incoming `offer` (still carrying
@@ -134,8 +144,8 @@ async function processOffers(
         cfg: cfg.notifications,
       });
 
-      // ingestOffer already persisted the match_key (from the sticky-guarded title); recompute
-      // here from keyOffer (pure, no DB round-trip) — NOT the raw incoming `offer` — so the
+      // ingestSourceOffers already persisted the match_key (from the sticky-guarded title);
+      // recompute here from keyOffer (pure, no DB round-trip) — NOT the raw incoming `offer` — so the
       // candidate carries the exact same value the DB has, for grouping + log dedup.
       const matchKey = computeMatchKey(keyOffer);
       for (const outcome of outcomes) {
