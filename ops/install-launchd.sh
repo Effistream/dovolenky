@@ -35,5 +35,5 @@ echo "Zkopírováno do $PLIST_DEST."
 launchctl unload "$PLIST_DEST" 2>/dev/null || true
 launchctl load "$PLIST_DEST"
 
-echo "Hotovo. Scan poběží každé 2 hodiny (v :05, 00:05–22:05)."
+echo "Hotovo. Fallback scan poběží každé 2 hodiny (v :40, 00:40–22:40) pro tvrdé zdroje z rezidenční IP."
 echo "Log najdeš v logs/scan.log. Odinstalace: ops/install-launchd.sh --uninstall"
