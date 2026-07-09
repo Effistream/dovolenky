@@ -439,3 +439,75 @@ firotravel.cz, adventura.cz a datour.cz jmenovitě blokují ClaudeBot v robots.t
 esotravel a alexandria nikoliv). Projekt vědomě pokračuje se standardním Chrome UA na
 interních JSON API / SSR stránkách při kadenci 1×/2 h (stejná odchylka jako ř. 10, osobní
 použití). Datour Elastic credentials z bundle se NIKDY nepoužijí.
+
+## 17. Negativní filtr destinací (přidáno 2026-07-09, na požadavek uživatele)
+
+Uživatel: „přidal bych i negativní filtr na frontend, kde bych dal destinace které nechci."
+Rozhodnutí (AskUserQuestion): **globální exclude** — vyloučené země zmizí z tabule I se umlčí
+na Telegramu; seznam se spravuje **živě z webu** a je uložený **v DB** (ne v souboru — přežije
+reload i budoucí Vercel deploy, kde je filesystem read-only).
+
+**Princip:** vyloučené země jsou *standing preference* (ne view-filtr, ne URL). Jedno místo
+pravdy v DB, které čtou tři konzumenti: tabule (schová), scan/notifikace (umlčí), digest
+(vynechá). **Ingest se NEmění** — vyloučené nabídky se dál scrapují a ukládá se jim cenová
+historie; jen se nenotifikují a nezobrazují. Odškrtnutím země se historie okamžitě vrací.
+Exclude je vrstva „zobraz/pošli", ne „sbírej".
+
+### 17.1 Úložiště
+
+Nová tabulka `excluded_countries(country TEXT PRIMARY KEY, created_at INTEGER NOT NULL)`.
+Kanonické názvy zemí (shodné s `normalize.ts` COUNTRIES). Malá, jasná, add/remove/list.
+`ensureTable`/migrace stejným způsobem jako stávající sloupce (PRAGMA guard). Zvažován generický
+`app_settings` key-value → zamítnut jako YAGNI pro jednu preferenci.
+
+### 17.2 API (`src/web/api.ts`, Hono)
+
+- `GET /api/exclusions` → `{ countries: string[] }` (bez cache, nebo cache-busted).
+- `PUT /api/exclusions` s body `{ countries: string[] }` → **nahradí celou množinu**
+  (idempotentní, sedí na chip UI, které drží celý seznam ve stavu). Validuje proti kanonickým
+  zemím (`isKnownCountry`); neznámé tiše zahodí. Vrací uloženou množinu.
+- `buildOffers` **i** `buildStats` filtrují vyloučené země **server-side** (jednotně napříč
+  web read-vrstvou), aby tabule, facet-počty u chipů i statistiky v hlavičce seděly na stejnou
+  množinu, bez zásahu do client-side `applyFilters`. PUT **zneplatní 5min cache** (`/api/offers`,
+  `/api/stats`).
+
+### 17.3 Backend scan / notify / digest (`src/core/`)
+
+- `runScan` přečte vyloučené země z DB **jednou na začátku běhu** (`excludedCountriesSet`).
+- V `processOffers`: `const matches = isExcluded ? [] : matchProfiles(offer, profiles, now)` —
+  žádná shoda ⇒ žádný `hot_deal` / `price_drop` / `new_offer`. `matchProfiles` zůstává čistá
+  (guard je v run.ts, ne v ní).
+- `buildDigest`: odfiltruje vyloučené země z `activeRows` **před** dedup + žebříčkem, aby se
+  vyloučená země neobjevila ani v denním souhrnu.
+- **Ingest beze změny:** vyloučená nabídka se dál ingestuje (snapshot + historie). Časování:
+  tabule reaguje na změnu okamžitě (přes API), Telegram od **nejbližšího dalšího scanu** (ten
+  seznam čte na začátku běhu). Bez zámků — eventuální konzistence stačí (single-user).
+
+### 17.4 Frontend (`web/`)
+
+- Nová sekce **„Nechci vidět"** v panelu **„Více filtrů"** (ne v hlavní liště, ať ji to
+  nezahltí): našeptávač/select kanonických zemí pro přidání + odklikávací chips aktuálních
+  vyloučení.
+- `GET /api/exclusions` při načtení, `PUT` při změně → po úspěchu **refetch `/api/offers`**
+  (vyloučené řádky zmizí, facet-počty se přepočtou).
+- Vyloučení je **globální, NENÍ součástí URL** `FilterState` (na rozdíl od ostatních filtrů) —
+  je to trvalá preference, ne sdílený pohled. Žádný konflikt s include-chip zeměmi: vyloučené
+  z `/api/offers` vůbec nepřijdou, takže se nedají „chtít".
+
+### 17.5 Testy
+
+- Backend: `matchProfiles`-guard umlčí vyloučené (žádné candidates); `buildDigest` je vynechá;
+  ingest vyloučené země **stále** zapíše snapshot (historie zůstává); DB read/write helperů
+  (`getExcludedCountries` / `setExcludedCountries`).
+- API: `GET`/`PUT` round-trip + validace (neznámá země zahozena); `/api/offers` vyloučené vynechá
+  + cache se po PUT zneplatní.
+- Web: přidání/odebrání země (unit nad management komponentou + filters helperem); refetch
+  reflektuje; exclude se **neserializuje** do URL (round-trip test).
+
+### 17.6 Granularita a rozhodnutí
+
+- **Jen země** (ne konkrétní letoviska) — „destinace" = země, facety jsou po zemích. Lokalitní
+  úroveň mimo scope (rozšiřitelné později stejným vzorem).
+- Ingest vyloučených zachován (historie), exclude = notify+display vrstva.
+- Exclude není v URL (standing preference); include-chip zůstává v URL beze změny.
+- PUT-replace-whole-set (ne POST add / DELETE remove) — nejjednodušší pro chip UI.
