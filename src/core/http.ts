@@ -3,6 +3,12 @@ const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 const RETRY_BACKOFF_MS = [500, 2000];
 const MAX_ATTEMPTS = RETRY_BACKOFF_MS.length + 1; // 1 initial try + retries
+// Per-request wall-clock ceiling. Without it, a site that accepts the TCP connection but never
+// responds (common for bot-detectors/WAFs when hit from a datacenter IP, e.g. a GitHub Actions
+// runner) hangs the fetch forever — and since the scan fetches all sources concurrently, one dead
+// host would hang the whole run. On timeout the fetch aborts → treated as a normal request error
+// (retried, then surfaced to the adapter, which fails/partials that source and lets the scan go on).
+const REQUEST_TIMEOUT_MS = 25000;
 
 export class SourceBlockedError extends Error {
   status: number;
@@ -112,9 +118,14 @@ export class HttpClient {
           headers.set('User-Agent', this.userAgent);
         }
 
+        // Abort a hung request after REQUEST_TIMEOUT_MS. Combine with any caller-supplied signal
+        // so both an external abort and the timeout can cancel the fetch.
+        const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+        const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
         const response = await this.fetchImpl(url, {
           ...init,
           headers,
+          signal,
         });
 
         if (response.status === 403 || response.status === 429) {
