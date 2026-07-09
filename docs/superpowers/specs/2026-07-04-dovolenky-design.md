@@ -511,3 +511,97 @@ Kanonické názvy zemí (shodné s `normalize.ts` COUNTRIES). Malá, jasná, add
 - Ingest vyloučených zachován (historie), exclude = notify+display vrstva.
 - Exclude není v URL (standing preference); include-chip zůstává v URL beze změny.
 - PUT-replace-whole-set (ne POST add / DELETE remove) — nejjednodušší pro chip UI.
+
+## 18. Nasazení: Vercel + cron-job.org + Turso (přidáno 2026-07-09, fáze 2)
+
+Cíl: scan běží samostatně v cloudu (ne na localu/launchd), frontend veřejně, Telegram
+notifikace vícekrát denně. Rozhodnuto (AskUserQuestion 2026-07-09): **Vercel Hobby (web + scan
+route) + cron-job.org (spouštěč) + Turso (DB)**; kadence **každé 2 h ve dne (6–24h Praha)**;
+notifikace **jen kvalitní dealy** (reálná sleva — beze změny notify politiky).
+
+Ověřená fakta (2026-07-09): Vercel Hobby funkce **maxDuration 300 s** (Fluid Compute; dřív 60 s);
+Vercel vlastní cron jen 1×/den → nutný externí spouštěč. GitHub Actions cron je „delayed at the
+start of every hour" (zamítnuto — špatné pro včasnost). Turso free 5 GB / 500M čtení měs — masivně
+stačí. Hobby je non-commercial → osobní použití OK.
+
+### 18.1 Turso — auth token (nutná úprava kódu)
+
+`openDb(url)` dnes volá `createClient({ url })` bez tokenu → Turso vyžaduje `authToken`. Rozšířit:
+`openDb(url, authToken?)` → `createClient({ url, ...(authToken ? { authToken } : {}) })`. `config.ts`:
+přidat `databaseAuthToken: env.DATABASE_AUTH_TOKEN ?? null` do `AppConfig`; volající (`scan.ts`,
+`server.ts`, cron route) předají token do `openDb`. Local (`file:./data/...`) token ignoruje.
+`ensureSchema` (CREATE TABLE IF NOT EXISTS + ensureColumn) běží na Turso stejně → první běh na
+prázdné Turso DB vytvoří schéma; historie se buduje od nuly (žádný seed nutný).
+
+### 18.2 Paralelizace scanu (fit do 300 s)
+
+`runScan` je dnes sekvenční `for (const adapter of adapters)`; wall-time ~12 min je v `fetchOffers`
+(politeness gapy). Rozdělit smyčku na dvě fáze:
+1. **Souběžná fetch fáze**: `Promise.allSettled` přes adaptery — každý `fetchOffers` + jeho
+   backoff-check. Per-host zdvořilost zůstává, protože **sdílený `HttpClient` serializuje per-host**
+   (promise-queue, 3s/5s gapy); různé adaptery = různé hosty → běží souběžně, ale žádný host není
+   bombardován. ⚠️ Sdílený host: dovolenkovani + firo oba na `api-ng.cesys.eu` → per-host queue je
+   korektně serializuje (firo počká na drain dovolenkovani; to je žádané). Wall-time = nejpomalejší
+   adapter (~75–90 s: adventura 25×3s, zajezdy 12×5s).
+2. **Sekvenční process/persist fáze**: po dokončení všech fetchů projít výsledky v pořadí adapters
+   a volat `processOffers` + `sourceRuns` insert + `markMissedOffers` **sekvenčně** (rychlé,
+   DB-bound). Tím zůstane globální logika beze změny: `allCandidates` se sbírá kompletní, dedup
+   (`groupCandidates`), cap 20/běh, digest gating — vše jako dřív. `now` fixní pro celý běh.
+
+Chování je jinak identické (fetch je jen síťově souběžný). Přidat volitelný flag
+`deps.concurrency?: 'sequential' | 'concurrent'` (default `'concurrent'`) — CLI může vynutit
+sekvenční pro čitelný log, cron route jede `'concurrent'`. SourceBlockedError/backoff/health-alert
+sémantika beze změny (per-source, jen se vyhodnotí v process fázi).
+
+### 18.3 Cron route `/api/cron/scan`
+
+Nová Hono route (v `createApi` nebo samostatný modul): `GET /api/cron/scan?secret=<CRON_SECRET>`.
+- Ověří `secret` proti `env.CRON_SECRET` **konstantním časem** (`crypto.timingSafeEqual`, ošetřit
+  délkový mismatch); chybný/chybějící → `401`. Secret se **nikdy neloguje**.
+- Spustí `runScan({ db, cfg, telegram, adapters, http, now })` s reálnými adaptéry + Telegramem
+  (ne dry-run), `concurrency: 'concurrent'`. Vrátí souhrn JSON (perSource, notificationsSent,
+  digestSent) — cron-job.org uvidí 200 + tělo pro monitoring.
+- `export const maxDuration = 300` (Vercel) na funkci s touto route.
+- Idempotence/překryv: běhy 2 h od sebe, scan ~90 s → bez rizika překryvu; žádný zámek nutný.
+
+### 18.4 Vercel build + vercel.json
+
+Hono app běží na Vercelu přes adapter `hono/vercel` (`handle(app)`) v serverless entrypointu
+(`api/index.ts` nebo `api/[[...route]].ts`). `vercel.json`:
+- `buildCommand` builduje web (`npm run web:build` → `web/dist`) a případně nic pro API (tsx/esbuild
+  přes Vercel Node runtime).
+- rewrites: `/api/*` → serverless funkce (Hono); vše ostatní → statické `web/dist` (SPA fallback na
+  `index.html`).
+- `functions`: entrypoint s `maxDuration: 300`, Node runtime.
+- Přesné tvary ověřit proti aktuální Vercel + Hono dokumentaci při implementaci (context7 /
+  vercel skill) — API se mění.
+
+### 18.5 Env proměnné (Vercel dashboard/CLI)
+
+`DATABASE_URL` (`libsql://<db>.turso.io`), `DATABASE_AUTH_TOKEN`, `TELEGRAM_BOT_TOKEN`,
+`TELEGRAM_CHAT_ID`, `CRON_SECRET` (náhodný ≥32 znaků). Žádné z nich v gitu (`.env` lokální jen).
+
+### 18.6 cron-job.org
+
+Job: `GET https://<app>.vercel.app/api/cron/scan?secret=<CRON_SECRET>`, plán **každé 2 h mezi
+6:00–24:00 Praha** (cron `0 6-23/2 * * *` v CET/CEST; ověřit TZ v cron-job.org). Timeout jobu
+≥120 s. Monitoring: cron-job.org loguje HTTP status.
+
+### 18.7 Runbook (kroky uživatele — nejde z headless prostředí)
+
+1. **Turso**: `turso auth signup`; `turso db create dovolenky`; `turso db show --url dovolenky`
+   (→ DATABASE_URL); `turso db tokens create dovolenky` (→ DATABASE_AUTH_TOKEN).
+2. **Vercel**: `npm i -g vercel`; `vercel login`; z rootu `vercel` (link projekt); nastavit env
+   (`vercel env add …` pro všech 5) pro Production; `vercel --prod` (deploy). Ověřit
+   `https://<app>.vercel.app` (dashboard) + `/api/offers`.
+3. **První scan**: ručně `GET /api/cron/scan?secret=…` → ověřit 200 + Telegram digest; Turso se
+   naplní.
+4. **cron-job.org**: účet → nový job na tu URL, plán dle §18.6.
+5. **Launchd local**: volitelně vypnout (`ops/…`), aby scan neběžel dvakrát.
+
+### 18.8 Bezpečnost & zdvořilost
+
+CRON_SECRET chrání scan route (jinak by kdokoli spouštěl scan/Telegram). Konstantní-časové
+porovnání. Tokeny jen v env, ne v kódu/gitu/logu. Kadence 2 h respektuje politeness (spec §3:
+cíl 1 běh / ~2 h). Robots §9 odchylky (ClaudeBot-blokující zdroje) beze změny — Chrome UA, 2h
+kadence. Non-commercial Hobby = osobní hlídač → v souladu.
