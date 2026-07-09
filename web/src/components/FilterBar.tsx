@@ -39,6 +39,9 @@ interface Props {
   state: FilterState;
   onChange: (next: FilterState) => void;
   onClear: () => void;
+  /** Global „nechci vidět" country list (server-side state, not in the URL). */
+  excluded: string[];
+  onExcluded: (next: string[]) => void;
 }
 
 const PROFILES: { key: ProfileFilter; label: string }[] = [
@@ -80,11 +83,13 @@ function Chip({
   pressed,
   onClick,
   className,
+  title,
 }: {
   label: string;
   pressed: boolean;
   onClick: () => void;
   className?: string;
+  title?: string;
 }) {
   return (
     <button
@@ -92,6 +97,7 @@ function Chip({
       className={`chip${className ? ` ${className}` : ''}`}
       aria-pressed={pressed}
       onClick={onClick}
+      title={title}
     >
       {label}
     </button>
@@ -103,7 +109,75 @@ function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
-export function FilterBar({ offers, profile, onProfile, state, onChange, onClear }: Props) {
+/** Add a country to the exclusion list (no duplicates). */
+export function addExclusion(excluded: string[], country: string): string[] {
+  return excluded.includes(country) ? excluded : [...excluded, country];
+}
+
+/** Remove a country from the exclusion list. */
+export function removeExclusion(excluded: string[], country: string): string[] {
+  return excluded.filter((c) => c !== country);
+}
+
+/**
+ * „Nechci vidět" — the global country exclusion control (Task 45). Lives in the
+ * „Více filtrů" panel. The add-picker lists countries currently on the board
+ * (countryFacets) minus those already excluded; each exclusion is a removable
+ * chip. Exclusion is server-side global state, NOT part of FilterState, so it is
+ * never serialized into the URL. Rendered unconditionally (no collapse gate of
+ * its own) so it stays unit-testable in isolation.
+ */
+export function ExclusionFieldset({
+  offers,
+  excluded,
+  onExcluded,
+}: {
+  offers: Offer[];
+  excluded: string[];
+  onExcluded: (next: string[]) => void;
+}) {
+  const options = countryFacets(offers).filter((f) => !excluded.includes(f.value));
+  return (
+    <fieldset className="fb-group">
+      <legend className="fb-label">NECHCI VIDĚT</legend>
+      {excluded.map((c) => (
+        <Chip
+          key={c}
+          label={`${c} ✕`}
+          pressed
+          title="Zrušit vyloučení"
+          onClick={() => onExcluded(removeExclusion(excluded, c))}
+        />
+      ))}
+      <select
+        aria-label="Přidat vyloučenou zemi"
+        value=""
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v) onExcluded(addExclusion(excluded, v));
+        }}
+      >
+        <option value="">+ přidat zemi…</option>
+        {options.map((f) => (
+          <option key={f.value} value={f.value}>
+            {f.value} ({f.count})
+          </option>
+        ))}
+      </select>
+    </fieldset>
+  );
+}
+
+export function FilterBar({
+  offers,
+  profile,
+  onProfile,
+  state,
+  onChange,
+  onClear,
+  excluded,
+  onExcluded,
+}: Props) {
   const [expanded, setExpanded] = useState(false);
   const [showAllCountries, setShowAllCountries] = useState(false);
   const [priceInput, setPriceInput] = useState('');
@@ -339,6 +413,8 @@ export function FilterBar({ offers, profile, onProfile, state, onChange, onClear
               ))}
             </fieldset>
           )}
+
+          <ExclusionFieldset offers={offers} excluded={excluded} onExcluded={onExcluded} />
         </div>
       )}
     </section>

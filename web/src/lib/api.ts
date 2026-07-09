@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import type {
+  ExclusionsResponse,
   HistoryResponse,
   OffersResponse,
   SourcesResponse,
@@ -42,6 +43,25 @@ export function fetchHistory(
   signal?: AbortSignal,
 ): Promise<HistoryResponse> {
   return getJson<HistoryResponse>(`/api/offers/${id}/history`, signal);
+}
+
+/** The global „nechci vidět" country list (server drops unknown countries). */
+export function fetchExclusions(signal?: AbortSignal): Promise<ExclusionsResponse> {
+  return getJson<ExclusionsResponse>('/api/exclusions', signal);
+}
+
+/**
+ * Replace the exclusion list. The server stores the known subset and echoes back
+ * the stored set, so callers should trust the response over their optimistic input.
+ */
+export async function putExclusions(countries: string[]): Promise<ExclusionsResponse> {
+  const res = await fetch('/api/exclusions', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({ countries }),
+  });
+  if (!res.ok) throw new Error(`/api/exclusions → ${res.status}`);
+  return (await res.json()) as ExclusionsResponse;
 }
 
 export interface AsyncState<T> {

@@ -14,7 +14,14 @@ import { FilterBar } from './components/FilterBar.js';
 import { Board } from './components/Board.js';
 import { OfferDetail } from './components/OfferDetail.js';
 import { MarketCards } from './components/MarketCards.js';
-import { fetchOffers, fetchSources, fetchStats, useAsync } from './lib/api.js';
+import {
+  fetchExclusions,
+  fetchOffers,
+  fetchSources,
+  fetchStats,
+  putExclusions,
+  useAsync,
+} from './lib/api.js';
 import { profileParam } from './lib/format.js';
 import {
   applyFilterAndSort,
@@ -52,6 +59,17 @@ export function App() {
   );
   const sourcesState = useAsync((signal) => fetchSources(signal), []);
   const statsState = useAsync((signal) => fetchStats(signal), []);
+  // Global „nechci vidět" exclusions — server-side state, deliberately NOT in the
+  // URL/FilterState. Excluded countries are already hidden from /api/offers and
+  // /api/stats server-side, so changing them refetches both.
+  const exclusionsState = useAsync((signal) => fetchExclusions(signal), []);
+  const excluded = exclusionsState.data?.countries ?? [];
+
+  const onExcluded = async (next: string[]): Promise<void> => {
+    await putExclusions(next);
+    exclusionsState.reload(); // refresh the chip list from the stored set
+    offersState.reload(); // board refetch — excluded rows disappear, counts adjust
+  };
 
   const allOffers = offersState.data?.offers ?? [];
 
@@ -98,6 +116,8 @@ export function App() {
         state={filters}
         onChange={onFilters}
         onClear={onClear}
+        excluded={excluded}
+        onExcluded={onExcluded}
       />
 
       <Board
