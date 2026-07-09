@@ -7,4 +7,5 @@ describe('checkCronSecret', () => {
   it('rejects when server secret unset', () => expect(checkCronSecret('Bearer s3cret', undefined)).toBe(false));
   it('rejects non-bearer', () => expect(checkCronSecret('s3cret', 's3cret')).toBe(false));
   it('rejects length mismatch without throwing', () => expect(checkCronSecret('Bearer short', 'muchlongersecret')).toBe(false));
+  it('rejects equal-length different content', () => expect(checkCronSecret('Bearer aaaaaa', 'bbbbbb')).toBe(false));
 });

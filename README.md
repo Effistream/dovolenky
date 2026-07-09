@@ -230,6 +230,21 @@ vercel env add CRON_SECRET             # hex z kroku 2
 
 (Seznam viz `.env.example`. Nikdy je necommituj — `.env` je v `.gitignore`.)
 
+**Checkpoint: Fluid Compute.** Ověř, že je zapnutý Fluid Compute (Vercel →
+Project → Settings → Functions, sekce **Fluid Compute**) — na Hobby (free)
+plánu teprve ten zvedá `maxDuration` na 300 s (výchozí i maximum). Pro nové
+projekty je zapnutý automaticky (default od 23. dubna 2025), ale starší nebo
+ručně přenastavený projekt může být na starém 60s stropu — tam by ~90s scan
+skončil timeoutem dřív, než doběhne. Pokud toggle chybí nebo je vypnutý,
+zapni ho, ulož a nasaď znovu.
+
+**Checkpoint: Node verze.** Ověř, že Vercel funkce běží na Node **24.x**
+(Settings → Build and Deployment → **Node.js Version**) — repo má
+`engines.node: ">=24"` v `package.json`, což odpovídá aktuálnímu Vercel
+defaultu (24.x je aktuální výchozí LTS). Pokud dashboard ukazuje starší
+verzi, připni ji explicitně: `"node": "24.x"` v `engines` v `package.json`
+(přebije volbu v Project Settings).
+
 ### 4. Preview deploy + smoke test
 
 Nejdřív **preview** (ne produkci), ať ověříš, že libSQL i nested routing na
@@ -287,3 +302,51 @@ launchctl unload ~/Library/LaunchAgents/<label>.plist
 
 Lokální dashboard (`npm run web`) a CLI (`npm run scan`) fungují dál beze změny —
 míří na lokální SQLite podle `DATABASE_URL` v `.env`.
+
+### 8. Zabezpečení veřejného dashboardu
+
+Po `vercel --prod` je SPA i celé `/api/*` veřejně dostupné komukoliv na
+internetu — Vercel projekt sám přístup nijak neomezuje. GET endpointy
+(`/api/offers`, `/api/offers/:id/history`, `/api/sources`, `/api/stats`,
+`/api/exclusions` GET) vrací jen veřejná data o zájezdech, žádné přihlašovací
+údaje ani interní detaily — samy o sobě problém nejsou. Jediné mutující
+místo je **`PUT /api/exclusions`**: kdokoliv zná URL, může bez ověření
+přepsat seznam vyloučených zemí, který krmí scan/notify pipeline (mute
+Telegramu i board). `/api/cron/scan` je pro srovnání už chráněná vlastním
+`CRON_SECRET` Bearer tokenem nezávisle na tomhle (krok 5–6) — týká se to
+čistě dashboardu.
+
+**Doporučená mitigace: Vercel Authentication + Protection Bypass for Automation**
+
+1. Project → Settings → **Deployment Protection** → sekce **Vercel
+   Authentication** → zapni toggle, zvol prostředí (Production i Preview),
+   **Save**. Nepřihlášený návštěvník dostane Vercel login redirect místo
+   obsahu.
+2. Na stejné stránce, sekce **Protection Bypass for Automation** → vygeneruj
+   secret (Vercel ho zároveň sám nastaví jako env proměnnou
+   `VERCEL_AUTOMATION_BYPASS_SECRET`).
+3. Na cron-job.org nastav k existující hlavičce **obě**: `Authorization:
+   Bearer <CRON_SECRET>` (aplikační auth pro `/api/cron/scan`, krok 6) a
+   `x-vercel-protection-bypass: <secret z kroku 2>` (Vercel edge auth — bez
+   ní by Vercel request zastavil dřív, než se dostane do route handleru).
+
+**Ověřené omezení (vercel.com/docs, červenec 2026): na Hobby plánu tohle
+nezakryje produkční doménu.** Jediný „protection scope" dostupný na Hobby je
+*Standard Protection* — ten chrání preview deploye a jednotlivé (hash)
+deployment URL, ale **explicitně ne produkční doménu**
+(`<projekt>.vercel.app` nebo vlastní doména), která zůstává veřejná i se
+zapnutou Vercel Authentication. Scope *All Deployments*, který zakryje i
+produkci, je jen na Pro/Enterprise (Pro $20/měsíc). Jinými slovy: na Hobby
+tenhle krok ochrání preview URL (užitečné, krok 4 preview vytváří), ale
+`PUT /api/exclusions` na ostré doméně zůstane veřejně volatelný i po něm.
+
+**Alternativa (a na Hobby reálně jediná plná ochrana pro tenhle konkrétní
+endpoint): přijmi nízké riziko.** URL je obskurní, mutace jen přepíná filtr
+zemí — žádná citlivá data neuniknou ani se neztratí, nejhorší dopad je „někdo
+mi dočasně přepne pár zemí ve filtru" — a nech dashboard veřejný.
+
+**Doporučení pro tenhle osobní deploy:** zapni Vercel Authentication (kroky
+1–3) jako defense-in-depth zdarma navíc — nic to nestojí a ochrání aspoň
+preview URL ze smoke testu (krok 4). Pro `PUT /api/exclusions` na produkci
+ale realisticky přijmi variantu „nízké riziko", pokud nechceš platit Pro
+plán jen kvůli jednomu low-stakes endpointu.
