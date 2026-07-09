@@ -17,6 +17,10 @@ import { buildDigest } from './digest.js';
 import { getExcludedCountries } from './db/exclusions.js';
 import { BLOCKED_PREFIX, BACKOFF_MARKER, RECENT_RUN_SCAN_LIMIT, isBackoffRow, backoffUntilFrom } from './backoff.js';
 
+/** The "no reference could be computed" discount, used for offers whose discount is skipped
+ * because they match no watch profile (so it can never drive a notification). */
+const NO_DISCOUNT: DiscountResult = { realPct: null, reference: null, baseline: null, fake: false };
+
 export interface RunScanDeps {
   db: Db;
   cfg: AppConfig;
@@ -86,31 +90,40 @@ async function processOffers(
       // ingest.persistedTitle keeps the two in lockstep.
       const keyOffer = ingest.persistedTitle === offer.title ? offer : { ...offer, title: ingest.persistedTitle };
 
-      const ownSnapshots = await ownSnapshotsFor(db, ingest.offerId, now);
-      // Per-night reference ladder (spec §15): hotel → locality → market, each a
-      // per-night bucket; discount.ts picks the first that qualifies (own/omnibus
-      // still win above them). `nights` is required for the per-night tiers.
-      const hotelPricesPN = await hotelTermPricesPN(db, ingest.offerId, keyOffer);
-      const localityPricesPN = await localityBucketPricesPN(db, ingest.offerId, keyOffer);
-      const marketPricesPN = await marketBucketPrices(db, ingest.offerId, keyOffer);
-
-      const discount: DiscountResult = computeRealDiscount({
-        current: offer.pricePerPerson,
-        ownSnapshots,
-        omnibus: offer.omnibusLowestPrice,
-        nights: offer.nights,
-        hotelTermPricesPN: hotelPricesPN,
-        localityPricesPN,
-        marketPricesPN,
-        claimedPct: offer.claimedDiscountPct,
-        now,
-      });
-
       // Global negative filter (Task 43): mute notifications for excluded countries.
       // The ingest/snapshot write ABOVE this line has already run, so an excluded
       // offer keeps its price history — only candidate generation is suppressed here.
       const isExcluded = offer.country != null && excluded.has(offer.country);
       const matches = isExcluded ? [] : matchProfiles(offer, cfg.profiles, now);
+
+      // The per-night reference ladder (spec §15) needs 4 DB round-trips per offer
+      // (ownSnapshots + hotel/locality/market buckets). Those are ONLY consumed to decide
+      // hot_deal/price_drop/new_offer notifications, and every notification type requires a
+      // matched profile (evaluateOffer → strongestMatch returns null on empty matches). So for
+      // the vast majority of offers — which match no watch profile — computing the discount is
+      // pure waste: it can never produce a candidate. Skipping it there turns ~4 queries/offer
+      // into ~4 queries only for profile-matching offers, the dominant scan-time speedup against
+      // a remote (Turso) DB. The dashboard computes its own discount at read time (api.ts), so
+      // this has ZERO effect on what the board shows.
+      let discount: DiscountResult = NO_DISCOUNT;
+      if (matches.length > 0) {
+        const ownSnapshots = await ownSnapshotsFor(db, ingest.offerId, now);
+        const hotelPricesPN = await hotelTermPricesPN(db, ingest.offerId, keyOffer);
+        const localityPricesPN = await localityBucketPricesPN(db, ingest.offerId, keyOffer);
+        const marketPricesPN = await marketBucketPrices(db, ingest.offerId, keyOffer);
+        discount = computeRealDiscount({
+          current: offer.pricePerPerson,
+          ownSnapshots,
+          omnibus: offer.omnibusLowestPrice,
+          nights: offer.nights,
+          hotelTermPricesPN: hotelPricesPN,
+          localityPricesPN,
+          marketPricesPN,
+          claimedPct: offer.claimedDiscountPct,
+          now,
+        });
+      }
+
       const outcomes = evaluateOffer({
         offerId: ingest.offerId,
         offer,
