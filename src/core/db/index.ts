@@ -93,6 +93,19 @@ export async function ensureSchema(db: Db): Promise<void> {
     )
   `);
 
+  // price_snapshots had NO index beyond its PK, so every snapshot query full-scanned
+  // the table: `max(id) GROUP BY offer_id` (read-path latest-snapshot bulk load),
+  // `WHERE offer_id IN (…)` (scan preload + sparkline + per-offer latest), and
+  // `WHERE captured_at >= …` (own-history window). At scale that dominated Turso's
+  // rows-read quota. (offer_id, id) turns the first two into index lookups (and
+  // makes max(id)-per-offer a covered index walk); captured_at covers the window.
+  await db.run(`
+    CREATE INDEX IF NOT EXISTS price_snapshots_offer_id_id_idx ON price_snapshots (offer_id, id)
+  `);
+  await db.run(`
+    CREATE INDEX IF NOT EXISTS price_snapshots_captured_at_idx ON price_snapshots (captured_at)
+  `);
+
   await db.run(`
     CREATE TABLE IF NOT EXISTS notifications_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
