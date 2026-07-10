@@ -82,12 +82,12 @@ describe('ingestOffer', () => {
     expect(row?.lastSeenAt).toBe(t1.toISOString());
   });
 
-  it('scenario 3: same price after 25h -> snapshot written (heartbeat)', async () => {
+  it('scenario 3: same price after 8 days -> snapshot written (heartbeat)', async () => {
     const t0 = new Date('2026-07-04T10:00:00.000Z');
     const first = await ingestOffer(db, makeOffer(), t0);
     expect(first.snapshotWritten).toBe(true);
 
-    const t1 = new Date(t0.getTime() + 25 * 60 * 60 * 1000); // 25h later
+    const t1 = new Date(t0.getTime() + 8 * 24 * 60 * 60 * 1000); // 8 days later (> 7-day HEARTBEAT_MS)
     const second = await ingestOffer(db, makeOffer(), t1);
 
     expect(second.snapshotWritten).toBe(true);
@@ -531,11 +531,11 @@ describe('ingestOffer', () => {
 });
 
 describe('ingestSourceOffers (batched == per-offer)', () => {
-  // now, plus two seed times: one 4h back (still inside the 24h heartbeat) and one 26h back
-  // (past it), so the seeded snapshots land at controllable capturedAts.
+  // now, plus two seed times: one 4h back (still inside the heartbeat) and one 8 days back
+  // (past the 7-day heartbeat), so the seeded snapshots land at controllable capturedAts.
   const now = new Date('2026-07-04T10:00:00.000Z');
   const tSeed = new Date('2026-07-04T06:00:00.000Z'); // 4h before now → within heartbeat
-  const tStale = new Date('2026-07-03T08:00:00.000Z'); // 26h before now → past heartbeat
+  const tStale = new Date('2026-06-26T10:00:00.000Z'); // 8 days before now → past the 7-day heartbeat
 
   /**
    * Seeds the four "existing" offers (each with a prior snapshot at a controllable capturedAt) by
@@ -654,7 +654,7 @@ describe('ingestSourceOffers (batched == per-offer)', () => {
     expect(resultFor(batchResults, set, 'exist-change').snapshotWritten).toBe(true); // price 20000 → 15000
     expect(resultFor(batchResults, set, 'exist-change').previousPrice).toBe(20000);
     expect(resultFor(batchResults, set, 'exist-nochange').snapshotWritten).toBe(false); // same price, within heartbeat
-    expect(resultFor(batchResults, set, 'exist-stale').snapshotWritten).toBe(true); // same price but > 24h old
+    expect(resultFor(batchResults, set, 'exist-stale').snapshotWritten).toBe(true); // same price but past the 7-day heartbeat
     expect(resultFor(batchResults, set, 'exist-ph').persistedTitle).toBe('Creek Hotel'); // sticky-title guard
 
     // Snapshot counts reflect the write rule: nochange stayed at 1; change/stale/ph each gained one.

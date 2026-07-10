@@ -18,12 +18,15 @@ const MAX_ALTERNATIVES = 3;
 // Matches market.ts OWN_WINDOW_DAYS (ownSnapshotsFor) so the board's own-baseline
 // is computed over exactly the same window a Telegram notification would use.
 const OWN_HISTORY_DAYS = 30;
-// 30 min. buildOffers now bulk-loads latest snapshots once and fans the discount
-// ladder out concurrently, so a cache miss is ~1-2s rather than the tens of
-// seconds the old per-offer N+1 cost. The scan only writes every ~2h, so this TTL
-// mainly skips redundant recomputation between scans; api/index.ts keeps a
-// generous maxDuration purely as headroom.
-const CACHE_TTL_MS = 30 * 60 * 1000;
+// 1 h. Each cache miss recomputes buildOffers, whose bulk snapshot loads read on
+// the order of the whole price_snapshots table — the main lever on Turso's
+// rows-read quota. The scan only writes every ~2h, so a longer TTL mostly skips
+// redundant recomputation of identical data (board is ≤1h stale; Telegram remains
+// the instant channel for hot deals).
+const CACHE_TTL_MS = 60 * 60 * 1000;
+// Upper bound on source_runs rows read by /api/sources (see buildSources). 1000 ≫
+// 16 sources × RECENT_RUN_SCAN_LIMIT, so it always covers every source's recent runs.
+const SOURCE_RUNS_READ_LIMIT = 1000;
 
 // ---------------------------------------------------------------------------
 // Test observability: a module-level counter incremented once per market-bucket
@@ -333,7 +336,16 @@ async function buildOffers(
  * actually does on the next run.
  */
 async function buildSources(db: Db, now: Date) {
-  const rows = await db.select().from(sourceRuns).orderBy(desc(sourceRuns.id));
+  // source_runs grows unbounded (~one row per source per scan). We only need the
+  // latest run per source plus its recent runs for the backoff flag
+  // (RECENT_RUN_SCAN_LIMIT=20 each), so read the most recent N globally rather than
+  // the whole table — every source scans each run, so ~16 sources fit many times
+  // over in 1000 rows, keeping this off Turso's rows-read quota as history grows.
+  const rows = await db
+    .select()
+    .from(sourceRuns)
+    .orderBy(desc(sourceRuns.id))
+    .limit(SOURCE_RUNS_READ_LIMIT);
 
   // Rows per source, newest-first (preserved from the id-desc query order).
   const bySource = new Map<string, typeof sourceRuns.$inferSelect[]>();

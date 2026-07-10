@@ -5,7 +5,13 @@ import { offers, priceSnapshots } from './db/schema.js';
 import type { NormalizedOffer } from './types.js';
 import { computeMatchKey, computeHotelKey } from './normalize.js';
 
-const HEARTBEAT_MS = 24 * 60 * 60 * 1000;
+// A snapshot is written on every price change; absent a change, a "heartbeat" snapshot records
+// "still available at this price" once per interval. 7 days (was 24h) keeps price history honest
+// while cutting redundant same-price rows ~7× — price_snapshots was growing ~1 row/active-offer/day
+// and every snapshot read (latest-per-offer bulk load, own-history window) scales with the table,
+// which was the dominant driver of Turso's rows-read quota. own-baseline (≥3 snapshots over ≥5 days
+// in 30d) and the sparkline still get enough points from weekly heartbeats + any real price moves.
+const HEARTBEAT_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_MISSES = 2;
 
 // Max prepared statements per db.batch() call. libsql runs each batch as one network round-trip
