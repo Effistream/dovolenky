@@ -5,7 +5,7 @@
   "installCommand": "npm install && npm install --prefix web",
   "outputDirectory": "web/dist",
   "functions": {
-    "api/index.ts": { "maxDuration": 300, "includeFiles": "config/**" },
+    "api/index.ts": { "maxDuration": 60, "includeFiles": "config/**" },
     "api/cron/scan.ts": { "maxDuration": 300, "includeFiles": "config/**" }
   },
   "rewrites": [
