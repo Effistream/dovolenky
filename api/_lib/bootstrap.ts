@@ -13,6 +13,12 @@ export function bootstrap(): Promise<{ db: Db; cfg: AppConfig }> {
       await ensureSchema(db);
       return { db, cfg };
     })();
+    // ensureSchema READS the DB, so a transient outage (e.g. the 2026-07-11 Turso
+    // quota block) can reject here — without this reset the rejected promise stays
+    // cached and the warm instance 500s forever. Reset so the next request retries.
+    cached.catch(() => {
+      cached = null;
+    });
   }
   return cached;
 }
