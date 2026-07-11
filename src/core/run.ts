@@ -12,7 +12,7 @@ import { evaluateOffer, filterAgainstLog, recordSent, capMessages, groupCandidat
 import { computeMatchKey } from './normalize.js';
 import { formatOffer } from './format.js';
 import { pragueDayString } from './dates.js';
-import { hotelTermPricesPN, localityBucketPricesPN, marketBucketPrices, ownSnapshotsFor } from './market.js';
+import { bucketPricesInMemory, loadBucketContext, ownSnapshotsFor, type BucketContext } from './market.js';
 import { buildDigest } from './digest.js';
 import { getExcludedCountries } from './db/exclusions.js';
 import { BLOCKED_PREFIX, BACKOFF_MARKER, RECENT_RUN_SCAN_LIMIT, isBackoffRow, backoffUntilFrom } from './backoff.js';
@@ -109,6 +109,13 @@ async function processOffers(
   // to isolate the read-only discount/candidate work exactly as before.
   const ingestResults = await ingestSourceOffers(db, sourceOffers, now);
 
+  // In-memory bucket context for the reference ladder, loaded lazily on the FIRST
+  // profile-matching offer (sources whose offers match no profile pay nothing) and
+  // reused for every candidate of this source. Loaded after the ingest above, so it
+  // sees this source's fresh prices — the same state the per-candidate SQL bucket
+  // queries used to read.
+  let bucketCtx: BucketContext | null = null;
+
   for (let i = 0; i < sourceOffers.length; i += 1) {
     const offer = sourceOffers[i]!;
     const ingest = ingestResults[i]!;
@@ -132,29 +139,32 @@ async function processOffers(
       const isExcluded = offer.country != null && excluded.has(offer.country);
       const matches = isExcluded ? [] : matchProfiles(offer, cfg.profiles, now);
 
-      // The per-night reference ladder (spec §15) needs 4 DB round-trips per offer
-      // (ownSnapshots + hotel/locality/market buckets). Those are ONLY consumed to decide
+      // The per-night reference ladder (spec §15) is ONLY consumed to decide
       // hot_deal/price_drop/new_offer notifications, and every notification type requires a
       // matched profile (evaluateOffer → strongestMatch returns null on empty matches). So for
       // the vast majority of offers — which match no watch profile — computing the discount is
-      // pure waste: it can never produce a candidate. Skipping it there turns ~4 queries/offer
-      // into ~4 queries only for profile-matching offers, the dominant scan-time speedup against
-      // a remote (Turso) DB. The dashboard computes its own discount at read time (api.ts), so
-      // this has ZERO effect on what the board shows.
+      // pure waste: it can never produce a candidate (discount-gating). For the offers that DO
+      // match, the buckets are computed IN MEMORY over a per-source bucket context (two bulk
+      // queries, loaded lazily below) instead of the SQL bucket functions — those cost ~2 full
+      // `offers` scans + per-bucket-row snapshot lookups PER CANDIDATE, measured at 7.5M rows
+      // read per 16-source scan against Turso; the context brings a scan to ~hundreds of K.
+      // Equivalence: the process phase is sequential per source and writes nothing during this
+      // loop, so the context (loaded after this source's ingest) is exactly the state the SQL
+      // functions would read — asserted by market.test.ts's parity test. The dashboard computes
+      // its own discount at read time (api.ts), so this has ZERO effect on what the board shows.
       let discount: DiscountResult = NO_DISCOUNT;
       if (matches.length > 0) {
+        bucketCtx ??= await loadBucketContext(db);
         const ownSnapshots = await ownSnapshotsFor(db, ingest.offerId, now);
-        const hotelPricesPN = await hotelTermPricesPN(db, ingest.offerId, keyOffer);
-        const localityPricesPN = await localityBucketPricesPN(db, ingest.offerId, keyOffer);
-        const marketPricesPN = await marketBucketPrices(db, ingest.offerId, keyOffer);
+        const buckets = bucketPricesInMemory(ingest.offerId, keyOffer, bucketCtx.actives, bucketCtx.latestPriceByOfferId);
         discount = computeRealDiscount({
           current: offer.pricePerPerson,
           ownSnapshots,
           omnibus: offer.omnibusLowestPrice,
           nights: offer.nights,
-          hotelTermPricesPN: hotelPricesPN,
-          localityPricesPN,
-          marketPricesPN,
+          hotelTermPricesPN: buckets.hotelTermPricesPN,
+          localityPricesPN: buckets.localityPricesPN,
+          marketPricesPN: buckets.marketPricesPN,
           claimedPct: offer.claimedDiscountPct,
           now,
         });

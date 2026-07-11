@@ -237,6 +237,55 @@ export interface ActiveOfferLite {
   hotelKey: string | null;
 }
 
+/** Everything bucketPricesInMemory needs, loaded in two bulk queries. */
+export interface BucketContext {
+  actives: ActiveOfferLite[];
+  latestPriceByOfferId: Map<number, number>;
+}
+
+/**
+ * Loads the full in-memory bucket context — every ACTIVE offer (lite view) plus
+ * each one's latest snapshot price (max-id per offer) — in exactly TWO queries.
+ * The scan's per-candidate reference ladder uses this with bucketPricesInMemory
+ * instead of the SQL bucket functions above: those cost ~2 full `offers` scans +
+ * per-bucket-row snapshot lookups PER CANDIDATE (measured 7.5M rows read per
+ * 16-source scan — the dominant Turso rows-read driver), while this context is
+ * ~one offers read + one covering-index walk per SOURCE. Load it AFTER a source's
+ * ingest; the process phase is sequential per source and writes nothing during
+ * candidate evaluation, so the snapshot is exactly the state the SQL functions
+ * would read.
+ */
+export async function loadBucketContext(db: Db): Promise<BucketContext> {
+  const actives: ActiveOfferLite[] = await db
+    .select({
+      id: offers.id,
+      country: offers.country,
+      locality: offers.locality,
+      board: offers.board,
+      stars: offers.stars,
+      nights: offers.nights,
+      departureDate: offers.departureDate,
+      matchKey: offers.matchKey,
+      hotelKey: offers.hotelKey,
+    })
+    .from(offers)
+    .where(eq(offers.active, true));
+
+  const latestIds = db
+    .select({ offerId: priceSnapshots.offerId, maxId: sql<number>`max(${priceSnapshots.id})`.as('max_id') })
+    .from(priceSnapshots)
+    .groupBy(priceSnapshots.offerId)
+    .as('latest_ids');
+  const rows = await db
+    .select({ offerId: priceSnapshots.offerId, price: priceSnapshots.pricePerPerson })
+    .from(priceSnapshots)
+    .innerJoin(latestIds, eq(priceSnapshots.id, latestIds.maxId));
+
+  const latestPriceByOfferId = new Map<number, number>();
+  for (const r of rows) latestPriceByOfferId.set(r.offerId, r.price);
+  return { actives, latestPriceByOfferId };
+}
+
 // SQL `col == null ? isNull(col) : eq(col, val)` in JS: candidate equals the
 // subject's value, treating null as a matchable value.
 function eqNullable<T>(candidate: T | null, subject: T | null): boolean {

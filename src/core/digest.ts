@@ -5,7 +5,7 @@ import type { AppConfig } from './config.js';
 import type { NormalizedOffer } from './types.js';
 import { computeRealDiscount, type DiscountResult } from './discount.js';
 import { formatDigest } from './format.js';
-import { hotelTermPricesPN, localityBucketPricesPN, marketBucketPrices, ownSnapshotsFor } from './market.js';
+import { bucketPricesInMemory, loadBucketContext, ownSnapshotsFor, type BucketContext } from './market.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DIGEST_TOP_N = 10;
@@ -61,6 +61,11 @@ export async function buildDigest(
   for (const entry of bestByKey.values()) representatives.push(entry.row);
 
   const items: { offer: NormalizedOffer; d: DiscountResult }[] = [];
+  // One bulk bucket context for the whole digest (same in-memory ladder as
+  // run.ts/api.ts) instead of 3 SQL bucket queries per representative — the SQL
+  // market/locality functions full-scan `offers` per call. Lazy: skipped entirely
+  // when there are no representatives.
+  let bucketCtx: BucketContext | null = null;
   for (const row of representatives) {
     const [snap] = await db
       .select()
@@ -93,17 +98,16 @@ export async function buildDigest(
 
     const ownSnapshots = await ownSnapshotsFor(db, row.id, now);
     // Per-night reference ladder (spec §15): same assembly as run.ts processOffers.
-    const hotelPricesPN = await hotelTermPricesPN(db, row.id, offer);
-    const localityPricesPN = await localityBucketPricesPN(db, row.id, offer);
-    const marketPricesPN = await marketBucketPrices(db, row.id, offer);
+    bucketCtx ??= await loadBucketContext(db);
+    const buckets = bucketPricesInMemory(row.id, offer, bucketCtx.actives, bucketCtx.latestPriceByOfferId);
     const d = computeRealDiscount({
       current: snap.pricePerPerson,
       ownSnapshots,
       omnibus: snap.omnibusLowestPrice,
       nights: offer.nights,
-      hotelTermPricesPN: hotelPricesPN,
-      localityPricesPN,
-      marketPricesPN,
+      hotelTermPricesPN: buckets.hotelTermPricesPN,
+      localityPricesPN: buckets.localityPricesPN,
+      marketPricesPN: buckets.marketPricesPN,
       claimedPct: snap.claimedDiscountPct,
       now,
     });
