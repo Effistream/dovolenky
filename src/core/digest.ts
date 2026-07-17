@@ -5,7 +5,8 @@ import type { AppConfig } from './config.js';
 import type { NormalizedOffer } from './types.js';
 import { computeRealDiscount, type DiscountResult } from './discount.js';
 import { formatDigest } from './format.js';
-import { bucketPricesInMemory, loadBucketContext, ownSnapshotsFor, type BucketContext } from './market.js';
+import { bucketPricesInMemory, loadBucketContext, ownSnapshotsFor } from './market.js';
+import { hasDeparted } from './dates.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DIGEST_TOP_N = 10;
@@ -29,23 +30,27 @@ export async function buildDigest(
   // right after fetch so every downstream step — dedup, ranking, and the stats
   // footer (activeOffers) — sees only surfaced offers. NULL-country rows never
   // match an exclusion and always pass through.
-  const activeRows = activeRowsRaw.filter((r) => r.country == null || !excluded.has(r.country));
+  // Digest visibility: excluded countries are muted, and DEPARTED offers (their
+  // departure day already passed — some sources keep listing them) can't be
+  // bought, so they never belong in a "top deals" digest.
+  const activeRows = activeRowsRaw.filter(
+    (r) => (r.country == null || !excluded.has(r.country)) && !hasDeparted(r.departureDate, now),
+  );
   if (activeRows.length === 0) return null;
+
+  // One bulk bucket context up front: its latest-price map picks the cheapest
+  // representative below (replacing a per-row latest-snapshot query), and the
+  // items loop reuses it for the in-memory reference ladder.
+  const bucketCtx = await loadBucketContext(db);
 
   // Cross-source dedup (spec §13): collapse active rows sharing a match_key to a
   // single representative — the cheapest by latest price — BEFORE ranking, so a
   // physical tour aggregated across sources appears once in the top-10. Rows with
-  // a NULL match_key are never merged (each is its own representative). We need
-  // each row's latest snapshot price to pick the cheapest, so pre-fetch it once.
+  // a NULL match_key are never merged (each is its own representative).
   const withPrice: { row: (typeof activeRows)[number]; price: number }[] = [];
   for (const row of activeRows) {
-    const [snap] = await db
-      .select({ price: priceSnapshots.pricePerPerson })
-      .from(priceSnapshots)
-      .where(eq(priceSnapshots.offerId, row.id))
-      .orderBy(desc(priceSnapshots.id))
-      .limit(1);
-    if (snap) withPrice.push({ row, price: snap.price });
+    const price = bucketCtx.latestPriceByOfferId.get(row.id);
+    if (price != null) withPrice.push({ row, price });
   }
 
   const bestByKey = new Map<string, { row: (typeof activeRows)[number]; price: number }>();
@@ -61,11 +66,6 @@ export async function buildDigest(
   for (const entry of bestByKey.values()) representatives.push(entry.row);
 
   const items: { offer: NormalizedOffer; d: DiscountResult }[] = [];
-  // One bulk bucket context for the whole digest (same in-memory ladder as
-  // run.ts/api.ts) instead of 3 SQL bucket queries per representative — the SQL
-  // market/locality functions full-scan `offers` per call. Lazy: skipped entirely
-  // when there are no representatives.
-  let bucketCtx: BucketContext | null = null;
   for (const row of representatives) {
     const [snap] = await db
       .select()
@@ -98,7 +98,6 @@ export async function buildDigest(
 
     const ownSnapshots = await ownSnapshotsFor(db, row.id, now);
     // Per-night reference ladder (spec §15): same assembly as run.ts processOffers.
-    bucketCtx ??= await loadBucketContext(db);
     const buckets = bucketPricesInMemory(row.id, offer, bucketCtx.actives, bucketCtx.latestPriceByOfferId);
     const d = computeRealDiscount({
       current: snap.pricePerPerson,

@@ -1,5 +1,5 @@
 import type { Profile } from './config.js';
-import { dayDiff, pragueDayString } from './dates.js';
+import { dayDiff, hasDeparted, pragueDayString } from './dates.js';
 import { normalizeCountry } from './normalize.js';
 import type { NormalizedOffer } from './types.js';
 
@@ -46,6 +46,11 @@ export function matchProfiles(
   now: Date = new Date(),
 ): { name: string; profile: Profile }[] {
   const result: { name: string; profile: Profile }[] = [];
+
+  // A departed offer can no longer be bought → it matches NO profile, which mutes
+  // notifications and drops it from profile stats. Some sources keep listing
+  // departed terms, so they stay active in the DB; this is the semantic gate.
+  if (hasDeparted(offer.departureDate, now)) return result;
 
   for (const [name, profile] of Object.entries(profiles)) {
     if (!profile.enabled) continue;

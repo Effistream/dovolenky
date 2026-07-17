@@ -7,6 +7,7 @@ import type { NormalizedOffer, Board, Transport } from '../core/types.js';
 import { computeRealDiscount, median, type DiscountResult } from '../core/discount.js';
 import { bucketPricesInMemory, type ActiveOfferLite } from '../core/market.js';
 import { matchProfiles } from '../core/filters.js';
+import { hasDeparted } from '../core/dates.js';
 import { RECENT_RUN_SCAN_LIMIT, backoffUntilFrom } from '../core/backoff.js';
 import { getExcludedCountries, setExcludedCountries } from '../core/db/exclusions.js';
 
@@ -191,7 +192,14 @@ async function buildOffers(
 ): Promise<OfferItem[]> {
   const activeRowsRaw = await db.select().from(offers).where(eq(offers.active, true));
   const excluded = new Set(await getExcludedCountries(db));
-  const activeRows = activeRowsRaw.filter((r) => r.country == null || !excluded.has(r.country));
+  // Board visibility: drop excluded countries AND departed offers (departure day
+  // already passed — some sources keep listing those, so they stay active in the
+  // DB, and under the "Odlet" sort they'd float to the very top as unbuyable
+  // rows). Departed rows still contribute to the reference buckets below via
+  // activeLites: their recent prices are honest market history.
+  const activeRows = activeRowsRaw.filter(
+    (r) => (r.country == null || !excluded.has(r.country)) && !hasDeparted(r.departureDate, now),
+  );
 
   // A handful of bulk queries; the rest is in memory. The per-representative
   // discount ladder used to issue ~5 queries each (3 reference buckets + own
@@ -377,7 +385,13 @@ async function buildSources(db: Db, now: Date) {
 async function buildStats(db: Db, profiles: Record<string, Profile>, now: Date) {
   const activeRowsRaw = await db.select().from(offers).where(eq(offers.active, true));
   const excluded = new Set(await getExcludedCountries(db));
-  const activeRows = activeRowsRaw.filter((r) => r.country == null || !excluded.has(r.country));
+  // Same visibility rule as the board: excluded countries and departed offers
+  // don't count (activeCount matches what the board can actually show; the
+  // per-profile medians below are additionally gated by matchProfiles, which
+  // rejects departed offers on its own).
+  const activeRows = activeRowsRaw.filter(
+    (r) => (r.country == null || !excluded.has(r.country)) && !hasDeparted(r.departureDate, now),
+  );
   const activeCount = activeRows.length;
 
   const cutoff = new Date(now.getTime() - DAY_MS).toISOString();

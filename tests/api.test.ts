@@ -181,6 +181,26 @@ describe('web api', () => {
       expect(cheap.baseline).toBe(19999);
     });
 
+    it('omits departed offers (departure day before "now") from the board and stats', async () => {
+      // Departed 3 days before NOW (2026-07-04) — still active in the DB because the
+      // source keeps listing it, but unbuyable → must not surface.
+      await ingestOffer(db, makeOffer({ source: 'skrz', sourceOfferKey: 'departed', title: 'Departed Hotel', departureDate: '2026-07-01', url: 'https://x/departed' }), NOW);
+      // Departing exactly ON "now" — same-day last-minute is still bookable → stays.
+      await ingestOffer(db, makeOffer({ source: 'skrz', sourceOfferKey: 'today', title: 'Today Hotel', departureDate: '2026-07-04', url: 'https://x/today' }), NOW);
+      await ingestOffer(db, makeOffer({ source: 'invia', sourceOfferKey: 'future', title: 'Future Hotel', url: 'https://x/future' }), NOW);
+
+      const client = makeClient(db);
+      const { body } = await client('/api/offers');
+      const titles = body.offers.map((o: any) => o.title);
+      expect(titles).not.toContain('Departed Hotel');
+      expect(titles).toContain('Today Hotel');
+      expect(titles).toContain('Future Hotel');
+
+      // Stats mirror board visibility: 3 ingested, 2 visible.
+      const stats = await client('/api/stats');
+      expect(stats.body.activeCount).toBe(2);
+    });
+
     it('filters by country, source, and profile', async () => {
       await ingestOffer(db, makeOffer({ source: 'invia', sourceOfferKey: 'gr', country: 'Řecko', url: 'https://x/gr' }), NOW);
       // Bulharsko is NOT in leto-more's country list, so it's excluded by profile.

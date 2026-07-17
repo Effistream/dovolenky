@@ -7,6 +7,17 @@ export function pragueDayString(d: Date): string {
   return PRAGUE_DAY_FORMATTER.format(d);
 }
 
+/**
+ * True when an offer's departure day already passed (Europe/Prague calendar).
+ * A departed offer can no longer be bought, so it must not surface on the board,
+ * in the digest, or in notifications — some sources keep listing departed terms,
+ * which keeps them active in the DB. Departing TODAY is not departed (same-day
+ * last-minute is still bookable); a null date is unknown, not departed.
+ */
+export function hasDeparted(departureDate: string | null, now: Date): boolean {
+  return departureDate != null && departureDate < pragueDayString(now);
+}
+
 /** Number of calendar days from `fromYmd` to `toYmd` (both YYYY-MM-DD strings). */
 export function dayDiff(fromYmd: string, toYmd: string): number {
   const [fy, fm, fd] = fromYmd.split('-').map(Number);

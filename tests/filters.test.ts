@@ -87,6 +87,23 @@ describe('matchProfiles', () => {
     expect(matches.map((m) => m.name)).toContain('leto-more');
   });
 
+  it('1b. matches NOTHING once the departure day has passed (departed offers are unbuyable)', () => {
+    const profiles = loadProfiles();
+    const offer = mkOffer(); // departs 2026-07-20; matches leto-more on 2026-07-01 (test 1)
+
+    // One day after departure (Prague calendar): every profile must reject it —
+    // this is what mutes notifications/digest/stats for stale-but-still-listed terms.
+    expect(matchProfiles(offer, profiles, new Date('2026-07-21T10:00:00.000Z'))).toEqual([]);
+  });
+
+  it('1c. departing TODAY still matches (same-day last-minute is bookable)', () => {
+    const profiles = loadProfiles();
+    const offer = mkOffer(); // departs 2026-07-20
+
+    const matches = matchProfiles(offer, profiles, new Date('2026-07-20T08:00:00.000Z'));
+    expect(matches.map((m) => m.name)).toContain('leto-more');
+  });
+
   it('2. does not match leto-more when board is HB (profile requires [AI])', () => {
     const profiles = loadProfiles();
     const offer = mkOffer({ board: 'HB' });
