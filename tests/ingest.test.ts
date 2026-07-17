@@ -97,6 +97,32 @@ describe('ingestOffer', () => {
     expect(snapCount).toBe(2);
   });
 
+  it('nulls a departure date already in the past at ingest time (stale source metadata) — insert AND update', async () => {
+    const t0 = new Date('2026-07-04T10:00:00.000Z');
+
+    // INSERT path: incoming date 2026-07-01 is already past at t0 → persisted as NULL.
+    const first = await ingestOffer(db, makeOffer({ departureDate: '2026-07-01' }), t0);
+    let [row] = await db.select().from(offers).where(sql`${offers.id} = ${first.offerId}`);
+    expect(row?.departureDate).toBeNull();
+
+    // UPDATE path: a fresh offer with a valid future date keeps it…
+    const other = await ingestOffer(db, makeOffer({ sourceOfferKey: 'k2', departureDate: '2026-07-10' }), t0);
+    [row] = await db.select().from(offers).where(sql`${offers.id} = ${other.offerId}`);
+    expect(row?.departureDate).toBe('2026-07-10');
+
+    // …and when the SAME offer is re-ingested after its departure passed (source
+    // still lists it with the stale date), the stored date flips to NULL.
+    const t1 = new Date('2026-07-12T10:00:00.000Z');
+    await ingestOffer(db, makeOffer({ sourceOfferKey: 'k2', departureDate: '2026-07-10' }), t1);
+    [row] = await db.select().from(offers).where(sql`${offers.id} = ${other.offerId}`);
+    expect(row?.departureDate).toBeNull();
+
+    // Departing exactly ON "now" is not stale (same-day last-minute) → kept.
+    const today = await ingestOffer(db, makeOffer({ sourceOfferKey: 'k3', departureDate: '2026-07-04' }), t0);
+    [row] = await db.select().from(offers).where(sql`${offers.id} = ${today.offerId}`);
+    expect(row?.departureDate).toBe('2026-07-04');
+  });
+
   it('scenario 4: changed price -> snapshot written, previousPrice = old price', async () => {
     const t0 = new Date('2026-07-04T10:00:00.000Z');
     const first = await ingestOffer(db, makeOffer({ pricePerPerson: 16781 }), t0);

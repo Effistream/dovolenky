@@ -37,18 +37,26 @@ export function formatDayMonth(iso: string | null | undefined): string {
  * The TERMÍN top line: a start–end range like "08.07 – 15.07" derived from the
  * departure date + nights. With no date we show "volný termín" (matching the
  * mockup's date-less last-minute row). En-dash separator per the mockup.
+ *
+ * When the departure falls in a DIFFERENT year than "now", the year is appended
+ * ("04.01 – 11.01 2027") — without it, next-year departures sorted correctly to
+ * the end of the "Odlet" ordering read as mis-sorted (a January row below a
+ * December one looks broken when both lack the year). `now` is injectable for
+ * tests; real call sites omit it.
  */
 export function formatTermRange(
   departureDate: string | null | undefined,
   nights: number | null | undefined,
+  now: Date = new Date(),
 ): string {
   if (!departureDate) return 'volný termín';
   const start = new Date(departureDate);
   if (Number.isNaN(start.getTime())) return 'volný termín';
   const startStr = formatDayMonth(departureDate);
-  if (nights == null || !Number.isFinite(nights)) return startStr;
+  const yearSuffix = start.getUTCFullYear() !== now.getFullYear() ? ` ${start.getUTCFullYear()}` : '';
+  if (nights == null || !Number.isFinite(nights)) return `${startStr}${yearSuffix}`;
   const end = new Date(start.getTime() + nights * 24 * 60 * 60 * 1000);
-  return `${startStr} – ${formatDayMonth(end.toISOString())}`;
+  return `${startStr} – ${formatDayMonth(end.toISOString())}${yearSuffix}`;
 }
 
 /** Czech plural for "noc": 1 noc, 2–4 noci, 5+ nocí. */

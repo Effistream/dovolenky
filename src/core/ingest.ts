@@ -4,6 +4,22 @@ import type { Db } from './db/index.js';
 import { offers, priceSnapshots } from './db/schema.js';
 import type { NormalizedOffer } from './types.js';
 import { computeMatchKey, computeHotelKey } from './normalize.js';
+import { hasDeparted } from './dates.js';
+
+/**
+ * Persist-time date hygiene: a departure date in the PAST at scan time is stale
+ * source metadata, not a real departure — no one sells trips that already left.
+ * Observed live: skrz keeps listing deals whose `dt=` URL param is months old
+ * (the deal itself sells future terms), and esotravel's seasonal cards carry the
+ * season's start date (e.g. "01.05.") long after it passed. Persisting such a
+ * date poisons the "Odlet" sort (dead April rows above real summer offers) and
+ * month-based profile matching. NULL = honest "volný termín". Applied here — the
+ * single write path — so the stored row, its match/hotel keys (computed from the
+ * normalized offer) and everything downstream agree. Departing TODAY is kept.
+ */
+function normalizeDeparture(offer: NormalizedOffer, now: Date): NormalizedOffer {
+  return hasDeparted(offer.departureDate, now) ? { ...offer, departureDate: null } : offer;
+}
 
 // A snapshot is written on every price change; absent a change, a "heartbeat" snapshot records
 // "still available at this price" once per interval. 7 days (was 24h) keeps price history honest
@@ -170,6 +186,7 @@ async function ingestExistingOffer(
 }
 
 export async function ingestOffer(db: Db, offer: NormalizedOffer, now: Date = new Date()): Promise<IngestResult> {
+  offer = normalizeDeparture(offer, now);
   const nowIso = now.toISOString();
 
   const [existing] = await db
@@ -307,7 +324,8 @@ export async function ingestSourceOffers(
     if (idx === undefined) {
       idx = uniqueOffers.length;
       uniqueIndexByKey.set(key, idx);
-      uniqueOffers.push(offer);
+      // Same persist-time date hygiene as ingestOffer (the equivalence oracle).
+      uniqueOffers.push(normalizeDeparture(offer, now));
     }
     uniqueIndexForInput.push(idx);
   }

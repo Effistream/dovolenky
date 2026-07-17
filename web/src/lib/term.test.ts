@@ -36,15 +36,26 @@ describe('formatDayMonth', () => {
 });
 
 describe('formatTermRange', () => {
+  const NOW = new Date('2026-07-17T10:00:00.000Z'); // pinned so the year-suffix rule is deterministic
+
   it('builds a start–end range from date + nights', () => {
-    expect(formatTermRange('2026-07-08', 7)).toBe('08.07 – 15.07');
+    expect(formatTermRange('2026-07-08', 7, NOW)).toBe('08.07 – 15.07');
   });
   it('date with no nights → just the start', () => {
-    expect(formatTermRange('2026-07-08', null)).toBe('08.07');
+    expect(formatTermRange('2026-07-08', null, NOW)).toBe('08.07');
   });
   it('no date → volný termín', () => {
-    expect(formatTermRange(null, 3)).toBe('volný termín');
-    expect(formatTermRange('bad', 3)).toBe('volný termín');
+    expect(formatTermRange(null, 3, NOW)).toBe('volný termín');
+    expect(formatTermRange('bad', 3, NOW)).toBe('volný termín');
+  });
+  it('appends the year when the departure is NOT in the current year', () => {
+    // Without the year, a January 2027 row below a December 2026 one reads as
+    // mis-sorted under the "Odlet" ordering.
+    expect(formatTermRange('2027-01-04', 7, NOW)).toBe('04.01 – 11.01 2027');
+    expect(formatTermRange('2027-01-04', null, NOW)).toBe('04.01 2027');
+  });
+  it('current-year departures stay compact (no year suffix)', () => {
+    expect(formatTermRange('2026-12-28', 7, NOW)).toBe('28.12 – 04.01');
   });
 });
 

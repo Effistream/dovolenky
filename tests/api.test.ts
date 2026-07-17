@@ -181,24 +181,41 @@ describe('web api', () => {
       expect(cheap.baseline).toBe(19999);
     });
 
-    it('omits departed offers (departure day before "now") from the board and stats', async () => {
-      // Departed 3 days before NOW (2026-07-04) — still active in the DB because the
-      // source keeps listing it, but unbuyable → must not surface.
-      await ingestOffer(db, makeOffer({ source: 'skrz', sourceOfferKey: 'departed', title: 'Departed Hotel', departureDate: '2026-07-01', url: 'https://x/departed' }), NOW);
-      // Departing exactly ON "now" — same-day last-minute is still bookable → stays.
+    it('a stale (already-past) departure date is nulled at ingest → offer stays visible as date-less', async () => {
+      // Sources like skrz keep listing live deals whose date metadata is months old;
+      // ingest persists NULL instead of the bogus past date, so the deal stays on the
+      // board as "volný termín" rather than poisoning the Odlet sort (or vanishing).
+      await ingestOffer(db, makeOffer({ source: 'skrz', sourceOfferKey: 'stale', title: 'Stale Date Hotel', departureDate: '2026-07-01', url: 'https://x/stale' }), NOW);
+      // Departing exactly ON "now" — same-day last-minute is still bookable → date kept.
       await ingestOffer(db, makeOffer({ source: 'skrz', sourceOfferKey: 'today', title: 'Today Hotel', departureDate: '2026-07-04', url: 'https://x/today' }), NOW);
-      await ingestOffer(db, makeOffer({ source: 'invia', sourceOfferKey: 'future', title: 'Future Hotel', url: 'https://x/future' }), NOW);
 
       const client = makeClient(db);
       const { body } = await client('/api/offers');
+      const stale = body.offers.find((o: any) => o.title === 'Stale Date Hotel');
+      expect(stale).toBeDefined();
+      expect(stale.departureDate).toBeNull();
+      const today = body.offers.find((o: any) => o.title === 'Today Hotel');
+      expect(today.departureDate).toBe('2026-07-04');
+    });
+
+    it('omits offers whose departure passed BETWEEN scans (stored date now in the past)', async () => {
+      // Ingested while still future (departs 2026-07-10)…
+      await ingestOffer(db, makeOffer({ source: 'invia', sourceOfferKey: 'between', title: 'Departed Between Scans', departureDate: '2026-07-10', url: 'https://x/between' }), NOW);
+      await ingestOffer(db, makeOffer({ source: 'invia', sourceOfferKey: 'future', title: 'Future Hotel', url: 'https://x/future' }), NOW);
+
+      // …but read at a later "now" (2026-07-12), after the departure: the board's
+      // hasDeparted safety net hides it until the next scan re-ingests (→ null) or
+      // the source drops it (→ misses/deactivation).
+      const LATER = new Date('2026-07-12T10:00:00.000Z');
+      const app = createApi({ db, profiles: PROFILES, now: () => LATER });
+      const res = await app.request('http://local/api/offers');
+      const body = await res.json() as any;
       const titles = body.offers.map((o: any) => o.title);
-      expect(titles).not.toContain('Departed Hotel');
-      expect(titles).toContain('Today Hotel');
+      expect(titles).not.toContain('Departed Between Scans');
       expect(titles).toContain('Future Hotel');
 
-      // Stats mirror board visibility: 3 ingested, 2 visible.
-      const stats = await client('/api/stats');
-      expect(stats.body.activeCount).toBe(2);
+      const stats = await (await app.request('http://local/api/stats')).json() as any;
+      expect(stats.activeCount).toBe(1);
     });
 
     it('filters by country, source, and profile', async () => {
