@@ -3,7 +3,14 @@ name: scan
 # GitHub-hosted runner nemá 300s limit jako Vercel funkce → write-heavy scan v pohodě doběhne.
 on:
   schedule:
-    - cron: '0 */2 * * *'   # každé 2 h (UTC); public repo = neomezené free minuty
+    # Každé 2 h (UTC); public repo = neomezené free minuty (soukromá repa čerpají 2000 min/měs,
+    # tohle ne).
+    # ⚠️ GitHub NEGARANTUJE čas spuštění scheduled workflow — při zátěži je odkládá i zahazuje.
+    # Naměřeno 2026-07-29: reálné starty 06:27, 02:09, 22:54, 21:03, 19:16, 16:03 → mezery
+    # 1,8–4,5 h místo 2 h. Nedá se to na straně GitHubu opravit; mitigace je Mac launchd fallback
+    # (ops/launchd, běží v :40 z rezidenční IP a dojede zdroje, které cloudová IP nedá).
+    # Scan je idempotentní, takže vynechaný slot jen zpozdí data, nic nerozbije.
+    - cron: '0 */2 * * *'
   workflow_dispatch:          # ruční spuštění z Actions UI / gh workflow run
 concurrency:
   group: scan

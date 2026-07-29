@@ -10,6 +10,16 @@ export interface DiscountResult {
 export interface ComputeRealDiscountInput {
   current: number;
   ownSnapshots: { price: number; at: string }[];
+  /**
+   * The seller's EU-Omnibus 30-day lowest price, when published.
+   *
+   * STRUCTURALLY DEAD IN PRODUCTION as of the 2026-07-29 audit: 0 of 33 271 price_snapshots rows
+   * carry a value, across all 16 sources — no adapter finds a scrapable Omnibus figure (eTravel
+   * exposes the field but it is null in live data). The rung is kept because it is correct and
+   * costs nothing, but in practice the ladder is own > hotel > locality > market, and `fake`
+   * detection therefore rests on the `own` rung alone. Wiring up a real Omnibus source would be
+   * an adapter feature, not a fix here.
+   */
   omnibus: number | null;
   /** Per-night market bucket prices (country × month × nights band × board × stars). Min 8 entries. */
   marketPricesPN?: number[];
