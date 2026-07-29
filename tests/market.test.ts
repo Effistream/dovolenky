@@ -3,7 +3,7 @@ import { eq, desc } from 'drizzle-orm';
 import { openDb, ensureSchema, type Db } from '../src/core/db/index.js';
 import { offers, priceSnapshots } from '../src/core/db/schema.js';
 import type { NormalizedOffer } from '../src/core/types.js';
-import { hotelTermPricesPN, localityBucketPricesPN, marketBucketPrices, bucketPricesInMemory, type ActiveOfferLite } from '../src/core/market.js';
+import { hotelTermPricesPN, localityBucketPricesPN, marketBucketPrices, bucketPricesInMemory, buildBucketContext, type ActiveOfferLite } from '../src/core/market.js';
 import { computeHotelKey, computeMatchKey } from '../src/core/normalize.js';
 import { ingestOffer } from '../src/core/ingest.js';
 
@@ -434,6 +434,7 @@ describe('bucketPricesInMemory ≡ SQL bucket functions (read-path parity)', () 
       nights: r.nights, departureDate: r.departureDate, matchKey: r.matchKey, hotelKey: r.hotelKey,
     }));
 
+    const ctx = buildBucketContext(lites, latestPrice);
     expect(activeRows.length).toBe(specs.length);
     let sawHotel = false, sawLocality = false, sawMarket = false;
     for (const r of activeRows) {
@@ -445,7 +446,7 @@ describe('bucketPricesInMemory ≡ SQL bucket functions (read-path parity)', () 
         localityBucketPricesPN(db, r.id, offer),
         marketBucketPrices(db, r.id, offer),
       ]);
-      const mem = bucketPricesInMemory(r.id, offer, lites, latestPrice);
+      const mem = bucketPricesInMemory(r.id, offer, ctx, latestPrice);
       expect(asc(mem.hotelTermPricesPN), `hotel rung for offer ${r.id} (${r.sourceOfferKey})`).toEqual(asc(sqlHotel));
       expect(asc(mem.localityPricesPN), `locality rung for offer ${r.id} (${r.sourceOfferKey})`).toEqual(asc(sqlLoc));
       expect(asc(mem.marketPricesPN), `market rung for offer ${r.id} (${r.sourceOfferKey})`).toEqual(asc(sqlMarket));

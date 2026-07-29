@@ -239,7 +239,7 @@ async function processOffers(
       if (matches.length > 0) {
         bucketCtx ??= await loadBucketContext(db);
         const ownSnapshots = await ownSnapshotsFor(db, ingest.offerId, now);
-        const buckets = bucketPricesInMemory(ingest.offerId, keyOffer, bucketCtx.actives, bucketCtx.latestPriceByOfferId);
+        const buckets = bucketPricesInMemory(ingest.offerId, keyOffer, bucketCtx, bucketCtx.latestPriceByOfferId);
         discount = computeRealDiscount({
           current: offer.pricePerPerson,
           ownSnapshots,

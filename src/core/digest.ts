@@ -98,7 +98,7 @@ export async function buildDigest(
 
     const ownSnapshots = await ownSnapshotsFor(db, row.id, now);
     // Per-night reference ladder (spec §15): same assembly as run.ts processOffers.
-    const buckets = bucketPricesInMemory(row.id, offer, bucketCtx.actives, bucketCtx.latestPriceByOfferId);
+    const buckets = bucketPricesInMemory(row.id, offer, bucketCtx, bucketCtx.latestPriceByOfferId);
     const d = computeRealDiscount({
       current: snap.pricePerPerson,
       ownSnapshots,

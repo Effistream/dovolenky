@@ -269,6 +269,64 @@ export interface ActiveOfferLite {
 export interface BucketContext {
   actives: ActiveOfferLite[];
   latestPriceByOfferId: Map<number, number>;
+  /**
+   * Pre-grouped candidate lists so a subject never scans the whole active set.
+   * Scanning was O(subjects × actives): at 7 404 board groups over 8 848 active offers that is
+   * 65M comparisons and a 29s dashboard response (measured 2026-07-29, after coverage grew the
+   * active set 4.7×). The market/locality predicates are pure equality once nights are banded and
+   * the departure is reduced to its month, so the matching candidates can be looked up directly.
+   * The hotel rung keys on (hotel_key, board) and then range-filters the handful of terms that
+   * share it. Keys are built by the same helpers the predicates use, so the two stay in lockstep —
+   * market.test.ts's parity test compares this path against the SQL oracle for every offer.
+   */
+  marketIndex: Map<string, ActiveOfferLite[]>;
+  localityIndex: Map<string, ActiveOfferLite[]>;
+  hotelIndex: Map<string, ActiveOfferLite[]>;
+}
+
+/** Bucket key for the market rung: country × board × stars × nights band × departure month. */
+function marketKey(country: string | null, board: string | null, stars: number | null, nights: number | null, departureDate: string | null): string {
+  const b = nightsBand(nights);
+  return `${country ?? '~'}|${board ?? '~'}|${stars ?? '~'}|${b.lo ?? '~'}-${b.hi ?? '~'}|${departureMonth(departureDate) ?? '~'}`;
+}
+
+/** Bucket key for the locality rung: locality × board × stars × nights band × departure month. */
+function localityKey(locality: string, board: string | null, stars: number | null, nights: number | null, departureDate: string | null): string {
+  const b = nightsBand(nights);
+  return `${locality}|${board ?? '~'}|${stars ?? '~'}|${b.lo ?? '~'}-${b.hi ?? '~'}|${departureMonth(departureDate) ?? '~'}`;
+}
+
+/** Coarse key for the hotel rung; nights ±2 and the ±30-day window are filtered afterwards. */
+function hotelKeyOf(hotelKey: string, board: string | null): string {
+  return `${hotelKey}|${board ?? '~'}`;
+}
+
+function pushTo(index: Map<string, ActiveOfferLite[]>, key: string, row: ActiveOfferLite): void {
+  const list = index.get(key);
+  if (list) list.push(row);
+  else index.set(key, [row]);
+}
+
+/**
+ * Groups an already-loaded active set into the per-rung indexes bucketPricesInMemory looks up.
+ * Split out so the web read path — which loads its own active rows for the board — can build the
+ * same context without a second query.
+ */
+export function buildBucketContext(
+  actives: ActiveOfferLite[],
+  latestPriceByOfferId: Map<number, number>,
+): BucketContext {
+  const marketIndex = new Map<string, ActiveOfferLite[]>();
+  const localityIndex = new Map<string, ActiveOfferLite[]>();
+  const hotelIndex = new Map<string, ActiveOfferLite[]>();
+  for (const a of actives) {
+    pushTo(marketIndex, marketKey(a.country, a.board, a.stars, a.nights, a.departureDate), a);
+    if (a.locality != null) {
+      pushTo(localityIndex, localityKey(a.locality, a.board, a.stars, a.nights, a.departureDate), a);
+    }
+    if (a.hotelKey != null) pushTo(hotelIndex, hotelKeyOf(a.hotelKey, a.board), a);
+  }
+  return { actives, latestPriceByOfferId, marketIndex, localityIndex, hotelIndex };
 }
 
 /**
@@ -311,7 +369,8 @@ export async function loadBucketContext(db: Db): Promise<BucketContext> {
 
   const latestPriceByOfferId = new Map<number, number>();
   for (const r of rows) latestPriceByOfferId.set(r.offerId, r.price);
-  return { actives, latestPriceByOfferId };
+
+  return buildBucketContext(actives, latestPriceByOfferId);
 }
 
 // SQL `col == null ? isNull(col) : eq(col, val)` in JS: candidate equals the
@@ -348,7 +407,7 @@ function matchesNightsBand(candidateNights: number | null, band: { lo: number | 
 export function bucketPricesInMemory(
   offerId: number,
   offer: NormalizedOffer,
-  actives: readonly ActiveOfferLite[],
+  index: BucketContext,
   latestPriceByOfferId: ReadonlyMap<number, number>,
 ): { hotelTermPricesPN: number[]; localityPricesPN: number[]; marketPricesPN: number[] } {
   const subjectKey = computeMatchKey(offer);
@@ -371,57 +430,40 @@ export function bucketPricesInMemory(
   const hotelPossible = hotelKey != null && offer.nights != null && hotelDepLo != null && hotelDepHi != null;
   const localityPossible = offer.locality != null;
 
-  const hotelRows: { matchKey: string | null; nights: number | null; price: number }[] = [];
-  const localityRows: { matchKey: string | null; nights: number | null; price: number }[] = [];
-  const marketRows: { matchKey: string | null; nights: number | null; price: number }[] = [];
+  const hotelRows: { matchKey: string | null; hotelKey: string | null; nights: number | null; price: number }[] = [];
+  const localityRows: typeof hotelRows = [];
+  const marketRows: typeof hotelRows = [];
 
-  for (const c of actives) {
-    if (c.id === offerId) continue; // ne(id, offerId)
+  // Shared per-candidate admission: never the subject itself, must have a price, and the subject's
+  // cross-source twin is excluded (subjectKey null → no exclusion, matching computeMatchKey).
+  const admit = (c: ActiveOfferLite) => {
+    if (c.id === offerId) return null;
     const price = latestPriceByOfferId.get(c.id);
-    if (price == null) continue; // no snapshot → no contribution (SQL: `if (!snap) continue`)
-    // Cross-source twin exclusion: keep rows with null match_key or a differing
-    // key; drop the subject's own twin. subjectKey null → no exclusion (all kept).
-    if (subjectKey != null && c.matchKey != null && c.matchKey === subjectKey) continue;
+    if (price == null) return null;
+    if (subjectKey != null && c.matchKey != null && c.matchKey === subjectKey) return null;
+    return { matchKey: c.matchKey, hotelKey: c.hotelKey, nights: c.nights, price };
+  };
 
-    const row = { matchKey: c.matchKey, hotelKey: c.hotelKey, nights: c.nights, price };
-
-    // MARKET: country × board × stars × nights band × departure month.
-    if (
-      eqNullable(c.country, offer.country) &&
-      eqNullable(c.board, offer.board) &&
-      eqNullable(c.stars, offer.stars) &&
-      matchesNightsBand(c.nights, band) &&
-      matchesMonth(c.departureDate, month)
-    ) {
-      marketRows.push(row);
+  // MARKET / LOCALITY: every predicate is equality once nights are banded and the departure is
+  // reduced to its month, so the index yields exactly the matching candidates — no scan.
+  for (const c of index.marketIndex.get(marketKey(offer.country, offer.board, offer.stars, offer.nights, offer.departureDate)) ?? []) {
+    const row = admit(c);
+    if (row) marketRows.push(row);
+  }
+  if (localityPossible) {
+    for (const c of index.localityIndex.get(localityKey(offer.locality!, offer.board, offer.stars, offer.nights, offer.departureDate)) ?? []) {
+      const row = admit(c);
+      if (row) localityRows.push(row);
     }
-
-    // LOCALITY: same locality × board × stars × departure month × nights band (the band mirrors
-    // the SQL fn — see localityBucketPricesPN for why per-night rates need it).
-    if (
-      localityPossible &&
-      c.locality === offer.locality &&
-      eqNullable(c.board, offer.board) &&
-      eqNullable(c.stars, offer.stars) &&
-      matchesMonth(c.departureDate, month) &&
-      matchesNightsBand(c.nights, band)
-    ) {
-      localityRows.push(row);
-    }
-
-    // HOTEL: same hotel_key × board × nights ±2 × departure ±30 days.
-    if (
-      hotelPossible &&
-      c.hotelKey === hotelKey &&
-      eqNullable(c.board, offer.board) &&
-      c.nights != null &&
-      c.nights >= offer.nights! - HOTEL_NIGHTS_TOLERANCE &&
-      c.nights <= offer.nights! + HOTEL_NIGHTS_TOLERANCE &&
-      c.departureDate != null &&
-      c.departureDate >= hotelDepLo! &&
-      c.departureDate <= hotelDepHi!
-    ) {
-      hotelRows.push(row);
+  }
+  // HOTEL: (hotel_key, board) narrows to this property's terms; nights ±2 and the ±30-day window
+  // are ranges, so they are filtered over that short list.
+  if (hotelPossible) {
+    for (const c of index.hotelIndex.get(hotelKeyOf(hotelKey!, offer.board)) ?? []) {
+      if (c.nights == null || c.nights < offer.nights! - HOTEL_NIGHTS_TOLERANCE || c.nights > offer.nights! + HOTEL_NIGHTS_TOLERANCE) continue;
+      if (c.departureDate == null || c.departureDate < hotelDepLo! || c.departureDate > hotelDepHi!) continue;
+      const row = admit(c);
+      if (row) hotelRows.push(row);
     }
   }
 

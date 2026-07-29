@@ -5,7 +5,7 @@ import { offers, priceSnapshots, sourceRuns } from '../core/db/schema.js';
 import type { Profile } from '../core/config.js';
 import type { NormalizedOffer, Board, Transport } from '../core/types.js';
 import { computeRealDiscount, median, type DiscountResult } from '../core/discount.js';
-import { bucketPricesInMemory, type ActiveOfferLite } from '../core/market.js';
+import { bucketPricesInMemory, buildBucketContext, type ActiveOfferLite } from '../core/market.js';
 import { matchProfiles } from '../core/filters.js';
 import { hasDeparted } from '../core/dates.js';
 import { RECENT_RUN_SCAN_LIMIT, backoffUntilFrom } from '../core/backoff.js';
@@ -229,6 +229,10 @@ async function buildOffers(
     hotelKey: r.hotelKey,
   }));
 
+  // Index the peer buckets once: without it each group scanned the whole active set
+  // (7 404 x 8 848 = 65M comparisons, a 29s response measured 2026-07-29).
+  const bucketIndex = buildBucketContext(activeLites, latestPriceByOfferId);
+
   // Group by match_key. NULL match_key → each row is its own group. The cheapest
   // row is the representative; the rest become price-ascending alternatives.
   const withSnap: { row: typeof offers.$inferSelect; snap: LatestSnap }[] = [];
@@ -275,7 +279,7 @@ async function buildOffers(
     const { hotelTermPricesPN, localityPricesPN, marketPricesPN } = bucketPricesInMemory(
       rep.row.id,
       offer,
-      activeLites,
+      bucketIndex,
       latestPriceByOfferId,
     );
     const discount = computeRealDiscount({
