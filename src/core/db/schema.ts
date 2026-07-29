@@ -43,6 +43,15 @@ export const notificationsLog = sqliteTable('notifications_log', {
   sentAt: text('sent_at').notNull(),
   priceAtSend: integer('price_at_send'),
   matchKey: text('match_key'),
+  /**
+   * Whether a message actually went out (1) or the row only RECORDS the identity as accounted for
+   * (0). Both suppress future sends — that is the point of the row — but only `sent = 1` is a
+   * message the user received. The re-key flood guard (run.ts) writes 0 for a whole re-keyed
+   * inventory, and one such run can add thousands of rows; without this flag the log would claim
+   * we messaged someone 8 464 times when we sent 20 (observed 2026-07-29). Defaults to 1 so every
+   * pre-existing row keeps its "really sent" meaning.
+   */
+  sent: integer('sent', { mode: 'boolean' }).notNull().default(true),
 });
 
 export const sourceRuns = sqliteTable('source_runs', {

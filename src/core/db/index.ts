@@ -142,6 +142,9 @@ export async function ensureSchema(db: Db): Promise<void> {
   // CREATE TABLE IF NOT EXISTS's column list.
   await ensureColumn(db, 'offers', 'match_key', 'match_key TEXT');
   await ensureColumn(db, 'notifications_log', 'match_key', 'match_key TEXT');
+  // Distinguishes a real send from a row that only records an identity as accounted for (the
+  // re-key flood guard). DEFAULT 1 so every historical row keeps meaning "really sent".
+  await ensureColumn(db, 'notifications_log', 'sent', 'sent INTEGER NOT NULL DEFAULT 1');
 
   await db.run(`
     CREATE INDEX IF NOT EXISTS offers_match_key_idx ON offers (match_key)

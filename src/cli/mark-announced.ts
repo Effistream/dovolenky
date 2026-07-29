@@ -72,6 +72,7 @@ async function main(): Promise<void> {
     offerId: r.id,
     type: 'new_offer' as const,
     sentAt: nowIso,
+    sent: false, // recorded as accounted for, never messaged
     priceAtSend: r.price ?? null,
     matchKey: r.matchKey,
   }));

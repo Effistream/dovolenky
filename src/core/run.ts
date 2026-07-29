@@ -179,6 +179,8 @@ async function processOffers(
           offerId: r.offerId,
           type: 'new_offer' as const,
           sentAt: now.toISOString(),
+          // Recorded, not sent — see the `sent` column on notifications_log.
+          sent: false,
           priceAtSend: offer.pricePerPerson,
           matchKey: computeMatchKey(
             r.persistedTitle === offer.title ? offer : { ...offer, title: r.persistedTitle },
