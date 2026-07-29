@@ -10,6 +10,7 @@ import {
   recordSent,
   capMessages,
   groupCandidates,
+  collapseTypes,
   type Candidate,
 } from '../src/core/notify.js';
 
@@ -294,32 +295,10 @@ describe('groupCandidates', () => {
     ]);
   });
 
-  it('collapses several types of the SAME offer into one message, keeping the strongest (2026-07-29)', () => {
-    // One physical tour that produced both a hot_deal and a price_drop this run. Sending both is
-    // duplicate noise (18.6% of all production messages) and burns two slots of the per-run cap.
+  it("keeps different types apart — collapsing them is collapseTypes job, done later (after the log filter)", () => {
     const cands = [
-      cand({ offerId: 1, matchKey: 'M', type: 'hot_deal', source: 'invia', price: 14000 }),
-      cand({ offerId: 2, matchKey: 'M', type: 'price_drop', source: 'skrz', price: 13000 }),
-    ];
-    const grouped = groupCandidates(cands);
-    expect(grouped).toHaveLength(1);
-    expect(grouped[0]!.type).toBe('hot_deal'); // hot_deal > price_drop > new_offer
-  });
-
-  it('collapses types for a null-matchKey offer too, keyed on offerId', () => {
-    const cands = [
-      cand({ offerId: 7, matchKey: null, type: 'new_offer', source: 'invia', price: 14000 }),
-      cand({ offerId: 7, matchKey: null, type: 'price_drop', source: 'invia', price: 14000 }),
-    ];
-    const grouped = groupCandidates(cands);
-    expect(grouped).toHaveLength(1);
-    expect(grouped[0]!.type).toBe('price_drop');
-  });
-
-  it('does NOT collapse different offers that merely share a type', () => {
-    const cands = [
-      cand({ offerId: 1, matchKey: 'A', type: 'hot_deal', source: 'invia', price: 14000 }),
-      cand({ offerId: 2, matchKey: 'B', type: 'hot_deal', source: 'skrz', price: 13000 }),
+      cand({ offerId: 1, matchKey: "M", type: "hot_deal", source: "invia", price: 14000 }),
+      cand({ offerId: 2, matchKey: "M", type: "price_drop", source: "skrz", price: 13000 }),
     ];
     expect(groupCandidates(cands)).toHaveLength(2);
   });
@@ -636,6 +615,65 @@ describe('recordSent', () => {
 
     const [row] = await db.select().from(notificationsLog);
     expect(row?.matchKey).toBe('MATCH123');
+  });
+});
+
+describe('collapseTypes (2026-07-29: one message per offer per run)', () => {
+  // Local candidate builder (the one in the groupCandidates block is scoped to it).
+  function cand(overrides: Partial<Candidate> & { source?: string; price?: number }): Candidate {
+    const { source, price, ...rest } = overrides;
+    return {
+      offerId: 1,
+      offer: makeOffer({
+        ...(source !== undefined ? { source } : {}),
+        ...(price !== undefined ? { pricePerPerson: price } : {}),
+      }),
+      discount: makeDiscount({ realPct: 20 }),
+      type: 'hot_deal',
+      profile: 'summer-sea',
+      previousPrice: null,
+      matchKey: null,
+      alternatives: [],
+      ...rest,
+    };
+  }
+
+  it('keeps only the strongest type for the same physical tour', () => {
+    // Sending both is duplicate noise (18.6% of production messages) and burns two cap slots.
+    const out = collapseTypes([
+      cand({ offerId: 1, matchKey: 'M', type: 'hot_deal', source: 'invia', price: 14000 }),
+      cand({ offerId: 2, matchKey: 'M', type: 'price_drop', source: 'skrz', price: 13000 }),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.type).toBe('hot_deal'); // hot_deal > price_drop > new_offer
+  });
+
+  it('collapses a null-matchKey offer by offerId', () => {
+    const out = collapseTypes([
+      cand({ offerId: 7, matchKey: null, type: 'new_offer', source: 'invia', price: 14000 }),
+      cand({ offerId: 7, matchKey: null, type: 'price_drop', source: 'invia', price: 14000 }),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.type).toBe('price_drop');
+  });
+
+  it('does NOT collapse different offers that merely share a type', () => {
+    expect(collapseTypes([
+      cand({ offerId: 1, matchKey: 'A', type: 'hot_deal', source: 'invia', price: 14000 }),
+      cand({ offerId: 2, matchKey: 'B', type: 'hot_deal', source: 'skrz', price: 13000 }),
+    ])).toHaveLength(2);
+  });
+
+  it('a log-suppressed hot_deal cannot starve the same offer\'s new_offer', () => {
+    // The ordering trap: if types were collapsed BEFORE filterAgainstLog, a hot_deal already sent
+    // inside the renotify window would beat the new_offer every run, and since the loser is never
+    // logged it would come back and lose again — silently starved forever. run.ts collapses only
+    // what survived the log filter, so here the new_offer is alone and wins.
+    const out = collapseTypes([
+      cand({ offerId: 9, matchKey: 'Z', type: 'new_offer', source: 'invia', price: 14000 }),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.type).toBe('new_offer');
   });
 });
 

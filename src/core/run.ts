@@ -8,7 +8,7 @@ import { ingestSourceOffers, markMissedOffers, isPlaceholderTitle } from './inge
 import { SourceBlockedError } from './http.js';
 import { computeRealDiscount, type DiscountResult } from './discount.js';
 import { matchProfiles } from './filters.js';
-import { evaluateOffer, filterAgainstLog, recordSent, capMessages, groupCandidates, type Candidate } from './notify.js';
+import { evaluateOffer, filterAgainstLog, recordSent, capMessages, groupCandidates, collapseTypes, type Candidate } from './notify.js';
 import { computeMatchKey } from './normalize.js';
 import { formatOffer } from './format.js';
 import { pragueDayString } from './dates.js';
@@ -577,7 +577,10 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
   // checked against notifications_log and, once sent, records the match_key.
   const grouped = groupCandidates(allCandidates);
   const eligible = await filterAgainstLog(db, grouped, cfg.notifications, now);
-  const { send, overflow } = capMessages(eligible, cfg.notifications.maxMessagesPerRun);
+  // Collapse several types of the same offer into one message AFTER the log filter, so a
+  // suppressed hot_deal cannot keep beating (and permanently starving) that offer's new_offer.
+  const oneEach = collapseTypes(eligible);
+  const { send, overflow } = capMessages(oneEach, cfg.notifications.maxMessagesPerRun);
 
   let notificationsSent = 0;
   for (const candidate of send) {
