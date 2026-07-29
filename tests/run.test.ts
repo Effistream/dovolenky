@@ -1510,3 +1510,89 @@ describe('runScan', () => {
     expect(happy?.offersFound).toBe(1);
   });
 });
+
+describe('runScan: re-key flood guard (2026-07-29)', () => {
+  let db: Db;
+
+  beforeEach(async () => {
+    db = openDb(':memory:');
+    await ensureSchema(db);
+  });
+
+  // A profile that notifies on new offers and accepts anything, so every ingested offer is a
+  // new_offer candidate unless the guard suppresses it.
+  const NEW_OFFER_PROFILE: Profile = {
+    enabled: true,
+    countries: [],
+    transport: undefined,
+    board: [],
+    departureMonths: [],
+    departureWithinDays: null,
+    maxPricePerPerson: null,
+    minRealDiscountPct: 15,
+    notifyNewOffers: true,
+  };
+
+  const batch = (n: number, prefix: string): NormalizedOffer[] =>
+    Array.from({ length: n }, (_, i) =>
+      makeOffer({ sourceOfferKey: `${prefix}-${i}`, title: `Hotel ${prefix} ${i}`, url: `https://e.com/${prefix}-${i}` }),
+    );
+
+  it('suppresses new_offer when an adapter re-keys its whole inventory at once', async () => {
+    const tg = new TelegramMock();
+    const cfg = makeConfig({ profiles: { watcher: NEW_OFFER_PROFILE } });
+
+    // First scan: 40 offers, all new — a first-scan flood. Nothing is SENT.
+    const s1 = await runScan({
+      db, cfg, http: makeHttp(), telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [happyAdapter(batch(40, 'v1'))],
+      now: new Date('2026-07-04T10:00:00.000Z'),
+    });
+    expect(s1.notificationsSent).toBe(0);
+    // The only thing that may go out is the daily digest, never a new_offer.
+    expect(tg.messages).toHaveLength(s1.digestSent ? 1 : 0);
+
+    // Second scan: the adapter's key definition changed, so the SAME inventory arrives under new
+    // keys. Still a flood → still silent (this is the invia/deluxea/cesys deploy case).
+    const tg2 = new TelegramMock();
+    const s2 = await runScan({
+      db, cfg, http: makeHttp(), telegram: tg2 as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [happyAdapter(batch(40, 'v2'))],
+      now: new Date('2026-07-04T12:00:00.000Z'),
+    });
+    expect(s2.notificationsSent).toBe(0);
+    expect(tg2.messages).toHaveLength(s2.digestSent ? 1 : 0);
+
+    // They are recorded as ANNOUNCED (80 rows, never sent) — that log is what stops them coming
+    // back tomorrow while still inside the 3-day new_offer window.
+    const logged = await db.select().from(notificationsLog).where(eq(notificationsLog.type, 'new_offer'));
+    expect(logged).toHaveLength(80);
+  });
+
+  it('still notifies for a genuine handful of new offers on a settled source', async () => {
+    const tg = new TelegramMock();
+    const cfg = makeConfig({ profiles: { watcher: NEW_OFFER_PROFILE } });
+    const settled = batch(40, 'v1');
+
+    // Establish the source (flood-suppressed).
+    await runScan({
+      db, cfg, http: makeHttp(), telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [happyAdapter(settled)], now: new Date('2026-07-04T10:00:00.000Z'),
+    });
+
+    // Next run: same 40 plus 3 genuinely new ones → 3/43 is well under the flood share, so the
+    // guard stays out of the way and exactly those 3 are announced for real.
+    const tg2 = new TelegramMock();
+    const s2 = await runScan({
+      db, cfg, http: makeHttp(), telegram: tg2 as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [happyAdapter([...settled, ...batch(3, 'fresh')])],
+      now: new Date('2026-07-04T12:00:00.000Z'),
+    });
+
+    expect(s2.notificationsSent).toBe(3);
+    expect(tg2.messages).toHaveLength(3 + (s2.digestSent ? 1 : 0));
+    // 40 marked announced by the flood guard + 3 genuinely sent.
+    const logged = await db.select().from(notificationsLog).where(eq(notificationsLog.type, 'new_offer'));
+    expect(logged).toHaveLength(43);
+  });
+});

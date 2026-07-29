@@ -1,0 +1,820 @@
+{
+ "lang": "cs",
+ "page": 1,
+ "perPage": 3,
+ "totalPages": 16,
+ "totalHotels": 48,
+ "order": "recommended",
+ "destinations": [
+  {
+   "name": "Zanzibar"
+  }
+ ],
+ "destinationText": "",
+ "destinationPath": [
+  {
+   "id": 5094,
+   "name": "Zanzibar a Tanzanie",
+   "url": "tanzanie5094"
+  },
+  {
+   "id": 8814,
+   "name": "Zanzibar",
+   "url": "tanzanie-zanzibar"
+  }
+ ],
+ "hotels": [
+  {
+   "additionalInfo": {
+    "boarding": "Snídaně",
+    "transport": {
+     "icon": "plane_ticket",
+     "label": "fields.transport.type.flight"
+    }
+   },
+   "address": "Zanzibar a Tanzanie, Zanzibar, Nungwi",
+   "destinations": [
+    {
+     "id": 5094,
+     "name": "Zanzibar a Tanzanie"
+    },
+    {
+     "id": 8814,
+     "name": "Zanzibar"
+    },
+    {
+     "id": 14300,
+     "name": "Nungwi"
+    }
+   ],
+   "fullGalleryFetched": false,
+   "gallery": [
+    {
+     "alt": "",
+     "id": 28049368,
+     "large": "https://image.dovolena.cz/photos/89/f/5563168e9ffe2a5f3dfdc51befac6.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/89/f/5563168e9ffe2a5f3dfdc51befac6.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/89/f/5563168e9ffe2a5f3dfdc51befac6.jpg"
+    },
+    {
+     "alt": "",
+     "id": 28049339,
+     "large": "https://image.dovolena.cz/photos/65/a/d33a4c3d6d5e3df02c70d5de33c92.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/65/a/d33a4c3d6d5e3df02c70d5de33c92.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/65/a/d33a4c3d6d5e3df02c70d5de33c92.jpg"
+    },
+    {
+     "alt": "",
+     "id": 28049328,
+     "large": "https://image.dovolena.cz/photos/17/7/56ef741add16c2e990fa067267d4c.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/17/7/56ef741add16c2e990fa067267d4c.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/17/7/56ef741add16c2e990fa067267d4c.jpg"
+    },
+    {
+     "alt": "",
+     "id": 28049330,
+     "large": "https://image.dovolena.cz/photos/f1/1/5da82132ab510ecc851c02470f5e0.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/f1/1/5da82132ab510ecc851c02470f5e0.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/f1/1/5da82132ab510ecc851c02470f5e0.jpg"
+    },
+    {
+     "alt": "",
+     "id": 28049386,
+     "large": "https://image.dovolena.cz/photos/96/7/9dd6d0679d8a826713c9fccbb4aeb.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/96/7/9dd6d0679d8a826713c9fccbb4aeb.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/96/7/9dd6d0679d8a826713c9fccbb4aeb.jpg"
+    },
+    {
+     "alt": "",
+     "id": 28049385,
+     "large": "https://image.dovolena.cz/photos/51/a/89525d307054fc15ead18a3301cad.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/51/a/89525d307054fc15ead18a3301cad.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/51/a/89525d307054fc15ead18a3301cad.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26285280,
+     "large": "https://image.dovolena.cz/photos/dc/c/72d91e0c63396c6eb0bac353e8ceb.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/dc/c/72d91e0c63396c6eb0bac353e8ceb.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/dc/c/72d91e0c63396c6eb0bac353e8ceb.jpg"
+    },
+    {
+     "alt": "",
+     "id": 28049383,
+     "large": "https://image.dovolena.cz/photos/7e/c/26a84702b6ab8d86aa4a7a5f6b749.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/7e/c/26a84702b6ab8d86aa4a7a5f6b749.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/7e/c/26a84702b6ab8d86aa4a7a5f6b749.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26285275,
+     "large": "https://image.dovolena.cz/photos/2d/4/4508f853dda837ce7534677ea84c1.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/2d/4/4508f853dda837ce7534677ea84c1.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/2d/4/4508f853dda837ce7534677ea84c1.jpg"
+    },
+    {
+     "alt": "",
+     "id": 28049379,
+     "large": "https://image.dovolena.cz/photos/3f/8/31e404c4334a0cfded450d04d8556.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/3f/8/31e404c4334a0cfded450d04d8556.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/3f/8/31e404c4334a0cfded450d04d8556.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26285265,
+     "large": "https://image.dovolena.cz/photos/95/a/3541b7a5f04a18f4344d727349542.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/95/a/3541b7a5f04a18f4344d727349542.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/95/a/3541b7a5f04a18f4344d727349542.jpg"
+    },
+    {
+     "alt": "",
+     "id": 28049377,
+     "large": "https://image.dovolena.cz/photos/93/9/340936f6a3a1727a8d9ddba7ed432.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/93/9/340936f6a3a1727a8d9ddba7ed432.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/93/9/340936f6a3a1727a8d9ddba7ed432.jpg"
+    },
+    {
+     "alt": "",
+     "id": 28049376,
+     "large": "https://image.dovolena.cz/photos/40/2/a734deb34acf93da664ea719a19b5.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/40/2/a734deb34acf93da664ea719a19b5.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/40/2/a734deb34acf93da664ea719a19b5.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26285239,
+     "large": "https://image.dovolena.cz/photos/61/7/f8fd34017cf59bc3e6558395d17fc.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/61/7/f8fd34017cf59bc3e6558395d17fc.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/61/7/f8fd34017cf59bc3e6558395d17fc.jpg"
+    },
+    {
+     "alt": "",
+     "id": 28049374,
+     "large": "https://image.dovolena.cz/photos/bd/f/19705aadd7abbf45978a8bd8fa0a1.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/bd/f/19705aadd7abbf45978a8bd8fa0a1.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/bd/f/19705aadd7abbf45978a8bd8fa0a1.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26285253,
+     "large": "https://image.dovolena.cz/photos/d1/2/228c9a51766efc2fca32f8ae02814.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/d1/2/228c9a51766efc2fca32f8ae02814.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/d1/2/228c9a51766efc2fca32f8ae02814.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26285248,
+     "large": "https://image.dovolena.cz/photos/d4/6/f39976ff23fdc3592b6251bc2b745.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/d4/6/f39976ff23fdc3592b6251bc2b745.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/d4/6/f39976ff23fdc3592b6251bc2b745.jpg"
+    },
+    {
+     "alt": "",
+     "id": 28049369,
+     "large": "https://image.dovolena.cz/photos/04/6/4244aeb61e3e3f5fa3d155297f5d6.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/04/6/4244aeb61e3e3f5fa3d155297f5d6.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/04/6/4244aeb61e3e3f5fa3d155297f5d6.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26285240,
+     "large": "https://image.dovolena.cz/photos/b8/6/14315c4d481404e9de66d5281cc5d.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/b8/6/14315c4d481404e9de66d5281cc5d.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/b8/6/14315c4d481404e9de66d5281cc5d.jpg"
+    },
+    {
+     "alt": "",
+     "id": 28049367,
+     "large": "https://image.dovolena.cz/photos/73/6/b264ffcfdd8c1d9a70624d3f1c1ac.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/73/6/b264ffcfdd8c1d9a70624d3f1c1ac.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/73/6/b264ffcfdd8c1d9a70624d3f1c1ac.jpg"
+    }
+   ],
+   "gps": {
+    "lat": -5.7316875,
+    "lon": 39.293938,
+    "zoom": 13
+   },
+   "hotelId": 804858,
+   "labels": [
+    5,
+    7,
+    1,
+    28,
+    20
+   ],
+   "noStars": 4,
+   "numberRating": 0,
+   "priceInfo": {
+    "group": {
+     "amount": 68131,
+     "currency": "CZK"
+    },
+    "regular": {
+     "amount": 34065,
+     "currency": "CZK"
+    }
+   },
+   "title": "AHG Hisia Nungwi Experience Hotel"
+  },
+  {
+   "additionalInfo": {
+    "boarding": "Polopenze",
+    "transport": {
+     "icon": "plane_ticket",
+     "label": "fields.transport.type.flight"
+    }
+   },
+   "address": "Zanzibar a Tanzanie, Zanzibar, Matemwe Beach",
+   "destinations": [
+    {
+     "id": 5094,
+     "name": "Zanzibar a Tanzanie"
+    },
+    {
+     "id": 8814,
+     "name": "Zanzibar"
+    },
+    {
+     "id": 13055,
+     "name": "Matemwe Beach"
+    }
+   ],
+   "fullGalleryFetched": false,
+   "gallery": [
+    {
+     "alt": "",
+     "id": 25554539,
+     "large": "https://image.dovolena.cz/photos/54/b/0d285c2bf22531ff99e7289eab2e4.jpg",
+     "priority": 1024,
+     "small": "https://image.dovolena.cz/_small/photos/54/b/0d285c2bf22531ff99e7289eab2e4.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/54/b/0d285c2bf22531ff99e7289eab2e4.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588795,
+     "large": "https://image.dovolena.cz/photos/84/6/440dae8ae7d7c135d901934212255.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/84/6/440dae8ae7d7c135d901934212255.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/84/6/440dae8ae7d7c135d901934212255.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26989422,
+     "large": "https://image.dovolena.cz/photos/80/c/f289f3c6371ec80652e928cc5179b.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/80/c/f289f3c6371ec80652e928cc5179b.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/80/c/f289f3c6371ec80652e928cc5179b.jpg"
+    },
+    {
+     "alt": "",
+     "id": 25184788,
+     "large": "https://image.dovolena.cz/photos/f0/c/4ae4ac26b59e91bb47bc38a3774f4.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/f0/c/4ae4ac26b59e91bb47bc38a3774f4.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/f0/c/4ae4ac26b59e91bb47bc38a3774f4.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588862,
+     "large": "https://image.dovolena.cz/photos/6a/1/f3cc4c0148cbb13d9a8c0f2095126.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/6a/1/f3cc4c0148cbb13d9a8c0f2095126.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/6a/1/f3cc4c0148cbb13d9a8c0f2095126.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588858,
+     "large": "https://image.dovolena.cz/photos/3f/5/c9272f58454c035a2a3dcd33a7dba.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/3f/5/c9272f58454c035a2a3dcd33a7dba.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/3f/5/c9272f58454c035a2a3dcd33a7dba.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588860,
+     "large": "https://image.dovolena.cz/photos/56/4/89214d68545cadc0ff214f6584dc6.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/56/4/89214d68545cadc0ff214f6584dc6.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/56/4/89214d68545cadc0ff214f6584dc6.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588854,
+     "large": "https://image.dovolena.cz/photos/c3/9/3c849ff998d94fc20f04e626e1015.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/c3/9/3c849ff998d94fc20f04e626e1015.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/c3/9/3c849ff998d94fc20f04e626e1015.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588856,
+     "large": "https://image.dovolena.cz/photos/fc/c/610f4989f855f65409692c4333ecc.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/fc/c/610f4989f855f65409692c4333ecc.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/fc/c/610f4989f855f65409692c4333ecc.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588850,
+     "large": "https://image.dovolena.cz/photos/b1/d/7400f48679e339cca52fc203bcce8.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/b1/d/7400f48679e339cca52fc203bcce8.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/b1/d/7400f48679e339cca52fc203bcce8.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588853,
+     "large": "https://image.dovolena.cz/photos/cb/5/88eea3c586d569718c8e0f85ed434.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/cb/5/88eea3c586d569718c8e0f85ed434.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/cb/5/88eea3c586d569718c8e0f85ed434.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588847,
+     "large": "https://image.dovolena.cz/photos/6a/e/9d274bec9bcd0d98322623d68dc42.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/6a/e/9d274bec9bcd0d98322623d68dc42.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/6a/e/9d274bec9bcd0d98322623d68dc42.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588845,
+     "large": "https://image.dovolena.cz/photos/82/4/71a6d544603060d6ddcf0ab8d77f4.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/82/4/71a6d544603060d6ddcf0ab8d77f4.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/82/4/71a6d544603060d6ddcf0ab8d77f4.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588842,
+     "large": "https://image.dovolena.cz/photos/ec/3/e2d38dfff9d267c5fa377d6f6be8d.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/ec/3/e2d38dfff9d267c5fa377d6f6be8d.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/ec/3/e2d38dfff9d267c5fa377d6f6be8d.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588840,
+     "large": "https://image.dovolena.cz/photos/59/3/c1a46bb3028dda7c69834542647e0.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/59/3/c1a46bb3028dda7c69834542647e0.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/59/3/c1a46bb3028dda7c69834542647e0.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588841,
+     "large": "https://image.dovolena.cz/photos/c6/3/0af2a014a138f8a153bb270beda57.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/c6/3/0af2a014a138f8a153bb270beda57.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/c6/3/0af2a014a138f8a153bb270beda57.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588838,
+     "large": "https://image.dovolena.cz/photos/58/7/387c8b9fb36bab3ea7c1f6787919b.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/58/7/387c8b9fb36bab3ea7c1f6787919b.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/58/7/387c8b9fb36bab3ea7c1f6787919b.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588839,
+     "large": "https://image.dovolena.cz/photos/ca/b/46c656182b766690a46b7076e9f30.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/ca/b/46c656182b766690a46b7076e9f30.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/ca/b/46c656182b766690a46b7076e9f30.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588837,
+     "large": "https://image.dovolena.cz/photos/37/f/278304b913906f581a31884fe2977.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/37/f/278304b913906f581a31884fe2977.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/37/f/278304b913906f581a31884fe2977.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26588835,
+     "large": "https://image.dovolena.cz/photos/fe/e/b87a692b0ccd87145870f825f5d88.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/fe/e/b87a692b0ccd87145870f825f5d88.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/fe/e/b87a692b0ccd87145870f825f5d88.jpg"
+    }
+   ],
+   "gps": {
+    "lat": -5.84992,
+    "lon": 39.35652,
+    "zoom": 13
+   },
+   "hotelId": 602947,
+   "labels": [
+    5,
+    1,
+    10,
+    8
+   ],
+   "noStars": 3,
+   "numberRating": 7.8,
+   "priceInfo": {
+    "group": {
+     "amount": 72420,
+     "currency": "CZK"
+    },
+    "regular": {
+     "amount": 36210,
+     "currency": "CZK"
+    }
+   },
+   "title": "AHG Dream's Bay Boutique Hotel"
+  },
+  {
+   "additionalInfo": {
+    "boarding": "Polopenze",
+    "transport": {
+     "icon": "plane_ticket",
+     "label": "fields.transport.type.flight"
+    }
+   },
+   "address": "Zanzibar a Tanzanie, Zanzibar",
+   "destinations": [
+    {
+     "id": 5094,
+     "name": "Zanzibar a Tanzanie"
+    },
+    {
+     "id": 8814,
+     "name": "Zanzibar"
+    }
+   ],
+   "fullGalleryFetched": false,
+   "gallery": [
+    {
+     "alt": "",
+     "id": 25052489,
+     "large": "https://image.dovolena.cz/photos/bd/8/3873b463c48abe0897e7e262dab23.jpg",
+     "priority": 1024,
+     "small": "https://image.dovolena.cz/_small/photos/bd/8/3873b463c48abe0897e7e262dab23.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/bd/8/3873b463c48abe0897e7e262dab23.jpg"
+    },
+    {
+     "alt": "",
+     "id": 23528500,
+     "large": "https://image.dovolena.cz/photos/59/f/4c44fc10bea065ce8265f9ad6850c.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/59/f/4c44fc10bea065ce8265f9ad6850c.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/59/f/4c44fc10bea065ce8265f9ad6850c.jpg"
+    },
+    {
+     "alt": "",
+     "id": 25052486,
+     "large": "https://image.dovolena.cz/photos/82/d/520867c07c7fa7694ec074ac82769.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/82/d/520867c07c7fa7694ec074ac82769.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/82/d/520867c07c7fa7694ec074ac82769.jpg"
+    },
+    {
+     "alt": "",
+     "id": 23528538,
+     "large": "https://image.dovolena.cz/photos/e9/f/c94fad903596b08acdc18349e98a1.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/e9/f/c94fad903596b08acdc18349e98a1.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/e9/f/c94fad903596b08acdc18349e98a1.jpg"
+    },
+    {
+     "alt": "",
+     "id": 22462631,
+     "large": "https://image.dovolena.cz/photos/be/c/e4b039f1f2309e8fb495e603a0459.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/be/c/e4b039f1f2309e8fb495e603a0459.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/be/c/e4b039f1f2309e8fb495e603a0459.jpg"
+    },
+    {
+     "alt": "",
+     "id": 27398945,
+     "large": "https://image.dovolena.cz/photos/3f/c/ebbda5ec7f74acbac91277113df24.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/3f/c/ebbda5ec7f74acbac91277113df24.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/3f/c/ebbda5ec7f74acbac91277113df24.jpg"
+    },
+    {
+     "alt": "",
+     "id": 23834565,
+     "large": "https://image.dovolena.cz/photos/03/f/ff432b75458bfa5688dcc886e31e2.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/03/f/ff432b75458bfa5688dcc886e31e2.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/03/f/ff432b75458bfa5688dcc886e31e2.jpg"
+    },
+    {
+     "alt": "",
+     "id": 25390544,
+     "large": "https://image.dovolena.cz/photos/3b/4/567397fa7e6ae2c863d011e2bbdb9.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/3b/4/567397fa7e6ae2c863d011e2bbdb9.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/3b/4/567397fa7e6ae2c863d011e2bbdb9.jpg"
+    },
+    {
+     "alt": "",
+     "id": 25052500,
+     "large": "https://image.dovolena.cz/photos/e4/6/3ae18d286dca747d0224bf9a9c9f9.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/e4/6/3ae18d286dca747d0224bf9a9c9f9.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/e4/6/3ae18d286dca747d0224bf9a9c9f9.jpg"
+    },
+    {
+     "alt": "",
+     "id": 25052498,
+     "large": "https://image.dovolena.cz/photos/7e/b/44e8cbb2627404e40a21fbfc57bfd.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/7e/b/44e8cbb2627404e40a21fbfc57bfd.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/7e/b/44e8cbb2627404e40a21fbfc57bfd.jpg"
+    },
+    {
+     "alt": "",
+     "id": 25052497,
+     "large": "https://image.dovolena.cz/photos/80/0/dc8c24fc71956280ad51fa57fd1e9.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/80/0/dc8c24fc71956280ad51fa57fd1e9.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/80/0/dc8c24fc71956280ad51fa57fd1e9.jpg"
+    },
+    {
+     "alt": "",
+     "id": 25052495,
+     "large": "https://image.dovolena.cz/photos/f1/1/850b1498d1aaef84fa810ed53d839.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/f1/1/850b1498d1aaef84fa810ed53d839.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/f1/1/850b1498d1aaef84fa810ed53d839.jpg"
+    },
+    {
+     "alt": "",
+     "id": 25052493,
+     "large": "https://image.dovolena.cz/photos/01/7/1f49dc6b7b2d1e97444c9d5bc79df.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/01/7/1f49dc6b7b2d1e97444c9d5bc79df.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/01/7/1f49dc6b7b2d1e97444c9d5bc79df.jpg"
+    },
+    {
+     "alt": "",
+     "id": 22462710,
+     "large": "https://image.dovolena.cz/photos/f5/8/6899525c52a1c0228d9d158871c43.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/f5/8/6899525c52a1c0228d9d158871c43.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/f5/8/6899525c52a1c0228d9d158871c43.jpg"
+    },
+    {
+     "alt": "",
+     "id": 25052491,
+     "large": "https://image.dovolena.cz/photos/91/6/867f4de472847f537480499416a42.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/91/6/867f4de472847f537480499416a42.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/91/6/867f4de472847f537480499416a42.jpg"
+    },
+    {
+     "alt": "",
+     "id": 23528583,
+     "large": "https://image.dovolena.cz/photos/80/c/0313bdf53518257d80ef54b09e5ea.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/80/c/0313bdf53518257d80ef54b09e5ea.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/80/c/0313bdf53518257d80ef54b09e5ea.jpg"
+    },
+    {
+     "alt": "",
+     "id": 25052488,
+     "large": "https://image.dovolena.cz/photos/2e/b/411e0f54970c32088073627ea9689.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/2e/b/411e0f54970c32088073627ea9689.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/2e/b/411e0f54970c32088073627ea9689.jpg"
+    },
+    {
+     "alt": "",
+     "id": 25052445,
+     "large": "https://image.dovolena.cz/photos/c6/9/e5566dbce35b2944f1f9b1a16e691.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/c6/9/e5566dbce35b2944f1f9b1a16e691.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/c6/9/e5566dbce35b2944f1f9b1a16e691.jpg"
+    },
+    {
+     "alt": "",
+     "id": 27398979,
+     "large": "https://image.dovolena.cz/photos/e1/0/851074c7bc37399694370871e9c6c.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/e1/0/851074c7bc37399694370871e9c6c.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/e1/0/851074c7bc37399694370871e9c6c.jpg"
+    },
+    {
+     "alt": "",
+     "id": 23834548,
+     "large": "https://image.dovolena.cz/photos/f6/c/d03cc327bffa32d38949fdb9cafc7.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/f6/c/d03cc327bffa32d38949fdb9cafc7.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/f6/c/d03cc327bffa32d38949fdb9cafc7.jpg"
+    }
+   ],
+   "gps": {
+    "lat": -5.9914217,
+    "lon": 39.37874,
+    "zoom": 13
+   },
+   "hotelId": 195485,
+   "labels": [
+    7,
+    1,
+    8
+   ],
+   "noStars": 4,
+   "numberRating": 8.9,
+   "priceInfo": {
+    "group": {
+     "amount": 77657,
+     "currency": "CZK"
+    },
+    "regular": {
+     "amount": 38828,
+     "currency": "CZK"
+    }
+   },
+   "title": "Kiwengwa Beach Resort"
+  }
+ ],
+ "done": true,
+ "tags": [
+  {
+   "ids": [
+    {
+     "id": 4449
+    },
+    {
+     "id": 4400
+    },
+    {
+     "id": 4426
+    },
+    {
+     "id": 32
+    },
+    {
+     "id": 4438
+    },
+    {
+     "id": 4352
+    },
+    {
+     "id": 4432
+    },
+    {
+     "id": 4468
+    },
+    {
+     "id": 4472
+    },
+    {
+     "id": 4342
+    }
+   ],
+   "name": "facts"
+  },
+  {
+   "ids": [
+    {
+     "id": 23
+    },
+    {
+     "id": 27
+    },
+    {
+     "id": 20
+    },
+    {
+     "id": 21
+    }
+   ],
+   "name": "board"
+  },
+  {
+   "ids": [
+    {
+     "id": -5
+    },
+    {
+     "id": -2
+    },
+    {
+     "id": -3
+    },
+    {
+     "id": -33
+    },
+    {
+     "id": -6
+    },
+    {
+     "id": -32
+    },
+    {
+     "id": -4
+    },
+    {
+     "id": -1
+    }
+   ],
+   "name": "hotelicon"
+  },
+  {
+   "ids": [
+    {
+     "id": 20
+    },
+    {
+     "id": 1
+    },
+    {
+     "id": 5
+    },
+    {
+     "id": 9
+    },
+    {
+     "id": 31
+    },
+    {
+     "id": 28
+    },
+    {
+     "id": 16
+    },
+    {
+     "id": 7
+    },
+    {
+     "id": 17
+    },
+    {
+     "id": 13
+    },
+    {
+     "id": 4
+    },
+    {
+     "id": 2
+    },
+    {
+     "id": 12
+    },
+    {
+     "id": 14
+    },
+    {
+     "id": 19
+    },
+    {
+     "id": 18
+    },
+    {
+     "id": 10
+    },
+    {
+     "id": 15
+    },
+    {
+     "id": 8
+    },
+    {
+     "id": 6
+    }
+   ],
+   "name": "labels"
+  },
+  {
+   "ids": [
+    {
+     "id": -28
+    },
+    {
+     "id": -27
+    }
+   ],
+   "name": "bonusicon"
+  }
+ ]
+}

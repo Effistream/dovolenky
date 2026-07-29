@@ -9,6 +9,13 @@ import {
   parseHotelNameFromDetail,
   dovolenkovani,
 } from '../src/sources/dovolenkovani.js';
+import {
+  MAX_DATES_LIST_REQUESTS,
+  MAX_NAME_LOOKUPS,
+  parseHotelDetail,
+  planDatesListRequests,
+  type DatesListQuery,
+} from '../src/sources/cesys.js';
 import type { SourceContext } from '../src/core/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -159,7 +166,9 @@ describe('parseCesysDates (fixture, dates-list.json)', () => {
     expect(first.tourOperator).toBe('Blue-style');
     expect(first.claimedDiscountPct).toBeNull();
     expect(first.claimedOriginalPrice).toBeNull();
-    expect(first.url).toBe('https://dovolenkovani.cz/vyhledavani-zajezdu/');
+    // A master_id missing from the sitemap still gets a WORKING per-hotel link (the
+    // /detail-zajezdu/x/<id>a redirect), never the generic search form.
+    expect(first.url).toBe('https://dovolenkovani.cz/detail-zajezdu/x/67752a');
   });
 
   it('uses the sitemap-derived hotel name and URL when master_id is known', () => {
@@ -311,7 +320,7 @@ describe('parseCesysDates (fixture, dates-list.json)', () => {
     }
   });
 
-  it('dedupes rows with identical [master_id, date_from, duration_night, boarding_id]', () => {
+  it('dedupes rows with identical [master_id, date_from, duration_night, boarding_id, airport, operator]', () => {
     const doubled = {
       ...datesListFixture,
       data: { ...datesListFixture.data, dates: [...datesListFixture.data.dates, datesListFixture.data.dates[0]] },
@@ -365,9 +374,9 @@ describe('dovolenkovani source adapter', () => {
     // Real sitemap index -> 2 matching accommodation URLs -> 1 (index) + 2 (shards) = 3 text()
     // calls, PLUS one detail-page lookup per distinct unresolved master_id in the fixture (4).
     expect(textMock.mock.calls.length).toBe(3 + 4);
-    // json calls = 1 mapping/countries GET + one dates-list POST per query. Now 3 queries
-    // (léto-moře, last-minute, exotika — spec §16.2) → up to 4 json calls.
-    expect(jsonMock.mock.calls.length).toBeLessThanOrEqual(4);
+    // json calls = 1 mapping/countries GET + one dates-list POST per (query × price band):
+    // 3 léto-moře + 3 last-minute + 5 exotika = 11 → 12 json calls.
+    expect(jsonMock.mock.calls.length).toBe(1 + 11);
     expect(offers.length).toBeGreaterThan(0);
     expect(offers.every((o) => o.source === 'dovolenkovani')).toBe(true);
   });
@@ -483,16 +492,17 @@ describe('dovolenkovani source adapter', () => {
     const postBodies = jsonMock.mock.calls
       .filter((call) => call[1] !== undefined)
       .map((call) => JSON.parse((call[1] as RequestInit).body as string));
-    // dovolenkovani now runs 3 queries: léto-moře, last-minute, exotika (spec §16.2).
-    expect(postBodies.length).toBe(3);
+    // 3 profiles × their price bands = 3 + 3 + 5 = 11 bodies (spec §16.2 + the price ladder).
+    expect(postBodies.length).toBe(11);
 
     const withCountry = postBodies.filter((b) => b.country_id !== undefined);
-    expect(withCountry.length).toBe(1);
-    expect(withCountry[0].country_id).toEqual(EXOTIKA_COUNTRY_IDS);
+    // One per exotika band, and every one of them carries the full exotic id list.
+    expect(withCountry.length).toBe(5);
+    for (const body of withCountry) expect(body.country_id).toEqual(EXOTIKA_COUNTRY_IDS);
 
     // The non-exotika queries must NOT carry a country_id at all (catalogue-wide, byte-identical
     // to the pre-exotika bodies).
-    expect(postBodies.filter((b) => b.country_id === undefined).length).toBe(2);
+    expect(postBodies.filter((b) => b.country_id === undefined).length).toBe(6);
   });
 
   it('degrades gracefully when the sitemap fetch fails (falls back to Hotel <id> / country still resolved)', async () => {
@@ -549,7 +559,7 @@ describe('dovolenkovani source adapter', () => {
     await expect(dovolenkovani.fetchOffers(ctx)).rejects.toThrow('blocked');
   });
 
-  it('stops on SourceBlockedError but keeps offers already collected from the other query', async () => {
+  it('stops on SourceBlockedError but keeps offers already collected from the earlier price band', async () => {
     const { SourceBlockedError } = await import('../src/core/http.js');
     let jsonCallCount = 0;
     const { ctx, jsonMock } = makeCtx(
@@ -565,7 +575,10 @@ describe('dovolenkovani source adapter', () => {
 
     const offers = await dovolenkovani.fetchOffers(ctx);
     expect(offers.length).toBeGreaterThan(0);
+    // The block must abandon the WHOLE remaining ladder, not just the band that tripped it: 1
+    // countries GET + 1 successful band + 1 blocked band, and none of the other 9 bands.
     expect(jsonMock.mock.calls.length).toBe(3);
+    expect(planDatesListRequests([]).plan.length).toBe(0); // sanity on the planner's empty case
     // These offers came ONLY from the léto-moře query (last-minute was blocked before it could
     // add any offers) — so this isolates and proves the client-side duration_night >= 6 floor,
     // even though the raw fixture (used for both queries here) contains shorter-stay rows too.
@@ -655,11 +668,12 @@ describe('dovolenkovani source adapter', () => {
     });
 
     it('uses ctx.priorTitles to resolve a hotel without a detail-page lookup, and applies it to ALL of that master_id\'s offers', async () => {
-      // master_id 67752 has one offer with sourceOfferKey a67121890c3b9e18 (date_from
-      // 2026-07-15, duration_night 5, boarding_id 10) — see offerKeyHash([master_id, date_from,
-      // duration_night, boarding_id]). A prior run resolved this hotel to a real name; this run
-      // should reuse it for every one of 67752's 17 offers/terms without a detail lookup.
-      const priorTitles = new Map<string, string>([['a67121890c3b9e18', 'Prior Resolved Hotel']]);
+      // master_id 67752 has one offer with sourceOfferKey 31f3350862c6d758 (date_from
+      // 2026-07-15, duration_night 5, boarding_id 10, airport PRG, operator Blue-style) — see
+      // offerKeyHash([master_id, date_from, duration_night, boarding_id, airport_code,
+      // tour_operator.name]). A prior run resolved this hotel to a real name; this run should
+      // reuse it for every one of 67752's 17 offers/terms without a detail lookup.
+      const priorTitles = new Map<string, string>([['31f3350862c6d758', 'Prior Resolved Hotel']]);
       let lookupCount67752 = 0;
       const { ctx } = makeCtx(
         async (url?: string) => {
@@ -678,7 +692,7 @@ describe('dovolenkovani source adapter', () => {
 
       // No detail-page lookup was spent on 67752 — it was resolved entirely from priorTitles.
       expect(lookupCount67752).toBe(0);
-      const offers67752 = offers.filter((o) => o.sourceOfferKey === 'a67121890c3b9e18' || o.title === 'Prior Resolved Hotel');
+      const offers67752 = offers.filter((o) => o.sourceOfferKey === '31f3350862c6d758' || o.title === 'Prior Resolved Hotel');
       expect(offers67752.length).toBeGreaterThan(0);
       expect(offers.every((o) => (o.title === 'Prior Resolved Hotel') === isFrom67752(o))).toBe(true);
 
@@ -691,7 +705,7 @@ describe('dovolenkovani source adapter', () => {
     it('priorTitles reduces detail-page lookups spent, leaving cap headroom for genuinely-new hotels', async () => {
       // Without priorTitles, all 4 distinct unresolved master_ids (67752, 309883, 341596, 104)
       // would each cost one lookup. Feeding a prior title for 67752 should reduce that to 3.
-      const priorTitles = new Map<string, string>([['a67121890c3b9e18', 'Prior Resolved Hotel']]);
+      const priorTitles = new Map<string, string>([['31f3350862c6d758', 'Prior Resolved Hotel']]);
       let lookupCount = 0;
       const { ctx } = makeCtx(
         async (url?: string) => {
@@ -765,8 +779,147 @@ describe('dovolenkovani source adapter', () => {
 
       const offers = await dovolenkovani.fetchOffers(ctx);
       expect(offers.length).toBeGreaterThan(0);
-      expect(lookupCount).toBeLessThanOrEqual(40);
-      expect(logs.some((m) => /skip/i.test(m) && /40/.test(m))).toBe(true);
+      expect(lookupCount).toBe(MAX_NAME_LOOKUPS);
+      expect(logs.some((m) => /skip/i.test(m) && new RegExp(String(MAX_NAME_LOOKUPS)).test(m))).toBe(true);
     });
+  });
+});
+
+describe('dovolenkovani per-offer URL and locality', () => {
+  it('never publishes the generic search form as an offer URL', async () => {
+    const { ctx } = (() => {
+      const textMock = vi.fn().mockImplementation(async (url?: string) => {
+        if (url && /sitemap\.xml$/.test(url)) return sitemapIndexXml;
+        if (url && /accommodations\.xml$/.test(url)) return sitemapXml;
+        return '<html><body>no name</body></html>'; // every detail lookup fails to parse
+      });
+      const jsonMock = vi.fn().mockImplementation(async (_u?: string, init?: RequestInit) =>
+        init === undefined ? countriesFixture : datesListFixture,
+      );
+      return {
+        ctx: {
+          http: { text: textMock, json: jsonMock } as unknown as SourceContext['http'],
+          adults: 2,
+          log: vi.fn(),
+        } as SourceContext,
+      };
+    })();
+
+    const offers = await dovolenkovani.fetchOffers(ctx);
+    expect(offers.length).toBeGreaterThan(0);
+    // Even with zero names resolved, every row is clickable through to its own hotel.
+    for (const offer of offers) {
+      expect(offer.url).not.toBe('https://dovolenkovani.cz/vyhledavani-zajezdu/');
+      expect(offer.url).toMatch(/^https:\/\/dovolenkovani\.cz\/detail-zajezdu\//);
+    }
+  });
+
+  it('fills locality from the detail page ld+json for the hotels it does look up', async () => {
+    const textMock = vi.fn().mockImplementation(async (url?: string) => {
+      if (url && /sitemap\.xml$/.test(url)) return sitemapIndexXml;
+      if (url && /accommodations\.xml$/.test(url)) return sitemapXml;
+      if (url === detailUrl(67752)) return detailFixture;
+      return '<html><body>no name</body></html>';
+    });
+    const jsonMock = vi.fn().mockImplementation(async (_u?: string, init?: RequestInit) =>
+      init === undefined ? countriesFixture : datesListFixture,
+    );
+    const ctx: SourceContext = {
+      http: { text: textMock, json: jsonMock } as unknown as SourceContext['http'],
+      adults: 2,
+      log: vi.fn(),
+    };
+
+    const offers = await dovolenkovani.fetchOffers(ctx);
+    const resolved = offers.filter((o) => o.title === REAL_DETAIL_HOTEL_NAME);
+    expect(resolved.length).toBeGreaterThan(0);
+    // detail-320645.html is an El Gouna property — locality and canonical URL both come from the
+    // same ld+json block the name comes from, at no extra request cost.
+    for (const offer of resolved) {
+      expect(offer.locality).toBe('Hurghada');
+      expect(offer.url).toContain('/detail-zajezdu/');
+      expect(offer.url).not.toContain('/detail-zajezdu/x/');
+    }
+    // Hotels that were never looked up keep a null locality — never a guessed one.
+    expect(offers.filter((o) => FALLBACK_TITLE_RE_FOR_TEST.test(o.title)).every((o) => o.locality === null)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Failure-mode budget. MAX_NAME_LOOKUPS bounds how MANY enrichment requests run; it does not
+// bound how LONG they take. A host that tarpits our IP returns no 403, so SourceBlockedError
+// never fires and each lookup instead burns HttpClient's full 3 x 25s retry chain (~80s). These
+// cover the two paths where a partial failure must not cost us the whole source.
+// ---------------------------------------------------------------------------------------------
+
+describe('enrichment must never sink a successful ladder', () => {
+  it('abandons hotel-name lookups at the deadline when the storefront tarpits, keeping every offer', async () => {
+    // Simulated clock: only the resolver's Date.now() budget arithmetic reads it (buildDatesListBody
+    // uses `new Date()`, which a Date.now spy does not affect), so this drives the deadline exactly.
+    const base = Date.now();
+    let clock = base;
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    try {
+      let lookupCount = 0;
+      const logs: string[] = [];
+      const textMock = vi.fn().mockImplementation(async (url?: string) => {
+        if (url && /sitemap\.xml$/.test(url)) return sitemapIndexXml;
+        if (url && /accommodations\.xml$/.test(url)) return sitemapXml;
+        lookupCount += 1;
+        // A tarpitted lookup: no 403, just the full retry chain elapsing before it gives up.
+        clock += 80_000;
+        throw new Error('socket hang up');
+      });
+      const jsonMock = vi.fn().mockImplementation(async (_u?: string, init?: RequestInit) =>
+        init === undefined ? countriesFixture : datesListFixture,
+      );
+      const ctx: SourceContext = {
+        http: { text: textMock, json: jsonMock } as unknown as SourceContext['http'],
+        adults: 2,
+        log: (m: string) => void logs.push(m),
+      };
+
+      const offers = await dovolenkovani.fetchOffers(ctx);
+
+      // The ladder's offers survive in full — that is the entire point of bounding enrichment.
+      expect(offers.length).toBeGreaterThan(0);
+      expect(offers.every((o) => o.url.startsWith('https://dovolenkovani.cz/detail-zajezdu/'))).toBe(true);
+      // The COUNT cap never bound here; the deadline did. Two ~80s lookups exhaust a 150s budget.
+      expect(lookupCount).toBeLessThan(MAX_NAME_LOOKUPS);
+      expect(clock - base).toBeLessThan(240_000); // inside ADAPTER_FETCH_TIMEOUT_MS
+      expect(logs.some((m) => /enrichment deadline/i.test(m))).toBe(true);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it('logs and skips a single failed price band, still returning the other bands offers', async () => {
+    let jsonCallCount = 0;
+    const logs: string[] = [];
+    const textMock = vi.fn().mockImplementation(async (url?: string) => {
+      if (url && /sitemap\.xml$/.test(url)) return sitemapIndexXml;
+      if (url && /accommodations\.xml$/.test(url)) return sitemapXml;
+      return '<html><body>no name</body></html>';
+    });
+    const jsonMock = vi.fn().mockImplementation(async (_u?: string, init?: RequestInit) => {
+      jsonCallCount += 1;
+      if (init === undefined) return countriesFixture; // mapping/countries
+      // Call 3 is the second price band: a plain (non-blocking) 500.
+      if (jsonCallCount === 3) throw new Error('dates-list 500');
+      return datesListFixture;
+    });
+    const ctx: SourceContext = {
+      http: { text: textMock, json: jsonMock } as unknown as SourceContext['http'],
+      adults: 2,
+      log: (m: string) => void logs.push(m),
+    };
+
+    const offers = await dovolenkovani.fetchOffers(ctx);
+
+    // A non-blocking failure must NOT abort the ladder the way SourceBlockedError does: all 11
+    // bands are still attempted (1 countries GET + 11 bands = 12 json calls).
+    expect(jsonMock.mock.calls.length).toBe(12);
+    expect(offers.length).toBeGreaterThan(0);
+    expect(logs.some((m) => /dates-list failed/i.test(m) && /skipping/i.test(m))).toBe(true);
   });
 });

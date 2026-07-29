@@ -4,28 +4,58 @@ import { normalizeBoard, normalizeCountry, isKnownCountry, parseCzk, parseCzDate
 import { SourceBlockedError } from '../core/http.js';
 
 /**
- * Deluxea (deluxea.cz) — a Czech luxury/exotic specialist (Maldives, Emirates, Mauritius,
- * Zanzibar…), spec §16.1 row 13. SSR Nette site. Every hotel card embeds a COMPLETE offer JSON in
- * a `data-json` attribute on `<form class="offline-data hotel-comparator-form">`; the visible price
- * cells in the DOM are "-" placeholders hydrated client-side, so DOM price text is NEVER parsed —
- * `data-json` is the only honest price source.
+ * Deluxea (deluxea.cz) — a Czech luxury/exotic specialist (Maldives, Mauritius, Seychelles,
+ * Zanzibar…), spec §16.1 row 13. SSR Nette site. A hotel card that HAS an online price embeds it
+ * in a `data-json` attribute on `<form class="offline-data hotel-comparator-form">`; the visible
+ * price cells in the DOM are "-" placeholders hydrated client-side, so DOM price text is NEVER
+ * parsed — `data-json` is the only honest price source.
  *
- * Live verification 2026-07-07 (curl, standard Chrome UA; see .superpowers/sdd/task-37-report.md):
- *  - GET /sitemap.xml (181 KB, 200) → listing pages are `/hotely-<slug>/`; the exotic slugs used
- *    here are the ACTUAL sitemap shapes: `emiraty` (NOT `spojene-arabske-emiraty`), `bali`,
- *    `dominikanska-republika`, `sri-lanka`, etc.
- *  - GET /hotely-maledivy/ (200) → 9 `.single-item` cards, 8 carry a `form.hotel-comparator-form`
- *    with data-json (the 9th is an empty template). cheerio's `attr('data-json')` returns the
- *    once-HTML-decoded JSON string that `JSON.parse` consumes directly (0 parse failures across
- *    both saved fixtures).
- *  - GET /hotely-emiraty/ (200) → 7 cards whose data-json `price` is literally `{"7":"-"}` (price
- *    on demand) and `hotel` empty → ALL skipped. Real evidence that a "-" price is a valid,
- *    expected skip, not a bug.
- *  - GET /hotely-mauricius/, /hotely-zanzibar/ (200) → fully-baked prices but, like Maledivy, every
- *    card has `old_price == price` and `diff_total == "0"`. IMPORTANT observed reality: the default
- *    listing view never surfaces a discount (`diff_total > 0`) — the discount/`claimedOriginalPrice`
- *    path is real per the data schema but is exercised in tests by a synthetic card, because no
- *    default listing page within the live budget showed one.
+ * ── Live recon 2026-07-29 (curl, standard Chrome UA), which reshaped this adapter ───────────────
+ *
+ * PAGINATION IS STATELESS IF YOU DROP THE SIGNAL. The paginator renders
+ * `/hotely/?num=N&view=grid&destination=<id>&do=changeSide`; that form 302s to page 1 unless the
+ * request carries the PHPSESSID the country listing handed out (`do=changeSide` is a Nette signal
+ * that stores the page in the session), and a self-invented PHPSESSID is rejected. But `num` is
+ * ALSO a plain URL parameter: GET `/hotely/?destination=4&view=grid&num=2` with no cookie at all
+ * returns page 2 (verified: 8 wholly different Maldives hotels vs page 1). So this adapter fetches
+ * `/hotely/?destination=<id>&view=grid&num=<page>` — no cookie jar needed in src/core/http.ts.
+ * `/hotely-<slug>/?num=2` does NOT work (redirects to page 1), hence the numeric destination ids.
+ *
+ * DESTINATION IDS come from the site's own filter multiselect (`select[name="destinationmulti[]"]`,
+ * present on every listing page); the ids below were read off it live on 2026-07-29.
+ *
+ * PRICED INVENTORY IS SMALL AND CONCENTRATED. Per-page card audit over 50+ live pages: a card is
+ * either "offline-data" (data-json with a baked price), "price on demand" (data-json with
+ * `price {"7":"-"}` + `price_on_demand {"7":1}`), or `form.hotel-comparator-form.calculate-me`
+ * with NO data-json at all — the last kind is priced only by an per-hotel AJAX POST, far outside
+ * the request budget, so it is skipped (it is not a parse bug: the site itself shows those hotels
+ * as "Cena na vyžádání"). Priced pages found: maledivy id 4 pages 1-8 (45 offers; 9-12 dead),
+ * mauricius id 2 pages 1-3 (18), seychely id 5 pages 1-3 (17), zanzibar id 16 page 1 (8),
+ * thajsko id 13 page 1 (2), kena id 67 page 1 (3). Zero priced cards anywhere on emiraty(18),
+ * sri-lanka(12), bali(9), vietnam(8), tanzanie(30), dominikanska-republika(32), mexiko(31),
+ * katar(69), jihoafricka-republika(25), oman(64), jordansko(75), polynesie(6), fidzi(11),
+ * reunion(15), filipiny(33), madagaskar(44) — so ~95 priced offers is the whole online catalogue,
+ * not a sampling choice. Those zero-yield destinations are still probed once per scan (1 GET each)
+ * so the adapter picks them up by itself the day Deluxea bakes prices for them.
+ *
+ * WHY departureDate IS NULL (changed 2026-07-29). data-json's `date_from` is NOT the offer's term:
+ * it is the default value of the price-calculator form next to the card (`<input name="date"
+ * value="10.09.2026">`, `<select name="nights_from"><option value="7" selected>`), echoed back into
+ * the JSON. Proof: the 2026-07-07 fixtures and every page fetched 2026-07-29 carry the identical
+ * `date_from 10.09.2026 / date_to 19.09.2026` — 22 days apart, zero movement, and identical for
+ * Zanzibar and the Maldives, which have opposite seasons. The site's own listing subtitle says it
+ * plainly: "Odlet každý den z Prahy nebo Vídně. Pobyt může být libovolně dlouhý." — these are
+ * tailor-made trips with no fixed departure. So the quoted figure is an indicative price for a
+ * sample 7-night term, and the honest mapping for departureDate is null (a constant fake term made
+ * the board's "Odlet" column, month filters and market.ts's date windows meaningless, and would
+ * have swept the whole source off the board the day the default date went past). `nights` IS kept:
+ * it is the term length the quoted price is calculated for (the nights key of the price dict).
+ *
+ * NO DISCOUNT SIGNAL EXISTS. `old_total` was 0 (or "-") on every card across ~50 pages / 30
+ * destinations, both fixtures and today's live pages; the listing's "nejvyšší sleva" sort is a
+ * client-side POST, not a URL parameter (`?order=3` is ignored). claimedOriginalPrice /
+ * claimedDiscountPct therefore stay null in practice; the mapping below is exercised by a
+ * synthetic test card so it works if the site ever bakes one.
  *
  * data-json shape (verified key inventory — every price-bearing field is a dict KEYED BY NIGHTS,
  * e.g. `{"7": …}` where "7" = 7 nights; a single card observed to carry exactly one nights key):
@@ -37,13 +67,17 @@ import { SourceBlockedError } from '../core/http.js';
  *  - price            {"7":"18 710"} HOTEL-only "od" per-person component — NOT the headline; using
  *                     it underpriced every flight package by the ticket+transfer cost. Used only to
  *                     detect a real priced term: "-" / unparsable ⇒ price on demand ⇒ SKIP the card.
+ *  - price_on_demand  {"7":1} the site's own "Cena na vyžádání" flag (then `total` is an HTML
+ *                     `<span>Cena na vyžádání</span>` blob) ⇒ SKIP.
  *  - old_total        {"7":…} crossed-out per-person all-in price → claimedOriginalPrice when
- *                     strictly above total; old_total 0 / == total (the default) ⇒ no discount.
+ *                     strictly above total; old_total 0 / "-" / == total (the default) ⇒ no discount.
  *  - old_price/diff_total/diff_total_abs — hotel-only / delta variants (not used for the headline).
  *  - meal             {"7":"Snídaně"|"All&nbsp;Inclusive"|"Polopenze"} → normalizeBoard.
- *  - date_from/date_to {"7":"10.09.2026"} DD.MM.YYYY → parseCzDate → ISO departureDate.
- *  - full_date        {"7":"10. 09. - 19. 09. 2026"} (unused; date_from is the clean source).
- *  - days             {"7":10} (= nights + 3; nights come from the price-dict KEY, not this).
+ *  - date_from/date_to {"7":"10.09.2026"} — the CALCULATOR DEFAULT, see above; not mapped to
+ *                     departureDate, only used to warn in the log if it has gone past.
+ *  - days             {"7":10} (= hotel nights + 3 travel days; `tour_length` says "10 dní / 7 nocí
+ *                     v hotelu"). nights comes from the price-dict KEY = hotel nights, matching the
+ *                     site's own label.
  *  - tickets          {"7":"16 800"} flight-ticket price; tickets_company_name {"7":"Etihad Airways"}.
  *                     Non-empty tickets or a company name ⇒ transport 'flight', else 'unknown'.
  *  - hotel/hotel_id/hotel_url — hotel_url is null; the offer URL comes from the static card anchor.
@@ -54,38 +88,73 @@ import { SourceBlockedError } from '../core/http.js';
  *  - `h2 span.beutystar` text is a run of literal `*` (NOT `★`) → star count. (A SECOND
  *    `span.beutystar` lives in the rating widget `9.8*` in line2 — scoping to `h2` avoids it.)
  *  - `span.destination-name` = country, gated by isKnownCountry; when it isn't a recognized
- *    country, fall back to the country derived from the listing-URL `/hotely-<slug>/` (hyphens →
- *    spaces so e.g. `sri-lanka` → "Srí Lanka", `dominikanska-republika` resolves).
+ *    country, fall back to the country derived from the listing URL — either the legacy
+ *    `/hotely-<slug>/` shape or `?destination=<id>` via DESTINATIONS below.
  *  - the "Lokalita:" row's `<strong>` = locality (e.g. "Maledivy, Baa atoll").
  *  - the card anchor `href` (e.g. "/maledivy/hotel-finolhu/") = detail URL (absolutized) and the
- *    stable component of sourceOfferKey = offerKeyHash([detailHref, date_from, nights]).
+ *    stable component of sourceOfferKey = offerKeyHash([detailHref, nights]). The calculator's
+ *    default date is deliberately NOT part of the key: it is site chrome, and keying on it would
+ *    churn every offer into a "new" one the day Deluxea moves that default.
  *
- * departureAirport is null (no single-airport field; departures are multi-city). tourOperator is
- * null (Deluxea sells its own curated inventory; no per-offer operator in data-json).
- * omnibusLowestPrice is null (no such field).
+ * departureAirport is null: the only airport in data-json ("Vídeň, 10.09.2026 v 11:55") belongs to
+ * the same default calculation as the date, and the site sells departures from Prague OR Vienna on
+ * any day. tourOperator is null (Deluxea sells its own curated inventory). omnibusLowestPrice is
+ * null (no such field).
  */
 
 const BASE_URL = 'https://www.deluxea.cz';
 
-// Exotic long-haul listing slugs, taken verbatim from the live sitemap 2026-07-07 (all confirmed
-// present). 12 pages/scan → 12 GETs, within the spec's ~10-12 Deluxea budget. `emiraty`/`bali` are
-// the site's real slugs (not the canonical country names).
-const LISTING_SLUGS = [
-  'maledivy',
-  'emiraty',
-  'mauricius',
-  'seychely',
-  'zanzibar',
-  'thajsko',
-  'bali',
-  'sri-lanka',
-  'dominikanska-republika',
-  'vietnam',
-  'mexiko',
-  'tanzanie',
+/**
+ * REQUEST BUDGET. src/core/run.ts aborts an adapter after ADAPTER_FETCH_TIMEOUT_MS = 240 s and
+ * HttpClient keeps a 3 s gap per host, so a request costs ~4 s wall clock. 34 requests ≈ 140 s,
+ * leaving margin. A natural run stops itself around 30 (see the loop's exhaustion rule); this cap
+ * exists so a site change — a paginator that suddenly reports 100 pages of priced cards — cannot
+ * silently blow the timeout and turn a partial source into a 'failed' one (which would drop
+ * Deluxea off the board entirely).
+ */
+const MAX_REQUESTS = 34;
+
+/** Hard per-destination page cap, independent of what the paginator claims. Maledivy, the deepest
+ *  destination, runs out of priced cards on page 9 of 12. */
+const MAX_PAGES_PER_DESTINATION = 10;
+
+interface Destination {
+  /** Numeric id from the site's `destinationmulti[]` filter (read live 2026-07-29). */
+  readonly id: number;
+  /** The `/hotely-<slug>/` slug — only used as the country fallback for cards whose
+   *  `span.destination-name` is a region rather than a country. */
+  readonly slug: string;
+}
+
+// Exotic long-haul destinations. Ordered so that the ones that actually carry online prices are
+// fetched first: the loop sweeps page 1 of every destination before it goes deeper, so a run that
+// gets cut short still returns the productive countries. Europe is deliberately absent — Deluxea is
+// this project's exotic specialist (spec §16.1 row 13) and Greece/Italy/Turkey/Croatia/Spain are
+// already covered by nine other adapters.
+const DESTINATIONS: readonly Destination[] = [
+  { id: 4, slug: 'maledivy' },
+  { id: 2, slug: 'mauricius' },
+  { id: 5, slug: 'seychely' },
+  { id: 16, slug: 'zanzibar' },
+  { id: 13, slug: 'thajsko' },
+  { id: 67, slug: 'kena' },
+  // Probes: no priced card anywhere on these today, but one GET each per scan is what makes the
+  // adapter notice by itself when that changes.
+  { id: 18, slug: 'emiraty' },
+  { id: 12, slug: 'sri-lanka' },
+  { id: 9, slug: 'bali' },
+  { id: 8, slug: 'vietnam' },
+  { id: 30, slug: 'tanzanie' },
+  { id: 32, slug: 'dominikanska-republika' },
+  { id: 31, slug: 'mexiko' },
 ];
 
-const LISTING_URLS = LISTING_SLUGS.map((slug) => `${BASE_URL}/hotely-${slug}/`);
+const DESTINATION_BY_ID = new Map(DESTINATIONS.map((d) => [d.id, d]));
+
+/** Stateless listing URL for one destination page — see the PAGINATION note in the header. */
+function listingUrl(destinationId: number, page: number): string {
+  return `${BASE_URL}/hotely/?destination=${destinationId}&view=grid&num=${page}`;
+}
 
 /** Reads the value at `key` from a nights-keyed data-json dict, or undefined if absent/not a dict. */
 function atKey(dict: unknown, key: string): unknown {
@@ -120,18 +189,31 @@ function cleanText(s: string): string {
   return s.replace(/[​‌‍﻿]/g, '').replace(/\s+/g, ' ').trim();
 }
 
-/** Derives a canonical country from the listing URL's `/hotely-<slug>/` path, or null. */
-function countryFromListingUrl(listingUrl: string): string | null {
-  let path: string;
+/**
+ * Derives a canonical country from the listing URL, or null. Handles both listing shapes: the
+ * `/hotely-<slug>/` country page (still what the saved fixtures use) and the paginated
+ * `/hotely/?destination=<id>` form this adapter fetches, whose id maps back to a slug.
+ */
+function countryFromListingUrl(url: string): string | null {
+  let parsed: URL;
   try {
-    path = new URL(listingUrl, BASE_URL).pathname;
+    parsed = new URL(url, BASE_URL);
   } catch {
     return null;
   }
-  const m = path.match(/\/hotely-([a-z0-9-]+)\/?/i);
-  if (!m?.[1]) return null;
-  const slug = m[1].replace(/-/g, ' '); // sri-lanka -> "sri lanka", dominikanska-republika -> "…"
-  return isKnownCountry(slug) ? normalizeCountry(slug) : null;
+
+  let slug: string | null = null;
+  const m = parsed.pathname.match(/\/hotely-([a-z0-9-]+)\/?/i);
+  if (m?.[1]) {
+    slug = m[1];
+  } else {
+    const id = Number(parsed.searchParams.get('destination'));
+    slug = Number.isFinite(id) ? (DESTINATION_BY_ID.get(id)?.slug ?? null) : null;
+  }
+  if (slug === null) return null;
+
+  const name = slug.replace(/-/g, ' '); // sri-lanka -> "sri lanka", dominikanska-republika -> "…"
+  return isKnownCountry(name) ? normalizeCountry(name) : null;
 }
 
 function mapCard($: cheerio.CheerioAPI, card: ReturnType<cheerio.CheerioAPI>, listingUrl: string): NormalizedOffer | null {
@@ -158,6 +240,7 @@ function mapCard($: cheerio.CheerioAPI, card: ReturnType<cheerio.CheerioAPI>, li
   let pricePerPerson: number | null = null;
   if (priceDict !== null && typeof priceDict === 'object' && !Array.isArray(priceDict)) {
     for (const [k, v] of Object.entries(priceDict as Record<string, unknown>)) {
+      if (atKey(j.price_on_demand, k) === 1) continue; // the site's own "Cena na vyžádání" flag
       if (toCzk(v) === null) continue; // no hotel price for this term → "-" on demand, skip
       const allIn = toCzk(atKey(j.total, k)); // all-in per-person price = the honest headline
       if (allIn === null) continue; // no total → can't price this term honestly
@@ -189,8 +272,10 @@ function mapCard($: cheerio.CheerioAPI, card: ReturnType<cheerio.CheerioAPI>, li
 
   const board: Board = normalizeBoard(strAtKey(j.meal, nightsKey)?.replace(/&nbsp;| /g, ' ') ?? null);
 
-  const dateFromRaw = strAtKey(j.date_from, nightsKey);
-  const departureDate = parseCzDate(dateFromRaw);
+  // NO departureDate. `date_from` is the price-calculator form's default value echoed back into the
+  // JSON (see the header): identical on every card of every destination and unchanged for weeks,
+  // while the site advertises daily departures. Emitting it as a term made 100% of this source
+  // carry one fake date, which the board sorted on and profile filters matched against.
 
   // transport: a flight ticket price or airline name on the card ⇒ 'flight'; otherwise 'unknown'.
   const ticketsRaw = strAtKey(j.tickets, nightsKey);
@@ -231,7 +316,10 @@ function mapCard($: cheerio.CheerioAPI, card: ReturnType<cheerio.CheerioAPI>, li
     }
   });
 
-  const sourceOfferKey = offerKeyHash([href, dateFromRaw, nights]);
+  // Keyed on the hotel detail path + term length only. The calculator's default date used to be in
+  // here; it is site chrome, so keying on it would have re-created every offer as "new" (and fired
+  // a fresh alert for each) the day Deluxea nudges that default forward.
+  const sourceOfferKey = offerKeyHash([href, nights]);
 
   return {
     source: 'deluxea',
@@ -243,7 +331,7 @@ function mapCard($: cheerio.CheerioAPI, card: ReturnType<cheerio.CheerioAPI>, li
     board,
     transport,
     departureAirport: null,
-    departureDate,
+    departureDate: null, // see the header: date_from is the calculator's default, not a real term
     nights,
     pricePerPerson,
     priceTotal,
@@ -256,9 +344,9 @@ function mapCard($: cheerio.CheerioAPI, card: ReturnType<cheerio.CheerioAPI>, li
 }
 
 /**
- * Parses one Deluxea country-listing HTML page to NormalizedOffer[]. Pure function: no I/O.
+ * Parses one Deluxea listing HTML page to NormalizedOffer[]. Pure function: no I/O.
  * Iterates `.single-item` cards, reads each card's `form.hotel-comparator-form` data-json for
- * prices/dates and the static card HTML for name/stars/country/locality/URL. Dedupes by
+ * prices and the static card HTML for name/stars/country/locality/URL. Dedupes by
  * sourceOfferKey (first wins). `listingUrl` supplies the country fallback when a card's
  * `span.destination-name` is not a recognized country.
  */
@@ -278,52 +366,135 @@ export function parseDeluxeaListing(html: string, listingUrl: string): Normalize
   return offers;
 }
 
+/**
+ * Highest page number the listing's own paginator offers, or null when the page has no paginator
+ * (single-page destination). Used to stop before requesting pages the site does not have. The
+ * links are the session-bound `do=changeSide` form; only their `num` is read, never followed.
+ */
+export function parseDeluxeaMaxPage(html: string): number | null {
+  const $ = cheerio.load(html);
+  let max = 0;
+  $('#snippet--paginator a[href*="num="]').each((_, a) => {
+    const href = $(a).attr('href') ?? '';
+    const m = href.match(/[?&]num=(\d+)/);
+    const n = m?.[1] !== undefined ? Number(m[1]) : NaN;
+    if (Number.isFinite(n) && n > max) max = n;
+  });
+  return max > 0 ? max : null;
+}
+
+/**
+ * The term (ISO date) the listing's price calculator is defaulted to, read off the first card's
+ * data-json. Not an offer field — fetchOffers only logs it, so that a default date drifting into
+ * the past (which would silently make every quoted price fiction) shows up in the scan log.
+ */
+export function parseDeluxeaQuotedTerm(html: string): string | null {
+  const $ = cheerio.load(html);
+  const raw = $('form.hotel-comparator-form[data-json]').first().attr('data-json');
+  if (!raw) return null;
+  try {
+    const j = JSON.parse(raw) as Record<string, unknown>;
+    const dict = j.date_from;
+    if (dict === null || typeof dict !== 'object' || Array.isArray(dict)) return null;
+    const first = Object.values(dict as Record<string, unknown>)[0];
+    return parseCzDate(typeof first === 'string' ? first : null);
+  } catch {
+    return null;
+  }
+}
+
+/** Per-destination cursor for the breadth-first paging loop below. */
+interface DestinationState {
+  readonly dest: Destination;
+  page: number;
+  maxPage: number;
+  done: boolean;
+}
+
 async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
   const all: NormalizedOffer[] = [];
   const seen = new Set<string>();
   let lastError: unknown;
+  let requests = 0;
   let successCount = 0;
+  let quotedTerm: string | null = null;
 
-  for (const url of LISTING_URLS) {
-    let offers: NormalizedOffer[];
-    try {
-      const html = await ctx.http.text(url);
-      offers = parseDeluxeaListing(html, url);
-      successCount += 1;
-    } catch (err) {
-      if (err instanceof SourceBlockedError) {
-        // Site is actively blocking us: stop issuing further listing GETs (politeness) but keep
-        // whatever offers earlier pages already yielded. Record the block as lastError so a block
-        // BEFORE the first success still trips the successCount===0 rethrow below (→ BLOCKED marker
-        // → 24h backoff) instead of silently degrading to [].
+  const states: DestinationState[] = DESTINATIONS.map((dest) => ({
+    dest,
+    page: 1,
+    maxPage: MAX_PAGES_PER_DESTINATION,
+    done: false,
+  }));
+
+  // Breadth first: one page of every destination, then page 2 of the ones that still yield, and so
+  // on. A budget that runs out therefore costs depth in the deepest destination, never a whole
+  // country — and destinations that publish nothing cost exactly one probe GET each.
+  outer: while (requests < MAX_REQUESTS && states.some((s) => !s.done)) {
+    for (const state of states) {
+      if (state.done) continue;
+      if (requests >= MAX_REQUESTS) break outer;
+
+      const url = listingUrl(state.dest.id, state.page);
+      let html: string;
+      requests += 1;
+      try {
+        html = await ctx.http.text(url);
+        successCount += 1;
+      } catch (err) {
+        if (err instanceof SourceBlockedError) {
+          // Site is actively blocking us: stop issuing further GETs (politeness) but keep whatever
+          // earlier pages already yielded. Record the block as lastError so a block BEFORE the
+          // first success still trips the successCount===0 rethrow below (→ BLOCKED marker → 24h
+          // backoff) instead of silently degrading to [].
+          lastError = err;
+          ctx.log(`deluxea: ${url} blocked (${err.message}), stopping`);
+          break outer;
+        }
         lastError = err;
-        ctx.log(`deluxea: ${url} blocked (${err.message}), stopping`);
-        break;
+        state.done = true; // drop this destination, keep the others
+        const message = err instanceof Error ? err.message : String(err);
+        ctx.log(`deluxea: ${url} failed (${message}), skipping`);
+        continue;
       }
-      lastError = err;
-      const message = err instanceof Error ? err.message : String(err);
-      ctx.log(`deluxea: ${url} failed (${message}), skipping`);
-      continue;
-    }
 
-    for (const offer of offers) {
-      // The same hotel term can appear on more than one listing page → dedupe globally.
-      if (seen.has(offer.sourceOfferKey)) continue;
-      seen.add(offer.sourceOfferKey);
-      all.push(offer);
+      const paginatorMax = parseDeluxeaMaxPage(html);
+      if (paginatorMax !== null) state.maxPage = Math.min(paginatorMax, MAX_PAGES_PER_DESTINATION);
+      if (quotedTerm === null) quotedTerm = parseDeluxeaQuotedTerm(html);
+
+      let added = 0;
+      for (const offer of parseDeluxeaListing(html, url)) {
+        // The same hotel can surface on more than one page (the site repeats a few as "related") →
+        // dedupe globally.
+        if (seen.has(offer.sourceOfferKey)) continue;
+        seen.add(offer.sourceOfferKey);
+        all.push(offer);
+        added += 1;
+      }
+
+      // Stop paging a destination as soon as a page adds nothing new: on every destination measured
+      // live, the priced cards sit on the first pages and the tail is pure "price on demand" /
+      // client-calculated cards, so paging on would burn budget another destination can use.
+      if (added === 0 || state.page >= state.maxPage) state.done = true;
+      state.page += 1;
     }
   }
 
   if (successCount === 0 && lastError !== undefined) {
-    // Every listing GET failed: this is not "market empty", we simply saw nothing because every
-    // request failed. Rethrow (fischer/alexandria pattern) so runScan records this source 'failed'
-    // rather than degrading to [] and flipping known offers inactive / muting the health alert.
+    // Every GET failed: this is not "market empty", we simply saw nothing because every request
+    // failed. Rethrow (fischer/alexandria pattern) so runScan records this source 'failed' rather
+    // than degrading to [] and flipping known offers inactive / muting the health alert.
     const message = lastError instanceof Error ? lastError.message : String(lastError);
-    ctx.log(`deluxea: all ${LISTING_URLS.length} listing URLs failed (${message}), aborting`);
+    ctx.log(`deluxea: all ${requests} requests failed (${message}), aborting`);
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
-  ctx.log(`deluxea: fetched ${all.length} offers across ${successCount} listing pages`);
+  if (quotedTerm !== null && quotedTerm < new Date().toISOString().slice(0, 10)) {
+    // The whole source is priced for the calculator's default term; once that goes past, the prices
+    // stop being bookable. Nothing to do about it here, but it must not fail silently.
+    ctx.log(`deluxea: WARNING site's quoted term ${quotedTerm} is in the past — prices may be stale`);
+  }
+
+  ctx.log(`deluxea: fetched ${all.length} offers in ${requests} requests (${successCount} ok)`);
   return all;
 }
 

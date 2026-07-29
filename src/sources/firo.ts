@@ -8,11 +8,22 @@ import { makeCesysAdapter, type DatesListQuery } from './cesys.js';
  * Maldives, Mauritius, UAE, …) via a third `exotika` query that server-side-filters on the exotic
  * CESYS country ids. FIRO aggregates Coral Travel, Čedok, TUI, Fischer CK, Rainbow Tours.
  *
+ * ⚠️ The 12-country exotika filter alone was NOT enough: with an unbounded price window the CESYS
+ * server's price-asc head collapses onto a single hotel, so the query that justifies this adapter
+ * delivered 1 of its 12 countries (30 rows of one Dubai hotel, 19,975+ CZK, no Thailand/Maldives
+ * at all). Each profile is therefore issued once per price band — see the PRICE LADDER section in
+ * cesys.ts for the measurements. Live run 2026-07-29 after the change: 411 offers / 163 hotels /
+ * 19 countries (incl. Maledivy, Mauricius, Thajsko, Srí Lanka, Kapverdy, Dominikánská republika),
+ * 4,792-42,001 CZK, in 122s — against 50 offers / 19 hotels / 6 countries / 7,871-22,455 CZK
+ * before.
+ *
  * Live verification 2026-07-07 (curl, Chrome UA, ≥3s per-host gap — see task-35 report):
  *   (a) POST dates-list?client_id=12352 with customer_id 3593 → HTTP 200, status "success".
  *   (b) `country_id:["131"]` filters server-side: every returned row is country 131 (Maledivy).
  *       The exotika query passes the full exotic id list below; the CESYS country mapping is
- *       global across clients, so these ids match dovolenkovani's too.
+ *       global across clients, so these ids match dovolenkovani's too. ⚠️ Re-verified 2026-07-29:
+ *       this holds for a SINGLE id but says nothing about a 12-id list, which is what the price
+ *       ladder had to fix.
  *   (c) sitemap index + `accommodations.xml` exist and mirror dovolenkovani, EXCEPT the detail
  *       URLs carry an extra country segment (`/detail-zajezdu/<country>/<slug>/<code>`); the
  *       shared parseAccommodationsSitemap takes the last segment before the code as the slug, so
@@ -44,14 +55,39 @@ const FALLBACK_URL = 'https://www.firotravel.cz/vyhledavani-zajezdu/';
 // Kuba 112, Vietnam 239, Kapverdy 102.
 const EXOTIKA_COUNTRY_IDS = ['220', '131', '138', '198', '46', '142', '192', '215', '219', '112', '239', '102'];
 
-// Three queries per scan. léto-moře + last-minute mirror dovolenkovani's two watch profiles; the
-// third, exotika, is FIRO's reason for existing — a +270d window (exotic season is winter) with
-// the server-side country_id filter, so the page is exotic long-haul rather than the cheapest
-// Mediterranean rows. All flight-only, sorted price asc, 30 rows/page.
+// Three profiles per scan, each issued once per price band (11 dates-list requests total — the
+// cesys.ts budget allows 12). léto-moře + last-minute mirror dovolenkovani's two watch profiles;
+// the third, exotika, is FIRO's reason for existing — a +270d window (exotic season is winter)
+// with the server-side country_id filter AND the price ladder, without which the whole long-haul
+// band is invisible. All flight-only, sorted price asc.
+//
+// Band edges are cheap-dense at the bottom (that is where a Mediterranean deal lives) and coarse
+// at the top, ending just above each watch profile's max_price_per_person (config/watch.yaml:
+// léto-moře 25k, last-minute 20k, exotika 60k). exotika uses durationFrom 8, not 7: on long-haul
+// supply the day→night offset is 2, so `from: 7` produced pages of 5-night rows that the
+// minNights floor then threw away (measured 20 of 30).
+const LETO_BANDS = [
+  { from: 0, to: 9000 },
+  { from: 9000, to: 12000 },
+  { from: 12000, to: 17000 },
+];
+const LAST_MINUTE_BANDS = [
+  { from: 0, to: 8000 },
+  { from: 8000, to: 13000 },
+  { from: 13000, to: 21000 },
+];
+const EXOTIKA_BANDS = [
+  { from: 0, to: 16000 },
+  { from: 16000, to: 22000 },
+  { from: 22000, to: 30000 },
+  { from: 30000, to: 42000 },
+  { from: 42000, to: 62000 },
+];
+
 const QUERIES: DatesListQuery[] = [
-  { label: 'leto-more', fromDays: 0, toDays: 60, durationFrom: 7, durationTo: 22, minNights: 6 },
-  { label: 'last-minute', fromDays: 0, toDays: 14, durationFrom: 1, durationTo: 21 },
-  { label: 'exotika', fromDays: 0, toDays: 270, durationFrom: 7, durationTo: 22, minNights: 6, countryIds: EXOTIKA_COUNTRY_IDS },
+  { label: 'leto-more', fromDays: 0, toDays: 60, durationFrom: 7, durationTo: 22, minNights: 6, priceBands: LETO_BANDS },
+  { label: 'last-minute', fromDays: 0, toDays: 14, durationFrom: 1, durationTo: 21, priceBands: LAST_MINUTE_BANDS },
+  { label: 'exotika', fromDays: 0, toDays: 270, durationFrom: 8, durationTo: 22, minNights: 6, countryIds: EXOTIKA_COUNTRY_IDS, priceBands: EXOTIKA_BANDS },
 ];
 
 export const firo = makeCesysAdapter({

@@ -9,6 +9,10 @@ import type { SourceContext } from '../src/core/types.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const reckoFixture = readFileSync(join(__dirname, 'fixtures/skrz/dovolena-more-recko.html'), 'utf-8');
 const chorvatskoFixture = readFileSync(join(__dirname, 'fixtures/skrz/pobyty-chorvatsko.html'), 'utf-8');
+// Region-facet page (…/destinace:recko:kreta), saved live 2026-07-29. Region facets are the
+// adapter's depth lever — the server caps every listing at 24 deals and ignores offset — so this
+// fixture pins that a region page is a normal listing page for the parser, with the same fields.
+const kretaFixture = readFileSync(join(__dirname, 'fixtures/skrz/dovolena-more-recko-kreta.html'), 'utf-8');
 
 function makeCtx(http: SourceContext['http']): SourceContext {
   return {
@@ -150,6 +154,41 @@ describe('parseSkrz: pobyty/destinace:chorvatsko fixture', () => {
   });
 });
 
+describe('parseSkrz: dovolena-more/destinace:recko:kreta region fixture', () => {
+  const offers = parseSkrz(kretaFixture);
+
+  it('parses a region-facet page exactly like a country page (24 deals, full field set)', () => {
+    expect(offers.length).toBe(24);
+    const first = offers[0];
+    expect(first).toBeDefined();
+    expect(first!.title).toBe('Vasia Village Hotel');
+    expect(first!.country).toBe('Řecko');
+    expect(first!.locality).toBe('Severní Kréta'); // deepest breadcrumb, i.e. the region's sub-zone
+    expect(first!.stars).toBe(4);
+    expect(first!.board).toBe('BB');
+    expect(first!.transport).toBe('flight');
+    expect(first!.departureAirport).toBe('Praha');
+    expect(first!.departureDate).toBe('2026-09-17');
+    expect(first!.nights).toBe(6);
+    expect(first!.pricePerPerson).toBe(22990);
+    expect(first!.claimedDiscountPct).toBe(32);
+    expect(first!.claimedOriginalPrice).toBe(Math.round(22990 / (1 - 32 / 100)));
+    expect(first!.tourOperator).toBe('Blue-style.cz');
+    expect(first!.url).toBe('https://skrz.cz/zajezd/vasia-village-hotel/wCZpmj?dt=2026-09-17');
+  });
+
+  it('keeps every offer inside the parent country and holds the usual invariants', () => {
+    const keys = offers.map((o) => o.sourceOfferKey);
+    expect(new Set(keys).size).toBe(keys.length);
+    for (const o of offers) {
+      expect(o.country).toBe('Řecko');
+      expect(o.source).toBe('skrz');
+      expect(o.pricePerPerson).toBeGreaterThan(0);
+      expect(o.url.startsWith('https://skrz.cz/')).toBe(true);
+    }
+  });
+});
+
 describe('parseSkrz: edge cases', () => {
   it('returns an empty array when no deals payload and no ld+json Product blocks are present', () => {
     expect(parseSkrz('<html><body>nothing here</body></html>')).toEqual([]);
@@ -230,6 +269,39 @@ describe('parseSkrz: edge cases', () => {
     expect(offers[0]!.departureDate).toBe('2026-08-01');
   });
 
+  it('maps skrz\'s "Česko" breadcrumb onto the canonical "Česká republika"', () => {
+    // Audit finding #4: normalize.ts keys Czechia as "Česká republika"; skrz says "Česko", which
+    // is not a COUNTRY_BY_KEY alias, so it used to pass through raw — a profile written as
+    // countries: ["Česká republika"] would silently never match, and cross-source match keys
+    // would not align with other adapters' spelling of the same country.
+    function wrapDeals(deals: unknown[]): string {
+      const escaped = JSON.stringify(JSON.stringify({ deals }));
+      return `<html><body><script>self.__next_f.push([1,${escaped}])</script></body></html>`;
+    }
+    const html = wrapDeals([
+      {
+        id: 1,
+        hash: 'CZ000001',
+        title: 'Domácí wellness',
+        serverTitle: 'Slevomat',
+        priceFinal: 3000,
+        discountInPercent: 20,
+        detailUrl: '/voucher/CZ000001',
+        breadcrumbs: { links: [{ title: 'Česko' }, { title: 'Krkonoše' }] },
+        board: 'polopenze',
+        days: 3,
+        nights: 2,
+        persons: 1,
+        transport: 'vlastni-doprava',
+        merchant: { title: 'Domácí wellness', stars: 4 },
+      },
+    ]);
+    const offers = parseSkrz(html);
+    expect(offers.length).toBe(1);
+    expect(offers[0]!.country).toBe('Česká republika');
+    expect(offers[0]!.locality).toBe('Krkonoše');
+  });
+
   it('treats a 0% or 100%+ discount as absent (no claimedOriginalPrice)', () => {
     function wrapDeals(deals: unknown[]): string {
       const payload = JSON.stringify({ deals });
@@ -262,95 +334,220 @@ describe('parseSkrz: edge cases', () => {
   });
 });
 
+function dealPayload(hash: string, title: string): string {
+  const deals = [
+    {
+      id: 1,
+      hash,
+      title,
+      serverTitle: 'Test.cz',
+      priceFinal: 5000,
+      discountInPercent: 10,
+      detailUrl: `/zajezd/${hash}/${hash}?dt=2026-08-01`,
+      breadcrumbs: { links: [{ title: 'Řecko' }] },
+      board: 'all-inclusive',
+      days: 8,
+      nights: 7,
+      persons: 1,
+      transport: 'letecky',
+      deptPlace: { title: 'Praha' },
+      merchant: { title, stars: 3 },
+    },
+  ];
+  const payload = JSON.stringify({ deals });
+  const escaped = JSON.stringify(payload);
+  return `<html><body><script>self.__next_f.push([1,${escaped}])</script></body></html>`;
+}
+
+/** One distinct deal per listing URL, so offer counts map 1:1 onto requests. */
+function payloadForUrl(url: string): string {
+  const slug = url.replace('https://skrz.cz/', '').replace(/[^a-z0-9]/gi, '');
+  return dealPayload(slug, `Hotel ${slug}`);
+}
+
+function fakeHttp(
+  handler: (url: string, init?: { signal?: AbortSignal }) => Promise<string>,
+): SourceContext['http'] {
+  return { text: vi.fn(handler), json: vi.fn() } as unknown as SourceContext['http'];
+}
+
+function requestedUrls(http: SourceContext['http']): string[] {
+  return (http.text as unknown as { mock: { calls: [string][] } }).mock.calls.map((c) => c[0]);
+}
+
+describe('skrz.fetchOffers: request budget', () => {
+  // src/core/run.ts aborts an adapter after ADAPTER_FETCH_TIMEOUT_MS = 240 s and records it
+  // 'failed' — which deactivates every skrz offer on the board. HttpClient serializes same-host
+  // requests 3 s apart, so the request count IS the wall clock: this cap is a safety property, not
+  // a style preference. Measured live 2026-07-29: 40 requests → 154 s.
+  const MAX_LISTING_URLS = 40;
+
+  it('never issues more than the capped number of listing requests, all distinct', async () => {
+    const http = fakeHttp(async (url) => payloadForUrl(url));
+    const offers = await skrz.fetchOffers(makeCtx(http));
+
+    const urls = requestedUrls(http);
+    expect(urls.length).toBeLessThanOrEqual(MAX_LISTING_URLS);
+    expect(new Set(urls).size).toBe(urls.length);
+    for (const u of urls) expect(u.startsWith('https://skrz.cz/')).toBe(true);
+    expect(offers.length).toBe(urls.length);
+  });
+
+  it('stops issuing requests once the wall-clock budget is spent, keeping what it has', async () => {
+    // A hung host (25 s request timeout × 3 attempts) can blow the 240 s adapter timeout long
+    // before the URL cap bites, so the loop also watches the clock. Simulated here by moving
+    // Date.now forward 60 s per request: the 195 s budget must stop it after a handful of URLs.
+    let clock = 1_700_000_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    try {
+      const http = fakeHttp(async (url) => {
+        clock += 60_000;
+        return payloadForUrl(url);
+      });
+      const ctx = makeCtx(http);
+      const offers = await skrz.fetchOffers(ctx);
+
+      expect(requestedUrls(http).length).toBe(4); // 195 s budget / 60 s per request
+      expect(offers.length).toBe(4); // partial result kept, not thrown away
+      expect(ctx.log).toHaveBeenCalledWith(expect.stringContaining('budget'));
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('aborts a hung request at the deadline instead of letting it overrun the adapter timeout', async () => {
+    // The pre-request deadline check only bounds when a request may START. HttpClient will spend
+    // up to ~80 s on one hung URL (3 s gap + 25 s × 3 attempts + backoff), so a request begun just
+    // under the 195 s budget would return at ~275 s — past run.ts's 240 s abort, i.e. the exact
+    // 'failed' outcome the budget exists to prevent. Each request must therefore carry an
+    // AbortSignal for the remaining budget. Here the third URL hangs until aborted.
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const http = fakeHttp(async (url: string, init?: { signal?: AbortSignal }) => {
+        calls += 1;
+        if (calls !== 3) return payloadForUrl(url);
+        const signal = init?.signal;
+        expect(signal, 'adapter must pass an AbortSignal so a hung host cannot overrun').toBeInstanceOf(AbortSignal);
+        return await new Promise<string>((_resolve, reject) => {
+          signal!.addEventListener('abort', () => reject(new Error('aborted by budget')));
+        });
+      });
+
+      const ctx = makeCtx(http);
+      const promise = skrz.fetchOffers(ctx);
+      // Walk the clock past the 195 s budget: the hung request must be aborted, not awaited forever.
+      await vi.advanceTimersByTimeAsync(200_000);
+      const offers = await promise;
+
+      // Two good pages kept (partial beats aborted), the hung one abandoned, loop then stopped.
+      expect(offers.length).toBe(2);
+      expect(requestedUrls(http).length).toBe(3);
+      expect(ctx.log).toHaveBeenCalledWith(expect.stringContaining('aborted by budget'));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('skrz.fetchOffers: destination coverage', () => {
+  it('requests a listing URL for every country the watch profiles target', async () => {
+    // Audit finding #1: nine destinations skrz itself lists returned ZERO offers because
+    // LISTING_PATHS had no slug for them — including Španělsko, Itálie and Kypr, which the
+    // leto-more profile explicitly watches, and SAE, which exotika watches.
+    const http = fakeHttp(async (url) => payloadForUrl(url));
+    await skrz.fetchOffers(makeCtx(http));
+    const urls = requestedUrls(http);
+
+    for (const slug of [
+      'recko', 'turecko', 'egypt', 'spanelsko', 'kypr', 'bulharsko', 'chorvatsko', 'italie',
+      'thajsko', 'maledivy', 'mauricius', 'spojene-arabske-emiraty', 'mexiko', 'kapverdy',
+      'tunisko', 'portugalsko', 'malta', 'albanie',
+    ]) {
+      expect(urls, `missing destinace:${slug}`).toContain(`https://skrz.cz/dovolena-more/destinace:${slug}`);
+    }
+  });
+
+  it('spends slots on region facets, the only way past the server-side 24-deal cap', async () => {
+    const http = fakeHttp(async (url) => payloadForUrl(url));
+    await skrz.fetchOffers(makeCtx(http));
+    const regionUrls = requestedUrls(http).filter((u) => /destinace:[a-z-]+:[a-z-]+$/.test(u));
+    expect(regionUrls.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it('does not fetch the generic /pobyty catch-all', async () => {
+    // Audit finding #3: that page returned 24 domestic 1–2 night stays, all with departureDate
+    // null, i.e. zero profile matches — a wasted request at 3 s of the adapter's budget.
+    const http = fakeHttp(async (url) => payloadForUrl(url));
+    await skrz.fetchOffers(makeCtx(http));
+    expect(requestedUrls(http).some((u) => u.endsWith('/pobyty'))).toBe(false);
+  });
+
+  it('never combines facets or sends params robots.txt disallows', async () => {
+    // robots.txt disallows `*,` (combined facets), */cena:, */vyber:, */platnost:, */pocet-dni:,
+    // /*?dt=, /koupit/ and 4+ path segments; alternate orderings live under /nejlevnejsi/ and
+    // /nejvetsi-slevy/, so we always take the site's default ordering.
+    const http = fakeHttp(async (url) => payloadForUrl(url));
+    await skrz.fetchOffers(makeCtx(http));
+    for (const u of requestedUrls(http)) {
+      const path = new URL(u).pathname;
+      expect(u).not.toContain(',');
+      expect(u).not.toContain('?');
+      expect(u).not.toMatch(/\/(cena|vyber|platnost|pocet-dni|nejlevnejsi|nejvetsi-slevy|koupit)/);
+      expect(path.split('/').filter(Boolean).length).toBeLessThanOrEqual(3);
+    }
+  });
+});
+
 describe('skrz.fetchOffers: per-listing-URL error isolation', () => {
-  function dealPayload(hash: string, title: string): string {
-    const deals = [
-      {
-        id: 1,
-        hash,
-        title,
-        serverTitle: 'Test.cz',
-        priceFinal: 5000,
-        discountInPercent: 10,
-        detailUrl: `/zajezd/${hash}/${hash}?dt=2026-08-01`,
-        breadcrumbs: { links: [{ title: 'Řecko' }] },
-        board: 'all-inclusive',
-        days: 8,
-        nights: 7,
-        persons: 1,
-        transport: 'letecky',
-        deptPlace: { title: 'Praha' },
-        merchant: { title, stars: 3 },
-      },
-    ];
-    const payload = JSON.stringify({ deals });
-    const escaped = JSON.stringify(payload);
-    return `<html><body><script>self.__next_f.push([1,${escaped}])</script></body></html>`;
-  }
-
-  function emptyDealsPayload(): string {
-    const escaped = JSON.stringify(JSON.stringify({ deals: [] }));
-    return `<html><body><script>self.__next_f.push([1,${escaped}])</script></body></html>`;
-  }
-
   it('continues past a generic error on one listing URL and returns offers from the others', async () => {
-    const http = {
-      text: vi.fn(async (url: string) => {
-        if (url.includes('destinace:recko')) return dealPayload('RECKO01', 'Recko Hotel');
-        if (url.includes('destinace:turecko')) throw new Error('network hiccup');
-        if (url.includes('destinace:egypt')) return dealPayload('EGYPT01', 'Egypt Hotel');
-        if (url.includes('destinace:bulharsko')) return dealPayload('BULH0001', 'Bulharsko Hotel');
-        if (url.includes('destinace:chorvatsko')) return dealPayload('CHORV001', 'Chorvatsko Hotel');
-        if (url.endsWith('/pobyty')) return dealPayload('POBYTY01', 'Pobyty Hotel');
-        // Exotic listing paths added in spec §16.2 (all live-verified non-empty); here they return
-        // an empty deals payload so the assertion below stays focused on the error-isolation set
-        // while still exercising the full 9-path iteration and call count.
-        if (url.endsWith('/exoticka-dovolena')) return emptyDealsPayload();
-        if (url.includes('destinace:thajsko')) return emptyDealsPayload();
-        if (url.includes('destinace:maledivy')) return emptyDealsPayload();
-        throw new Error(`unexpected url ${url}`);
-      }),
-      json: vi.fn(),
-    } as unknown as SourceContext['http'];
+    const failing = 'https://skrz.cz/dovolena-more/destinace:turecko';
+    const http = fakeHttp(async (url) => {
+      if (url === failing) throw new Error('network hiccup');
+      return payloadForUrl(url);
+    });
 
     const ctx = makeCtx(http);
     const offers = await skrz.fetchOffers(ctx);
 
-    expect(offers.map((o) => o.title).sort()).toEqual(
-      ['Recko Hotel', 'Egypt Hotel', 'Bulharsko Hotel', 'Chorvatsko Hotel', 'Pobyty Hotel'].sort(),
-    );
-    expect(http.text).toHaveBeenCalledTimes(9);
+    const urls = requestedUrls(http);
+    expect(urls).toContain(failing);
+    expect(urls.length).toBeGreaterThan(30); // the failure did not sink the rest of the list
+    expect(offers.length).toBe(urls.length - 1);
+    const missingTitle = `Hotel ${failing.replace('https://skrz.cz/', '').replace(/[^a-z0-9]/gi, '')}`;
+    expect(offers.some((o) => o.title === missingTitle)).toBe(false);
     expect(ctx.log).toHaveBeenCalledWith(expect.stringContaining('turecko'));
   });
 
   it('stops working through remaining listing URLs on SourceBlockedError but keeps offers collected so far', async () => {
-    const http = {
-      text: vi.fn(async (url: string) => {
-        if (url.includes('destinace:recko')) return dealPayload('RECKO01', 'Recko Hotel');
-        if (url.includes('destinace:turecko')) throw new SourceBlockedError(403, 'blocked');
-        throw new Error(`should not fetch ${url}`);
-      }),
-      json: vi.fn(),
-    } as unknown as SourceContext['http'];
+    let calls = 0;
+    const http = fakeHttp(async (url) => {
+      calls += 1;
+      if (calls >= 3) throw new SourceBlockedError(403, 'blocked');
+      return payloadForUrl(url);
+    });
 
     const ctx = makeCtx(http);
     const offers = await skrz.fetchOffers(ctx);
 
-    expect(offers.map((o) => o.title)).toEqual(['Recko Hotel']);
-    expect(http.text).toHaveBeenCalledTimes(2);
+    expect(offers.length).toBe(2);
+    expect(requestedUrls(http).length).toBe(3); // stopped at the block, did not walk the rest
   });
 
   it('rethrows when the FIRST listing URL is blocked before any success (backoff must engage)', async () => {
     // Regression: a block on the very first listing URL must propagate (not swallow to []), so
     // runScan writes the BLOCKED marker and the 24h backoff engages.
-    const http = {
-      text: vi.fn(async (url: string) => {
-        if (url.includes('destinace:recko')) throw new SourceBlockedError(403, 'blocked');
-        throw new Error(`should not fetch ${url}`);
-      }),
-      json: vi.fn(),
-    } as unknown as SourceContext['http'];
+    const http = fakeHttp(async () => {
+      throw new SourceBlockedError(403, 'blocked');
+    });
     await expect(skrz.fetchOffers(makeCtx(http))).rejects.toThrow('blocked');
-    expect(http.text).toHaveBeenCalledTimes(1);
+    expect(requestedUrls(http).length).toBe(1);
+  });
+
+  it('rethrows when every listing URL fails with a generic error (never degrades to [])', async () => {
+    const http = fakeHttp(async () => {
+      throw new Error('network down');
+    });
+    await expect(skrz.fetchOffers(makeCtx(http))).rejects.toThrow('network down');
   });
 });

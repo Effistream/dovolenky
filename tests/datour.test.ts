@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { parseDatourPackages, datour } from '../src/sources/datour.js';
+import { parseDatourPackages, buildQueries, datour } from '../src/sources/datour.js';
 import { offerKeyHash } from '../src/core/normalize.js';
 import type { SourceContext } from '../src/core/types.js';
 
@@ -12,19 +12,25 @@ function loadFixture(name: string): unknown {
   return JSON.parse(readFileSync(join(__dirname, 'fixtures/datour', name), 'utf-8'));
 }
 
-// Live fixtures captured 2026-07-07 (curl, Chrome UA + `Referer: https://datour.cz/`; datour.cz
-// name-blocks claudebot so only the Chrome UA is used — spec §16.4). The ONLY integration surface
-// is GET https://search.anchoice.cz/web-search (spec §16.4 — the client bundle's Elastic
-// credentials are never touched). See .superpowers/sdd/task-40-report.md for full evidence.
-//  - web-search-maledivy.json: ?page=1&location=30182&package=0 → total 184, 18 packages, country
-//    Maledivy, providers Čedok/Coral Travel/TUI/Flexi tours/Worldee, board mix
-//    (Snídaně/Polopenze/Plná penze/Bez stravy). Every row has package_price 0.0, original_price
-//    0.0, package_discount 0.0 (this endpoint does not populate the package/discount plane) → the
-//    priceTotal / claimed* fields are null. Proves unit_price (per-person) is the sole live price.
-//  - web-search-zanzibar.json: ?page=1&location=452587&package=0 → total 90, 18 packages, country
-//    Zanzibar. Same 0.0 package/discount plane. Confirms the no-discount pattern across countries.
+// Live fixtures (curl, Chrome UA + `Referer: https://datour.cz/`; datour.cz name-blocks claudebot so
+// only the Chrome UA is used — spec §16.4). The ONLY integration surface is
+// GET https://search.anchoice.cz/web-search (the client bundle's Elastic credentials are never
+// touched).
+//  - web-search-maledivy.json / web-search-zanzibar.json (2026-07-07): ?page=1&location=…&package=0
+//    → 18 packages each, total 184 / 90. Every row has package_price 0.0, original_price 0.0,
+//    package_discount 0.0 → the priceTotal / claimed* fields are null. Carry the departure-city mix
+//    (Praha/Vídeň/Frankfurt, Praha/Vídeň/Bratislava) that departureAirport now maps.
+//  - web-search-thajsko.json (2026-07-29): ?…&location=29828&page_size=50&adults_count=2 → total
+//    508, 50 rows. Proves page_size works, carries the '3.5'/'4.5' half-star categories that used to
+//    be rounded UP, and is the truncation case (50 returned of 508 available).
+//  - web-search-kapverdy.json (2026-07-29): ?…&location=452557&page_size=50 → total 37, all 37 rows
+//    returned (no truncation). country_name is "Kapverdské ostrovy" — the spelling COUNTRY_BY_KEY
+//    does not know — and 19 of its rows are the only live rows anywhere that populate
+//    original_price, so this fixture pins both the country alias and the claimed-price branch.
 const maledivyFixture = loadFixture('web-search-maledivy.json');
 const zanzibarFixture = loadFixture('web-search-zanzibar.json');
+const thajskoFixture = loadFixture('web-search-thajsko.json');
+const kapverdyFixture = loadFixture('web-search-kapverdy.json');
 
 const FALLBACK = 'https://datour.cz/vyhledavani?location=30182';
 
@@ -52,13 +58,24 @@ describe('parseDatourPackages — Maledivy fixture', () => {
     expect(first.claimedDiscountPct).toBeNull(); // package_discount 0.0
     expect(first.omnibusLowestPrice).toBeNull();
     expect(first.tourOperator).toBe('Čedok'); // provider_name
-    expect(first.departureAirport).toBeNull();
     // Stable per-term+board key (room-agnostic, matching alexandria): live row has
     // tour_id "47943147", start 2027-05-16, nights 5, board_id "4".
     expect(first.sourceOfferKey).toBe(offerKeyHash(['47943147', '2027-05-16', 5, '4']));
+    // Route is /zajezd/<detail>: bare /<detail> is the Next.js catch-all 404 (notFound:true).
     expect(first.url).toBe(
-      'https://datour.cz/maledivy/ari-atoll/-ari-atol-jih-/liberty-guesthouse-maldives',
+      'https://datour.cz/zajezd/maledivy/ari-atoll/-ari-atol-jih-/liberty-guesthouse-maldives' +
+        '?item_id=Y2Vkb2tfcmVzYWJlZV9WSVRDX1M5OV9IQlg0MzA1NThfMjAyNy0wNS0xNl8yMDI3LTA1LTIyXzIwMjctMDUtMTdfMjAyNy0wNS0yMl81X0RCTC5EWF9GTElHSFRfVklFX1ZJRV9mX0FETF8xOC05OToz',
     );
+  });
+
+  it('maps departure_location_name to departureAirport (24% of live rows are non-CZ)', () => {
+    // Live payload for this page: Praha 16, Vídeň 1, Frankfurt 1 — it used to be hardcoded null,
+    // which made a Vienna/Frankfurt departure look CZ-equivalent on the board.
+    const airports = offers.map((o) => o.departureAirport);
+    expect(airports.filter((a) => a === 'Praha').length).toBe(16);
+    expect(airports).toContain('Vídeň');
+    expect(airports).toContain('Frankfurt');
+    expect(airports.filter((a) => a === null).length).toBe(0);
   });
 
   it('leaves stars null when accommodation_category is null (package[1])', () => {
@@ -74,7 +91,7 @@ describe('parseDatourPackages — Maledivy fixture', () => {
       expect(o.source).toBe('datour');
       expect(o.sourceOfferKey.length).toBeGreaterThan(0);
       expect(o.pricePerPerson).toBeGreaterThan(0);
-      // This endpoint never populates package_price / original_price / package_discount.
+      // This endpoint never populates package_price / original_price / package_discount here.
       expect(o.priceTotal).toBeNull();
       expect(o.claimedOriginalPrice).toBeNull();
       expect(o.claimedDiscountPct).toBeNull();
@@ -82,7 +99,7 @@ describe('parseDatourPackages — Maledivy fixture', () => {
       expect(o.transport).toBe('flight');
       expect(o.departureDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(o.stars === null || (o.stars > 0 && Number.isInteger(o.stars))).toBe(true);
-      expect(o.url.startsWith('https://datour.cz/')).toBe(true);
+      expect(o.url.startsWith('https://datour.cz/zajezd/')).toBe(true);
     }
   });
 
@@ -109,6 +126,83 @@ describe('parseDatourPackages — Zanzibar fixture', () => {
       expect(o.claimedDiscountPct).toBeNull();
       expect(o.priceTotal).toBeNull();
     }
+  });
+
+  it('carries the Bratislava/Vídeň departure split', () => {
+    const airports = offers.map((o) => o.departureAirport);
+    expect(airports.filter((a) => a === 'Bratislava').length).toBe(2);
+    expect(airports.filter((a) => a === 'Vídeň').length).toBe(8);
+  });
+});
+
+describe('parseDatourPackages — Thajsko page_size=50 fixture (half-star truncation)', () => {
+  const offers = parseDatourPackages(thajskoFixture, FALLBACK);
+
+  it('parses a 50-row page — page_size buys coverage without extra requests', () => {
+    // The old adapter hardcoded page=1 with the site's 18/page default; page_size=50 is the same
+    // one request for 2.8x the rows.
+    expect(offers.length).toBe(50);
+    expect((thajskoFixture as { total: number }).total).toBe(508);
+  });
+
+  it('TRUNCATES half-star categories instead of rounding up (platform does the same)', () => {
+    // accommodation_category '3.5' → the offer's own detail page reports hotel_category 3, and
+    // '5.5' → 5. Math.round used to inflate ~8% of rows by a whole star.
+    const half = offers.find((o) => o.title === 'Khao Lak Palm Beach')!; // '3.5'
+    expect(half).toBeDefined();
+    expect(half.stars).toBe(3);
+    const half45 = offers.find((o) => o.title === 'Hotel Khao Lak Merlin Resort')!; // '4.5'
+    expect(half45).toBeDefined();
+    expect(half45.stars).toBe(4);
+  });
+
+  it('reaches deeper into the price-ascending tail than an 18-row page could', () => {
+    const prices = offers.map((o) => o.pricePerPerson).sort((a, b) => a - b);
+    expect(prices[0]).toBe(15839);
+    // Page 1 of 18 rows stopped at 19 690 CZK; 50 rows carry the ladder past it.
+    expect(prices[prices.length - 1]!).toBeGreaterThan(19690);
+  });
+});
+
+describe('parseDatourPackages — Kapverdy fixture (country alias + claimed price)', () => {
+  const offers = parseDatourPackages(kapverdyFixture, FALLBACK);
+
+  it('resolves the anchoice spelling "Kapverdské ostrovy" to canonical Kapverdy', () => {
+    // Without the alias, isKnownCountry rejects it → country null → every row dropped by the
+    // country-scoped watch profiles. All 37 live rows use this spelling.
+    expect(offers.length).toBe(37);
+    expect(offers.every((o) => o.country === 'Kapverdy')).toBe(true);
+  });
+
+  it('maps the first package (Hotel Da Luz) against its live detail page', () => {
+    const first = offers[0]!;
+    expect(first.title).toBe('Hotel Da Luz');
+    expect(first.pricePerPerson).toBe(16990); // == pageProps.data.person_price on /zajezd/…?item_id=
+    expect(first.stars).toBe(3); // '3.0'; detail page hotel_category 3
+    expect(first.board).toBe('BB'); // "Snídaně"
+    expect(first.transport).toBe('flight'); // "Letecky"
+    expect(first.departureAirport).toBe('Praha');
+    expect(first.departureDate).toBe('2026-08-20');
+    expect(first.nights).toBe(7);
+    expect(first.locality).toBe('Santa Maria');
+    expect(first.tourOperator).toBe('Blue Style');
+    expect(first.url.startsWith('https://datour.cz/zajezd/kapverdske-ostrovy/ostrov-sal/santa-maria/hotel-da-luz?item_id=')).toBe(true);
+  });
+
+  it('populates claimedOriginalPrice from original_price (per-person) where the source has one', () => {
+    // The only live rows anywhere that carry original_price. package_discount stays 0.0, so
+    // claimedDiscountPct — the field that drives discount.ts's `fake` flag — remains null.
+    const withOriginal = offers.filter((o) => o.claimedOriginalPrice !== null);
+    expect(withOriginal.length).toBe(19);
+    expect(offers[0]!.claimedOriginalPrice).toBe(39664);
+    for (const o of withOriginal) {
+      expect(o.claimedOriginalPrice!).toBeGreaterThan(o.pricePerPerson);
+      expect(o.claimedDiscountPct).toBeNull();
+    }
+  });
+
+  it('nulls stars for the accommodation_category "0.0" row', () => {
+    expect(offers.filter((o) => o.stars === null).length).toBe(2); // one null category, one '0.0'
   });
 });
 
@@ -307,6 +401,37 @@ describe('parseDatourPackages — mapping rules & edge cases', () => {
     expect(offers[0]!.url).toBe(FALLBACK);
   });
 
+  it('emits the bare /zajezd/ URL when item_id_encrypted is missing, and percent-encodes it when present', () => {
+    const offers = parseDatourPackages(
+      {
+        packages: [
+          { item_id: 'p1', tour_id: '1', tour_name: 'H', start: '2026-08-01', nights: 7, unit_price: 20000, detail: 'kuba/varadero/hotel' },
+          { item_id: 'p2', tour_id: '2', tour_name: 'H', start: '2026-08-01', nights: 7, unit_price: 20000, detail: 'kuba/varadero/hotel', item_id_encrypted: 'a+b/c=' },
+        ],
+      },
+      FALLBACK,
+    );
+    expect(offers[0]!.url).toBe('https://datour.cz/zajezd/kuba/varadero/hotel');
+    // base64 payloads contain +, / and = — they must not leak into the query unescaped.
+    expect(offers[1]!.url).toBe('https://datour.cz/zajezd/kuba/varadero/hotel?item_id=a%2Bb%2Fc%3D');
+  });
+
+  it('nulls the "Neuvedeno" departure placeholder instead of inventing a city', () => {
+    const offers = parseDatourPackages(
+      {
+        packages: [
+          { item_id: 'x1', tour_id: '1', tour_name: 'H', start: '2026-08-01', nights: 7, unit_price: 20000, departure_location_name: 'Neuvedeno' },
+          { item_id: 'x2', tour_id: '2', tour_name: 'H', start: '2026-08-01', nights: 7, unit_price: 20000, departure_location_name: '  Vídeň  ' },
+          { item_id: 'x3', tour_id: '3', tour_name: 'H', start: '2026-08-01', nights: 7, unit_price: 20000 },
+        ],
+      },
+      FALLBACK,
+    );
+    expect(offers[0]!.departureAirport).toBeNull();
+    expect(offers[1]!.departureAirport).toBe('Vídeň');
+    expect(offers[2]!.departureAirport).toBeNull();
+  });
+
   it('coerces string-typed numeric fields (API returns some prices as strings)', () => {
     const offers = parseDatourPackages(
       {
@@ -318,19 +443,21 @@ describe('parseDatourPackages — mapping rules & edge cases', () => {
     );
     expect(offers[0]!.pricePerPerson).toBe(23929);
     expect(offers[0]!.nights).toBe(7);
-    expect(offers[0]!.stars).toBe(5); // round(4.5)
+    expect(offers[0]!.stars).toBe(4); // floor(4.5) — the platform truncates, it does not round
   });
 
-  it('nulls stars when accommodation_category rounds to 0 (guard applies AFTER rounding)', () => {
+  it('nulls stars when accommodation_category floors to 0 (guard applies AFTER flooring)', () => {
     const offers = parseDatourPackages(
       {
         packages: [
           { item_id: 'r', tour_id: '1', tour_name: 'H', start: '2026-08-01', nights: 7, unit_price: 20000, accommodation_category: '0.4', country_name: 'Maledivy' },
+          { item_id: 's', tour_id: '2', tour_name: 'H', start: '2026-08-01', nights: 7, unit_price: 20000, accommodation_category: '0.0', country_name: 'Maledivy' },
         ],
       },
       FALLBACK,
     );
-    expect(offers[0]!.stars).toBeNull(); // round(0.4) = 0 → null, never a 0-star offer
+    expect(offers[0]!.stars).toBeNull();
+    expect(offers[1]!.stars).toBeNull();
   });
 
   it('returns [] for missing/empty packages', () => {
@@ -340,10 +467,64 @@ describe('parseDatourPackages — mapping rules & edge cases', () => {
   });
 });
 
-describe('datour source adapter', () => {
+describe('buildQueries — request budget', () => {
   const API = 'https://search.anchoice.cz/web-search';
-  const LOCATION_IDS = ['30182', '29828', '452587', '451780', '28824', '30594', '28796', '29920', '28075', '450831', '29632', '29011'];
+  const queries = buildQueries(2);
 
+  it('stays inside the hard request cap (run.ts aborts the adapter at 240 s)', () => {
+    // 14 planned requests; MAX_REQUESTS is 20. If this ever fails, the query plan grew — re-measure
+    // the wall clock before raising the cap.
+    expect(queries.length).toBe(14);
+    expect(queries.length).toBeLessThanOrEqual(20);
+  });
+
+  it('asks for page_size (not page=2,3,4…) — same rows for a third of the requests', () => {
+    const solo = queries.filter((q) => !q.url.includes('%7C'));
+    expect(solo.length).toBe(12);
+    for (const q of solo) {
+      expect(q.url).toContain('page=1&');
+      expect(q.url).toContain('&page_size=50');
+    }
+    // Nothing in the plan pages beyond the first page.
+    expect(queries.every((q) => q.url.includes('page=1&'))).toBe(true);
+  });
+
+  it('batches the 12 small-inventory countries into 2 multi-location requests', () => {
+    const batched = queries.filter((q) => q.url.includes('%7C'));
+    expect(batched.length).toBe(2);
+    // `|` is the endpoint's OR separator and must go on the wire percent-encoded.
+    expect(batched[0]!.url).toContain('location=27990%7C452557%7C28422%7C29724');
+    expect(batched[0]!.url).toContain('&page_size=150');
+    // Kuba (14 offers) moved from its own request into the second batch.
+    expect(batched[1]!.url).toContain('28796');
+  });
+
+  it('covers all 24 exotika countries exactly once, with no duplicate location ids', () => {
+    const ids = queries.flatMap((q) => decodeURIComponent(new URL(q.url).searchParams.get('location')!).split('|'));
+    expect(ids.length).toBe(24);
+    expect(new Set(ids).size).toBe(24);
+    // The 12 ids the adapter shipped without — spec §16.1 already listed Keňa/Filipíny as verified.
+    for (const id of ['29513', '27990', '452557', '28422', '29724', '567314', '599485', '30211', '29246', '28408', '452666', '27998']) {
+      expect(ids).toContain(id);
+    }
+  });
+
+  it('sends adults_count from ctx.adults and falls back to 2 for a nonsense value', () => {
+    expect(buildQueries(3).every((q) => q.url.includes('&adults_count=3'))).toBe(true);
+    expect(buildQueries(0).every((q) => q.url.includes('&adults_count=2'))).toBe(true);
+    expect(buildQueries(Number.NaN).every((q) => q.url.includes('&adults_count=2'))).toBe(true);
+  });
+
+  it('builds absolute web-search URLs with the package=0 pricing plane', () => {
+    for (const q of queries) {
+      expect(q.url.startsWith(`${API}?`)).toBe(true);
+      expect(q.url).toContain('&package=0');
+      expect(q.fallbackUrl.startsWith('https://datour.cz/vyhledavani?location=')).toBe(true);
+    }
+  });
+});
+
+describe('datour source adapter', () => {
   function makeCtx(jsonImpl: (url?: string, init?: RequestInit) => Promise<unknown>): {
     ctx: SourceContext;
     jsonMock: ReturnType<typeof vi.fn>;
@@ -364,17 +545,15 @@ describe('datour source adapter', () => {
     return Promise.resolve({ total: 0, packages: [] });
   }
 
-  it('is named datour and issues one page-1 query per location (12) with package=0', async () => {
+  it('is named datour and issues exactly the planned 14 queries', async () => {
     const { ctx, jsonMock } = makeCtx(standardImpl);
     const offers = await datour.fetchOffers(ctx);
 
     expect(datour.name).toBe('datour');
-    expect(jsonMock).toHaveBeenCalledTimes(12);
+    expect(jsonMock).toHaveBeenCalledTimes(14);
 
     const urls = jsonMock.mock.calls.map((c) => c[0] as string);
-    for (const id of LOCATION_IDS) {
-      expect(urls).toContain(`${API}?page=1&location=${id}&package=0`);
-    }
+    expect(urls).toEqual(buildQueries(2).map((q) => q.url));
     // 18 Maledivy + 18 Zanzibar = 36 (distinct (tour_id,start,nights,board_id) tuples across
     // countries — verified on the fixtures).
     expect(offers.length).toBe(36);
@@ -391,6 +570,17 @@ describe('datour source adapter', () => {
       const headers = init?.headers as Record<string, string> | undefined;
       expect(headers?.Referer).toBe('https://datour.cz/');
     }
+  });
+
+  it('logs a truncation line when the page did not hold the country', async () => {
+    // The tripwire that the old page=1 behaviour lacked: Maledivy's fixture reports total 184 for
+    // 18 returned rows, so a country outgrowing its page is visible in the scan log.
+    const { ctx } = makeCtx(standardImpl);
+    await datour.fetchOffers(ctx);
+    const logged = (ctx.log as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0] as string);
+    expect(logged).toContain('datour: Maledivy truncated at 18/184 rows (price-ascending slice)');
+    // A batch whose total fits in one page must NOT log.
+    expect(logged.some((l) => /truncated at 0\/0/.test(l))).toBe(false);
   });
 
   it('dedupes offers across queries by sourceOfferKey', async () => {
@@ -416,7 +606,7 @@ describe('datour source adapter', () => {
     let n = 0;
     const { ctx, jsonMock } = makeCtx((url?: string) => {
       n += 1;
-      if (n === 1) return standardImpl(url); // Maledivy -> 18 offers
+      if (n === 1) return Promise.resolve(maledivyFixture); // 18 offers
       if (n === 2) return Promise.reject(new SourceBlockedError(403, 'blocked'));
       return standardImpl(url);
     });

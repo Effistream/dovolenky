@@ -17,6 +17,15 @@ import { normalizeBoard, normalizeCountry, offerKeyHash } from '../core/normaliz
  *   endpoint `lowestPrice` was consistently null across hundreds of sampled tours (several
  *   destinations, with and without active discounts) — the field is real but this adapter
  *   null-guards it rather than assuming when it populates.
+ * - tour.tourOperator: string, e.g. "FISCHER" / "TUI-CZ" / "EXIM Tours" / "ETI" / "BLUE SKY".
+ *   eTravel is a reseller carrying several operators, so this is what lets the board tell an
+ *   eTravel-listed Fischer package apart from the same package pulled by the fischer adapter.
+ * - tour.flight.departure.segments[0].airport.{from,fromIATA,fromId} — the ORIGIN of the
+ *   outbound leg, e.g. {"from":"Praha","fromIATA":"PRG","fromId":4312}. Added 2026-07-29:
+ *   both fields were dropped as hardcoded nulls until then, which mattered because the API
+ *   sorts price-ascending and cheap non-Czech departures crowd the top of every exotic
+ *   destination (live: 17/40 cheapest Chorvatsko tours leave from Vienna, 10 from Katowice,
+ *   9 from Budapest — shown on the board with no airport signal at all).
  */
 export interface DerTour {
   detailUrl: string;
@@ -42,7 +51,33 @@ export interface DerTour {
       lowestPrice: number | null;
     };
     rooms?: Array<{ meal?: string | null }>;
+    tourOperator?: string | null;
+    flight?: {
+      departure?: {
+        segments?: Array<{
+          airport?: {
+            from?: string | null;
+            fromIATA?: string | null;
+          } | null;
+        }> | null;
+      } | null;
+    } | null;
   };
+}
+
+/**
+ * Origin airport of the outbound leg. Prefers `fromIATA` because core/normalize.ts's
+ * `normalizeAirport` passes 3-letter codes straight through (so the offer stays comparable
+ * cross-source in `computeMatchKey`) and the web board matches uppercased codes. Falls back
+ * to the Czech city name only when the IATA code is missing/malformed: `normalizeAirport`
+ * knows the domestic + neighbouring-capital names (Praha/Brno/Ostrava/Vídeň/…), and even
+ * where it doesn't, a rendered "MNICHOV" in the Odlet column beats today's "—".
+ */
+function pickDepartureAirport(t: DerTour): string | null {
+  const airport = t.tour?.flight?.departure?.segments?.[0]?.airport;
+  const iata = airport?.fromIATA?.trim();
+  if (iata && /^[a-zA-Z]{3}$/.test(iata)) return iata.toUpperCase();
+  return airport?.from?.trim() || null;
 }
 
 function round(n: number): number {
@@ -132,9 +167,11 @@ function mapOneTour(t: DerTour, source: string, baseUrl: string): NormalizedOffe
 
   const stars = t.hotel.starsCount ?? null;
   const board = normalizeBoard(t.tour?.rooms?.[0]?.meal ?? null);
-  // `tour.transportType` is a numeric enum from the DER platform; `1` = flight has been the
-  // only value observed so far (fly-to destinations Řecko/Turecko/Egypt). No own-transport/bus
-  // example has been seen yet, so anything else falls back to 'unknown' rather than guessing.
+  // `tour.transportType` is a numeric enum from the DER platform; `1` = flight is still the only
+  // value ever observed — 902 offers across all 24 queried countries on 2026-07-29, drive-to
+  // Chorvatsko and Itálie included. That is expected: the adapter pins `tt=1` (tour type = flight
+  // package) in the query. No own-transport/bus example has been seen, so anything else falls back
+  // to 'unknown' rather than guessing.
   const transport = t.tour?.transportType === 1 ? 'flight' : 'unknown';
 
   return {
@@ -146,7 +183,7 @@ function mapOneTour(t: DerTour, source: string, baseUrl: string): NormalizedOffe
     stars,
     board,
     transport,
-    departureAirport: null,
+    departureAirport: pickDepartureAirport(t),
     departureDate,
     nights,
     pricePerPerson,
@@ -154,7 +191,7 @@ function mapOneTour(t: DerTour, source: string, baseUrl: string): NormalizedOffe
     claimedOriginalPrice,
     claimedDiscountPct,
     omnibusLowestPrice,
-    tourOperator: null,
+    tourOperator: t.tour?.tourOperator?.trim() || null,
     url,
   };
 }

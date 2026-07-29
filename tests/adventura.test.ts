@@ -1,12 +1,15 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
   filterExoticTourUrls,
   parseAdventuraDetail,
+  selectDetailWindow,
   adventura,
   MAX_DETAILS,
+  MAX_REQUESTS_PER_RUN,
+  ROTATION_PERIOD_MS,
   EXOTIC_SLUG_TOKENS,
 } from '../src/sources/adventura.js';
 import { offerKeyHash } from '../src/core/normalize.js';
@@ -17,11 +20,48 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const sitemapExcerpt = readFileSync(join(__dirname, 'fixtures/adventura/sitemap-excerpt.xml'), 'utf-8');
 const nepalFixture = readFileSync(join(__dirname, 'fixtures/adventura/detail-nepal-everest.html'), 'utf-8');
 const reunionFixture = readFileSync(join(__dirname, 'fixtures/adventura/detail-reunion-mauricius.html'), 'utf-8');
+const havajFixture = readFileSync(join(__dirname, 'fixtures/adventura/detail-havaj-no-meals.html'), 'utf-8');
 
 const BASE = 'https://www.adventura.cz';
 
+// The 14 exotic detail URLs in the excerpt, in the lexicographic order filterExoticTourUrls emits.
+const EXCERPT_EXOTIC = [
+  `${BASE}/zajezdy/10084-jihoafricka-republika-na-kole/`,
+  `${BASE}/zajezdy/11268-treking-na-kapverdach/`,
+  `${BASE}/zajezdy/11836-nepal-treking-udolim-serpu-az-k-everestu/`,
+  `${BASE}/zajezdy/11848-treking-na-reunionu/`,
+  `${BASE}/zajezdy/11888-dominikanska-republika-turistika-a-koupani/`,
+  `${BASE}/zajezdy/11967-sri-lanka-na-kole/`,
+  `${BASE}/zajezdy/11974-kambodza-na-kole/`,
+  `${BASE}/zajezdy/12088-tibetem-do-nepalu/`,
+  `${BASE}/zajezdy/12112-toulky-po-maledivach/`,
+  `${BASE}/zajezdy/12469-jar-kapske-mesto-vino-a-narodni-parky/`,
+  `${BASE}/zajezdy/12666-reunion-a-mauricius-turistika-a-koupani/`,
+  `${BASE}/zajezdy/12704-indonesky-lombok-na-kole/`,
+  `${BASE}/zajezdy/12891-silvestr-v-jizni-africe-vinice-a-np-kruger/`,
+  `${BASE}/zajezdy/12931-kuba-autenticka/`,
+];
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 function makeCtx(http: SourceContext['http']): SourceContext {
   return { http, adults: 2, log: vi.fn() };
+}
+
+/** Pins Date.now() so the rotating window under test is deterministic. */
+function atWindow(index: number): void {
+  vi.spyOn(Date, 'now').mockReturnValue(index * ROTATION_PERIOD_MS);
+}
+
+/** Synthetic sitemap with `count` exotic tour URLs (ids are zero-padded so the sort is stable). */
+function syntheticSitemap(count: number): string {
+  const locs = Array.from(
+    { length: count },
+    (_, i) => `<url><loc>${BASE}/zajezdy/${10000 + i}-nepal-tour-${String(i).padStart(3, '0')}/</loc></url>`,
+  ).join('');
+  return `<?xml version="1.0"?><urlset>${locs}</urlset>`;
 }
 
 // --- Synthetic detail-page builder mirroring the real table.date-list + graybox.terms markup.
@@ -36,7 +76,7 @@ interface TermOpts {
   code?: string; // td.code order number
 }
 
-const NBSP = ' ';
+const NBSP = ' ';
 
 function termRow(o: TermOpts = {}): string {
   const term = o.term ?? '29. 10. – 18. 11. 2026';
@@ -72,12 +112,14 @@ interface PageOpts {
   sub?: string | null;
   terms?: string[];
   included?: string; // "V ceně zahrnuto" prose (transport/board source)
+  excluded?: string; // "V ceně nezahrnuto" prose (drives board 'none')
 }
 
 function detailPage(o: PageOpts = {}): string {
   const title = o.title ?? 'Nepál – treking údolím Šerpů až k Everestu';
   const terms = o.terms ?? [termRow()];
   const included = o.included ?? 'průvodce CK, letenka Praha–Káthmándú–Praha, transfery';
+  const excluded = o.excluded ?? 'vízum, fakultativní snídaně lze zakoupit';
   return `<html><body>
     <h1>Váš prohlížeč není podporován :(</h1>
     <h1 class="print-show top upper">${title}</h1>
@@ -89,36 +131,61 @@ function detailPage(o: PageOpts = {}): string {
     </table>
     <div class="graybox terms"><h2>Podmínky</h2>
       <div class="row"><div class="column fourth"><strong class="orange">V ceně zahrnuto:</strong></div><div class="column three-fourths"><p>${included}</p></div></div>
-      <div class="row"><div class="column fourth"><strong class="orange">V ceně nezahrnuto:</strong></div><div class="column three-fourths"><p>vízum, fakultativní snídaně lze zakoupit</p></div></div>
+      <div class="row"><div class="column fourth"><strong class="orange">V ceně nezahrnuto:</strong></div><div class="column three-fourths"><p>${excluded}</p></div></div>
     </div>
   </body></html>`;
 }
 
-describe('EXOTIC_SLUG_TOKENS & MAX_DETAILS constants', () => {
-  it('exposes MAX_DETAILS = 25', () => {
-    expect(MAX_DETAILS).toBe(25);
+describe('request-budget constants', () => {
+  it('caps the whole run at MAX_REQUESTS_PER_RUN = 40 (1 sitemap + 39 details)', () => {
+    // run.ts aborts an adapter at ADAPTER_FETCH_TIMEOUT_MS = 240 s and the host gap is 3 s, so
+    // 40 requests (~140 s measured) is the ceiling. Raising it needs a fresh wall-clock measurement.
+    expect(MAX_REQUESTS_PER_RUN).toBe(40);
+    expect(MAX_DETAILS).toBe(MAX_REQUESTS_PER_RUN - 1);
   });
-  it('includes the required exotic tokens', () => {
-    for (const t of ['nepal', 'vietnam', 'sri-lanka', 'zanzibar', 'reunion', 'mauricius', 'jar', 'galapagy']) {
+
+  it('rotates on the 2 h scan cadence', () => {
+    expect(ROTATION_PERIOD_MS).toBe(2 * 60 * 60 * 1000);
+  });
+
+  it('exposes exotic stems, not full nominatives (Czech declension changes endings)', () => {
+    for (const t of ['nepal', 'vietnam', 'sri-lanka', 'zanzibar', 'reunion', 'mauric', 'jar', 'galapag']) {
       expect(EXOTIC_SLUG_TOKENS).toContain(t);
     }
+    // Regression guard for audit finding 4: these four used to be full nominatives and matched
+    // nothing in the declined slugs the site actually publishes.
+    for (const t of ['malediv', 'kapverd', 'indone', 'jihoafric']) {
+      expect(EXOTIC_SLUG_TOKENS).toContain(t);
+    }
+    // Multi-word stem: Adventura's third spelling of the same watched country (review 2026-07-29).
+    expect(EXOTIC_SLUG_TOKENS).toContain('jizni-afric');
   });
 });
 
 describe('filterExoticTourUrls: sitemap excerpt (real URL shapes)', () => {
   const urls = filterExoticTourUrls(sitemapExcerpt);
 
-  it('selects exactly the 8 exotic /zajezdy/{id}-{slug}/ detail URLs', () => {
-    expect(urls).toEqual([
-      `${BASE}/zajezdy/11836-nepal-treking-udolim-serpu-az-k-everestu/`,
-      `${BASE}/zajezdy/11888-dominikanska-republika-turistika-a-koupani/`,
-      `${BASE}/zajezdy/11967-sri-lanka-na-kole/`,
-      `${BASE}/zajezdy/11974-kambodza-na-kole/`,
-      `${BASE}/zajezdy/12088-tibetem-do-nepalu/`,
-      `${BASE}/zajezdy/12469-jar-kapske-mesto-vino-a-narodni-parky/`,
-      `${BASE}/zajezdy/12666-reunion-a-mauricius-turistika-a-koupani/`,
-      `${BASE}/zajezdy/12931-kuba-autenticka/`,
-    ]);
+  it('selects exactly the 14 exotic /zajezdy/{id}-{slug}/ detail URLs', () => {
+    expect(urls).toEqual(EXCERPT_EXOTIC);
+  });
+
+  it('selects ALL THREE spellings of Jihoafrická republika (the watched exotika country)', () => {
+    // Live 2026-07-29 Adventura publishes JAR tours under three unrelated slug spellings. Missing
+    // any one of them silently drops a watched-country tour from the crawl entirely — the
+    // `jizni-afric` case was still unreachable after the declension fix and is worth 1 real term
+    // (96 806 Kč, -3 %, departure 2026-12-29).
+    expect(urls).toContain(`${BASE}/zajezdy/10084-jihoafricka-republika-na-kole/`); // jihoafric
+    expect(urls).toContain(`${BASE}/zajezdy/12469-jar-kapske-mesto-vino-a-narodni-parky/`); // jar
+    expect(urls).toContain(`${BASE}/zajezdy/12891-silvestr-v-jizni-africe-vinice-a-np-kruger/`); // jizni-afric
+  });
+
+  it('matches Czech-declined slugs the old full-nominative tokens missed', () => {
+    // /zajezdy/12112-toulky-po-maledivach/ etc. — all live tours in watched exotika countries.
+    expect(urls).toContain(`${BASE}/zajezdy/12112-toulky-po-maledivach/`); // maledivach vs 'maledivy'
+    expect(urls).toContain(`${BASE}/zajezdy/11268-treking-na-kapverdach/`); // kapverdach vs 'kapverdy'
+    expect(urls).toContain(`${BASE}/zajezdy/12704-indonesky-lombok-na-kole/`); // indonesky vs 'indonesie'
+    expect(urls).toContain(`${BASE}/zajezdy/10084-jihoafricka-republika-na-kole/`); // vs the 'jar' acronym
+    expect(urls).toContain(`${BASE}/zajezdy/11848-treking-na-reunionu/`); // reunionu
   });
 
   it('is deterministically (lexicographically) sorted', () => {
@@ -127,6 +194,10 @@ describe('filterExoticTourUrls: sitemap excerpt (real URL shapes)', () => {
 
   it('excludes the "jarni-andalusie" false positive (jar substring in "jarní" = spring)', () => {
     expect(urls.some((u) => u.includes('jarni-andalusie'))).toBe(false);
+  });
+
+  it('excludes mid-word stem hits ("vikendovy" contains "ken")', () => {
+    expect(urls.some((u) => u.includes('vikendovy-rafting'))).toBe(false);
   });
 
   it('never returns ?druh= / ?kontinenty= filter URLs', () => {
@@ -155,6 +226,52 @@ describe('filterExoticTourUrls: sitemap excerpt (real URL shapes)', () => {
   });
 });
 
+describe('selectDetailWindow: rotating, budget-capped slice', () => {
+  const urls = Array.from({ length: 72 }, (_, i) => `u${String(i).padStart(2, '0')}`);
+
+  it('never exceeds MAX_DETAILS, whatever the catalogue size', () => {
+    for (const n of [0, 1, 39, 40, 72, 500]) {
+      const list = urls.slice(0, n).concat(Array.from({ length: Math.max(0, n - 72) }, (_, i) => `x${i}`));
+      const w = selectDetailWindow(list, 0);
+      expect(w.targets.length).toBeLessThanOrEqual(MAX_DETAILS);
+    }
+  });
+
+  it('returns everything in a single window when the catalogue fits the budget', () => {
+    const small = urls.slice(0, MAX_DETAILS);
+    const w = selectDetailWindow(small, 12345);
+    expect(w).toEqual({ targets: small, windowIndex: 0, windowCount: 1 });
+  });
+
+  it('covers the WHOLE list across consecutive runs and never repeats inside one cycle', () => {
+    // The core regression: the old `slice(0, 25)` fetched the same 25 lowest ids forever, so 39 of
+    // 64 tours could never enter the DB. Consecutive windows must partition the list exactly.
+    const w0 = selectDetailWindow(urls, 0);
+    const w1 = selectDetailWindow(urls, ROTATION_PERIOD_MS);
+    expect(w0.windowCount).toBe(2);
+    expect(w0.windowIndex).toBe(0);
+    expect(w1.windowIndex).toBe(1);
+    expect([...w0.targets, ...w1.targets]).toEqual(urls);
+    expect(new Set([...w0.targets, ...w1.targets]).size).toBe(urls.length);
+  });
+
+  it('wraps around after a full cycle (run 3 repeats window 1)', () => {
+    const w0 = selectDetailWindow(urls, 0);
+    const w2 = selectDetailWindow(urls, 2 * ROTATION_PERIOD_MS);
+    expect(w2.targets).toEqual(w0.targets);
+  });
+
+  it('keeps the same window for two timestamps inside one rotation period (cron jitter)', () => {
+    const a = selectDetailWindow(urls, 5 * ROTATION_PERIOD_MS);
+    const b = selectDetailWindow(urls, 5 * ROTATION_PERIOD_MS + 20 * 60 * 1000);
+    expect(b.targets).toEqual(a.targets);
+  });
+
+  it('handles an empty list without dividing by zero', () => {
+    expect(selectDetailWindow([], 0)).toEqual({ targets: [], windowIndex: 0, windowCount: 1 });
+  });
+});
+
 describe('parseAdventuraDetail: nepal-everest fixture (real; discount row, board unknown)', () => {
   const url = `${BASE}/zajezdy/11836-nepal-treking-udolim-serpu-az-k-everestu/`;
   const offers = parseAdventuraDetail(nepalFixture, url);
@@ -174,7 +291,9 @@ describe('parseAdventuraDetail: nepal-everest fixture (real; discount row, board
     expect(o.claimedOriginalPrice).toBe(74800); // small.line-through.original-price
     expect(o.claimedDiscountPct).toBe(1); // "-1%"
     expect(o.transport).toBe('flight'); // "letenka" in V ceně zahrnuto
-    expect(o.board).toBe('unknown'); // "snídaně zakoupit" is NOT in V ceně zahrnuto -> no false BB
+    // "snídaně zakoupit" sits in V ceně NEzahrnuto -> no false BB. And because that block names
+    // breakfast rather than "stravování", we must NOT jump to 'none' either.
+    expect(o.board).toBe('unknown');
     expect(o.sourceOfferKey).toBe(offerKeyHash(['25243601']));
     expect(o.url).toBe(url);
     expect(o.priceTotal).toBeNull();
@@ -207,6 +326,33 @@ describe('parseAdventuraDetail: reunion-mauricius fixture (real; multi-country t
     expect(o.transport).toBe('flight');
     expect(o.board).toBe('BB'); // "se snídaní" in V ceně zahrnuto
     expect(o.sourceOfferKey).toBe(offerKeyHash(['26591601']));
+  });
+});
+
+describe('parseAdventuraDetail: havaj fixture (real; meals explicitly NOT included -> board none)', () => {
+  // Live page saved 2026-07-29. "V ceně zahrnuto" lists only "12x ubytování v apartmánech či
+  // hotelech"; "V ceně nezahrnuto" opens with "Stravování". Audit finding 6: this used to report
+  // board 'unknown', which also opted the offer out of computeMatchKey (it nulls on 'unknown').
+  const url = `${BASE}/zajezdy/11893-havaj-velky-okruh-ctyrmi-ostrovy/`;
+  const offers = parseAdventuraDetail(havajFixture, url);
+
+  it('parses all three departure terms', () => {
+    expect(offers.length).toBe(3);
+    expect(offers.map((o) => o.departureDate)).toEqual(['2026-10-22', '2027-04-16', '2027-10-21']);
+    expect(offers.map((o) => o.pricePerPerson)).toEqual([129800, 124608, 124608]);
+    expect(offers.map((o) => o.nights)).toEqual([14, 14, 14]);
+  });
+
+  it('reports board "none" rather than "unknown"', () => {
+    expect(offers.every((o) => o.board === 'none')).toBe(true);
+  });
+
+  it('still resolves transport from the included prose', () => {
+    expect(offers.every((o) => o.transport === 'flight')).toBe(true);
+  });
+
+  it('leaves country null (Havaj is a US state; USA is out of scope by design)', () => {
+    expect(offers.every((o) => o.country === null)).toBe(true);
   });
 });
 
@@ -290,18 +436,79 @@ describe('parseAdventuraDetail: synthetic edge cases', () => {
     expect(o.board).toBe('HB');
   });
 
+  it('does NOT downgrade to board none when the included prose itself talks about stravování', () => {
+    // "stravování dle programu" means meals ARE part of the price, just not as a named board —
+    // the not-included block's own "stravování nad rámec programu" must not flip it to 'none'.
+    const html = detailPage({
+      included: 'letenka, ubytování, stravování dle programu',
+      excluded: 'stravování nad rámec programu, vízum',
+      terms: [termRow({ price: `70${NBSP}000`, code: 's' })],
+    });
+    expect(parseAdventuraDetail(html, url)[0]!.board).toBe('unknown');
+  });
+
   it('returns [] when there is no date-list table', () => {
     expect(parseAdventuraDetail('<html><body><h1 class="top upper">X</h1></body></html>', url)).toEqual([]);
   });
 
-  it('leaves country null when the title has no recognized country token', () => {
+  it('resolves the country from Czech-declined titles (audit finding 7)', () => {
+    const cases: [string, string][] = [
+      ['Treking na Réunionu', 'Réunion'],
+      ['Silvestr v Kambodži', 'Kambodža'],
+      ['Toulky po Maledivách', 'Maledivy'],
+      ['Treking na Kapverdách', 'Kapverdy'],
+      ['Indonéský Lombok na kole', 'Indonésie'],
+      ['JAR – Kapské Město, víno a národní parky', 'Jihoafrická republika'],
+      ['Kanoe v Namibii na Kunene', 'Namibie'],
+      // Live title of /zajezdy/12891-…/. "Jižní Afrika" is absent from COUNTRIES, so pass 1 fails
+      // and only the `jizni-afric` stem resolves it — before that it emitted country: null.
+      ['Silvestr v Jižní Africe – vinice a NP Kruger', 'Jihoafrická republika'],
+      // Guard for the two-word stem: "jizni-…" alone must NOT read as Jihoafrická republika.
+      ['Jižní Vietnam – Vánoce a Silvestr na kole', 'Vietnam'],
+    ];
+    for (const [title, expected] of cases) {
+      const o = parseAdventuraDetail(detailPage({ title, terms: [termRow({ code: title })] }), url)[0]!;
+      expect(`${title} -> ${o.country}`).toBe(`${title} -> ${expected}`);
+    }
+  });
+
+  it('still prefers the FIRST country of a multi-country title in the declension pass', () => {
+    const o = parseAdventuraDetail(
+      detailPage({ title: 'Národní parky Tanzanie a ostrov Zanzibar', terms: [termRow({ code: 'tz' })] }),
+      url,
+    )[0]!;
+    expect(o.country).toBe('Tanzanie');
+  });
+
+  it('falls back to the URL slug when the title uses a synonym the dictionary lacks', () => {
+    // Live: /zajezdy/12469-jar-kapske-mesto-vino-a-narodni-parky/ is titled "Jižní Afrika – …".
+    // "Jižní Afrika" is not in COUNTRIES, so title and sub both yield null; the slug's `jar` does.
+    const o = parseAdventuraDetail(
+      detailPage({ title: 'Jižní Afrika – Kapské Město, víno a národní parky', terms: [termRow({ code: 'za' })] }),
+      `${BASE}/zajezdy/12469-jar-kapske-mesto-vino-a-narodni-parky/`,
+    )[0]!;
+    expect(o.country).toBe('Jihoafrická republika');
+  });
+
+  it('does not let the slug fall back over a country the title already names', () => {
+    const o = parseAdventuraDetail(
+      detailPage({ title: 'Silvestr v Kambodži', terms: [termRow({ code: 'kh' })] }),
+      `${BASE}/zajezdy/12898-silvestr-v-kambodzi/`,
+    )[0]!;
+    expect(o.country).toBe('Kambodža');
+  });
+
+  it('leaves country null when the only exotic marker has no canonical country', () => {
+    // Kostarika / Panama / Havaj / Ekvádor are crawled (they are genuine long-haul stock) but are
+    // absent from core/normalize.ts's COUNTRIES, so `country` must stay null rather than guess.
     const html = detailPage({ title: 'Kostarika a panamský průplav', terms: [termRow({ code: 'k' })] });
     expect(parseAdventuraDetail(html, url)[0]!.country).toBeNull();
   });
 });
 
 describe('adventura.fetchOffers: sitemap-bounded crawl', () => {
-  it('GETs the sitemap once, then one GET per selected (capped) exotic detail URL', async () => {
+  it('GETs the sitemap once, then one GET per selected exotic detail URL', async () => {
+    atWindow(0);
     const seen: string[] = [];
     const http = {
       text: vi.fn(async (u: string) => {
@@ -314,35 +521,91 @@ describe('adventura.fetchOffers: sitemap-bounded crawl', () => {
 
     const offers = await adventura.fetchOffers(makeCtx(http));
     expect(seen[0]).toBe(`${BASE}/sitemap.xml`);
-    // 1 sitemap + 8 exotic details (excerpt has 8, under the 25 cap)
-    expect(seen.length).toBe(9);
-    expect(offers.length).toBe(8);
+    // 1 sitemap + 14 exotic details (excerpt has 14, under the 39-detail budget)
+    expect(seen.length).toBe(15);
+    expect(offers.length).toBe(14);
   });
 
-  it('caps detail fetches at MAX_DETAILS and logs how many exotic URLs were skipped', async () => {
-    // Build a synthetic sitemap with 30 exotic tour URLs -> only 25 fetched, 5 skipped.
-    const locs = Array.from(
-      { length: 30 },
-      (_, i) => `<url><loc>${BASE}/zajezdy/${1000 + i}-nepal-tour-${String(i).padStart(2, '0')}/</loc></url>`,
-    ).join('');
-    const bigSitemap = `<?xml version="1.0"?><urlset>${locs}</urlset>`;
-    const detailGets: string[] = [];
+  it('never issues more than MAX_REQUESTS_PER_RUN requests, however big the sitemap', async () => {
+    atWindow(0);
+    let requests = 0;
     const http = {
       text: vi.fn(async (u: string) => {
-        if (u.endsWith('/sitemap.xml')) return bigSitemap;
-        detailGets.push(u);
+        requests += 1;
+        if (u.endsWith('/sitemap.xml')) return syntheticSitemap(500);
         return detailPage({ terms: [termRow({ code: u })] });
       }),
       json: vi.fn(),
     } as unknown as SourceContext['http'];
 
+    await adventura.fetchOffers(makeCtx(http));
+    expect(requests).toBe(MAX_REQUESTS_PER_RUN);
+  });
+
+  it('rotates the window so consecutive runs cover the WHOLE catalogue (no permanent blind spot)', async () => {
+    // Regression test for the audit's headline finding: with 72 exotic URLs and a 39-page budget,
+    // run 1 + run 2 must together fetch all 72 — the old fixed prefix fetched the same 25 forever.
+    const fetchWindow = async (windowIndex: number): Promise<string[]> => {
+      atWindow(windowIndex);
+      const detailGets: string[] = [];
+      const http = {
+        text: vi.fn(async (u: string) => {
+          if (u.endsWith('/sitemap.xml')) return syntheticSitemap(72);
+          detailGets.push(u);
+          return detailPage({ terms: [termRow({ code: u })] });
+        }),
+        json: vi.fn(),
+      } as unknown as SourceContext['http'];
+      await adventura.fetchOffers(makeCtx(http));
+      vi.restoreAllMocks();
+      return detailGets;
+    };
+
+    const run1 = await fetchWindow(0);
+    const run2 = await fetchWindow(1);
+    const run3 = await fetchWindow(2);
+
+    expect(run1.length).toBe(MAX_DETAILS);
+    expect(run2.length).toBe(72 - MAX_DETAILS);
+    expect(new Set([...run1, ...run2]).size).toBe(72); // full coverage in one 2-run cycle
+    expect(run1.some((u) => run2.includes(u))).toBe(false); // windows partition, never overlap
+    expect(run3).toEqual(run1); // and the cycle repeats
+  });
+
+  it('logs the rotation truthfully (which window, and that the rest come next run)', async () => {
+    atWindow(0);
+    const http = {
+      text: vi.fn(async (u: string) => {
+        if (u.endsWith('/sitemap.xml')) return syntheticSitemap(72);
+        return detailPage({ terms: [termRow({ code: u })] });
+      }),
+      json: vi.fn(),
+    } as unknown as SourceContext['http'];
     const ctx = makeCtx(http);
     await adventura.fetchOffers(ctx);
-    expect(detailGets.length).toBe(25);
-    expect(ctx.log as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(expect.stringContaining('5'));
+    const logs = (ctx.log as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
+    // The old wording was "(39 skipped this run)" — run-scoped phrasing for a set that never
+    // changed. The replacement must name the window and promise the remainder (finding 5).
+    expect(logs.some((l) => /rotating window 1\/2/.test(l) && /covered by the next 1 run/.test(l))).toBe(true);
+    expect(logs.some((l) => /skipped this run/.test(l))).toBe(false);
+  });
+
+  it('warns when the catalogue outgrows a 2-run cycle (offers would flap inactive)', async () => {
+    atWindow(0);
+    const http = {
+      text: vi.fn(async (u: string) => {
+        if (u.endsWith('/sitemap.xml')) return syntheticSitemap(120); // 120 / 39 = 4 windows
+        return detailPage({ terms: [termRow({ code: u })] });
+      }),
+      json: vi.fn(),
+    } as unknown as SourceContext['http'];
+    const ctx = makeCtx(http);
+    await adventura.fetchOffers(ctx);
+    expect(ctx.log as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(expect.stringContaining('WARNING'));
   });
 
   it('isolates a per-detail-URL error: skips the failing page, keeps the rest', async () => {
+    atWindow(0);
     const http = {
       text: vi.fn(async (u: string) => {
         if (u.endsWith('/sitemap.xml')) return sitemapExcerpt;
@@ -353,11 +616,12 @@ describe('adventura.fetchOffers: sitemap-bounded crawl', () => {
     } as unknown as SourceContext['http'];
     const ctx = makeCtx(http);
     const offers = await adventura.fetchOffers(ctx);
-    expect(offers.length).toBe(7); // 8 selected - 1 failed
+    expect(offers.length).toBe(13); // 14 selected - 1 failed
     expect(ctx.log as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(expect.stringContaining('sri-lanka'));
   });
 
   it('stops further detail fetches on SourceBlockedError but keeps offers collected so far', async () => {
+    atWindow(0);
     let detailCount = 0;
     const http = {
       text: vi.fn(async (u: string) => {
@@ -375,8 +639,9 @@ describe('adventura.fetchOffers: sitemap-bounded crawl', () => {
   });
 
   it('rethrows when ALL detail pages fail (sitemap ok) so runScan marks the source failed', async () => {
-    // Item 3: sitemap OK but every detail GET fails -> not "market empty", rethrow the last error
+    // sitemap OK but every detail GET fails -> not "market empty", rethrow the last error
     // (sibling convention) so runScan records 'failed' rather than degrading to [].
+    atWindow(0);
     const http = {
       text: vi.fn(async (u: string) => {
         if (u.endsWith('/sitemap.xml')) return sitemapExcerpt;
@@ -388,6 +653,7 @@ describe('adventura.fetchOffers: sitemap-bounded crawl', () => {
   });
 
   it('rethrows when the FIRST detail page is blocked before any success (backoff must engage)', async () => {
+    atWindow(0);
     const http = {
       text: vi.fn(async (u: string) => {
         if (u.endsWith('/sitemap.xml')) return sitemapExcerpt;
@@ -409,6 +675,7 @@ describe('adventura.fetchOffers: sitemap-bounded crawl', () => {
   });
 
   it('dedupes globally by sourceOfferKey across tour pages', async () => {
+    atWindow(0);
     // Two different tour pages surface the same order code -> one offer.
     const http = {
       text: vi.fn(async (u: string) => {
@@ -422,6 +689,7 @@ describe('adventura.fetchOffers: sitemap-bounded crawl', () => {
   });
 
   it('logs the summary line with offer and page counts', async () => {
+    atWindow(0);
     const http = {
       text: vi.fn(async (u: string) => {
         if (u.endsWith('/sitemap.xml')) return sitemapExcerpt;

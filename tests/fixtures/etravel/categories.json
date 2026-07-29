@@ -1,0 +1,399 @@
+{
+ "_note": "TRIMMED capture of GET /api/searchapi/getsearchresult?tt=1 on 2026-07-29 (Chrome UA, residential CZ IP) — the 'categories' discovery response fetchOffers uses to resolve a country NAME to the pipe-joined region-id string for the real d= query. All 78 country entries are kept verbatim (id / name / destinationIds); every other key of a destination and of the envelope is dropped as ballast. Used by tests to drive the adapter against the real číselník, so a TARGET_COUNTRIES entry that eTravel does not actually publish under that exact name fails the test instead of silently skipping in production.",
+ "categories": [
+  {
+   "destinations": [
+    {
+     "id": 63045,
+     "name": "Španělsko",
+     "destinationIds": "63213|63216|63218|63226|63227|63231|63241|63242|63243|63244|63245|63263|63267|63272|63284|63299|63313|63328|63334|63349|63350|63354|63360|63363|63455|64429|64430|74459|74460|74461|74462|74463|74464|74465|77806|211764|213028"
+    },
+    {
+     "id": 63064,
+     "name": "Řecko",
+     "destinationIds": "63209|63214|63219|63220|63262|63266|63281|63283|63285|63290|63297|63311|63314|63316|63319|63324|63327|63333|63335|63336|63341|63352|63357|63362|63364|63383|63384|63387|63388|63390|63399|63402|63408|63409|63424|63427|63428|63430|63431|63437|63439|63442|63471|63472|64431|64432|64433|64434|64435|64436|64437|64438|64440|64441|64442"
+    },
+    {
+     "id": 63184,
+     "name": "Turecko",
+     "destinationIds": "63260|63288|63448|64152|64153|64154|64157|211801|211814"
+    },
+    {
+     "id": 62984,
+     "name": "Spojené arabské emiráty",
+     "destinationIds": "64086|64087|64089|64090|64091|64092|64093|64094|64095|64096"
+    },
+    {
+     "id": 63002,
+     "name": "Bulharsko",
+     "destinationIds": "63483|63484|63485|63486"
+    },
+    {
+     "id": 63081,
+     "name": "Itálie",
+     "destinationIds": "63212|63215|63229|63255|63271|63287|63296|63298|63329|63330|63339|63356|63376|63391|63406|63410|63425|63426|63429|63436|63444|63453|63454|63456|63457|63459|63537|63539|64427|64428|219503"
+    },
+    {
+     "id": 63042,
+     "name": "Egypt",
+     "destinationIds": "64419|64420|64421|64422|64423|64424|64425|64426"
+    },
+    {
+     "id": 63147,
+     "name": "Portugalsko",
+     "destinationIds": "63208|63222|63343|63348|63395|63419|63466"
+    },
+    {
+     "id": 63032,
+     "name": "Kypr",
+     "destinationIds": "63540|63541|63542|63543"
+    },
+    {
+     "id": 63071,
+     "name": "Chorvatsko",
+     "destinationIds": "63249|63250|63251|63289|63326|63529"
+    },
+    {
+     "id": 63123,
+     "name": "Maledivy",
+     "destinationIds": "220441"
+    },
+    {
+     "id": 63125,
+     "name": "Mexiko",
+     "destinationIds": "63972|63973|63974|63977|63978|63979|63980|63981|63982|63983|63984|63985|63986|63987|63988|64037|223408|223409"
+    },
+    {
+     "id": 63178,
+     "name": "Thajsko",
+     "destinationIds": "64126|64127|64128|64129|64130|64131|64132|64133|64134|64135|64136|64137|64138|64139|64140|64141|64142|64143|64144|64145|64146|64281"
+    },
+    {
+     "id": 63122,
+     "name": "Mauricius",
+     "destinationIds": "63738"
+    },
+    {
+     "id": 63029,
+     "name": "Kuba",
+     "destinationIds": "222769"
+    },
+    {
+     "id": 63038,
+     "name": "Dominikánská republika",
+     "destinationIds": "63862|63863|63864|63865|63866"
+    },
+    {
+     "id": 63182,
+     "name": "Tunisko",
+     "destinationIds": "63252|63447"
+    },
+    {
+     "id": 63099,
+     "name": "Srí Lanka",
+     "destinationIds": "64077"
+    },
+    {
+     "id": 63121,
+     "name": "Malta",
+     "destinationIds": "63580|63581|63582"
+    },
+    {
+     "id": 63187,
+     "name": "Tanzánie",
+     "destinationIds": "63763|63764|63765|63766|63767"
+    },
+    {
+     "id": 63074,
+     "name": "Indonésie",
+     "destinationIds": "64240|64241|64242|64243|64244|64245|64246|64247|64248"
+    },
+    {
+     "id": 63106,
+     "name": "Maroko",
+     "destinationIds": "63707|63708|63710"
+    },
+    {
+     "id": 63138,
+     "name": "Omán",
+     "destinationIds": "64097|64098|64099|64100|64101|64102|64103|64105|64123|64124|64125"
+    },
+    {
+     "id": 63082,
+     "name": "Jamajka",
+     "destinationIds": "63880|63881"
+    },
+    {
+     "id": 63150,
+     "name": "Katar",
+     "destinationIds": "64185|64186|64187|64188|64189|64190|64191"
+    },
+    {
+     "id": 63085,
+     "name": "Keňa",
+     "destinationIds": "63725|63726|63727"
+    },
+    {
+     "id": 62988,
+     "name": "Albánie",
+     "destinationIds": "63258|63294|63337|63435|63443"
+    },
+    {
+     "id": 63190,
+     "name": "USA",
+     "destinationIds": "64356|64357|64358|64359|64360|64361|64362|64363|64364|64365|64366|64367|64368|64369|64370|64371|64372|64373|64374|64375|64376|64377|64378|64379|64380|64381|64382|64383|64384|64385|64386|64387|64388|64389|64390|64391|64392|64393|64394|64395|64396|64397|64398|64399|64400|64401|64402|64403|64404|64405"
+    },
+    {
+     "id": 63053,
+     "name": "Velká Británie",
+     "destinationIds": "63670|63671|63672|63673|63674|64457|83051"
+    },
+    {
+     "id": 63158,
+     "name": "Seychely",
+     "destinationIds": "220399"
+    },
+    {
+     "id": 63109,
+     "name": "Černá Hora",
+     "destinationIds": "63487|63488|63489"
+    },
+    {
+     "id": 63133,
+     "name": "Nizozemsko",
+     "destinationIds": "63256|63264|63270|63273|63274|63295|63340|63420|63421|63452|63474|69799"
+    },
+    {
+     "id": 63139,
+     "name": "Panama",
+     "destinationIds": "63992|63993|63994|63995|75728|75729|75730|75731|77251|77252|77253"
+    },
+    {
+     "id": 63000,
+     "name": "Belgie",
+     "destinationIds": "63237|63458|63462"
+    },
+    {
+     "id": 62998,
+     "name": "Barbados",
+     "destinationIds": "63225|63876"
+    },
+    {
+     "id": 63030,
+     "name": "Kapverdské ostrovy",
+     "destinationIds": "63715|63716|63717|63718|63719|63720|63721|63722|63723|63724"
+    },
+    {
+     "id": 63051,
+     "name": "Francie",
+     "destinationIds": "63206|63210|63235|63239|63240|63268|63269|63276|63277|63282|63286|63317|63331|63342|63355|63368|63369|63385|63389|63392|63394|63403|63415|63416|63417|77904"
+    },
+    {
+     "id": 62989,
+     "name": "Arménie",
+     "destinationIds": "64287|64288|64289"
+    },
+    {
+     "id": 62995,
+     "name": "Aruba",
+     "destinationIds": "63871"
+    },
+    {
+     "id": 63031,
+     "name": "Curacao",
+     "destinationIds": "63878|63879"
+    },
+    {
+     "id": 63036,
+     "name": "Dánsko",
+     "destinationIds": "63490|63491|63492|63493|63494|64452"
+    },
+    {
+     "id": 63028,
+     "name": "Kostarika",
+     "destinationIds": "63969|63970|63971"
+    },
+    {
+     "id": 63104,
+     "name": "Lotyšsko",
+     "destinationIds": "63556|63557|63558|63559|63560"
+    },
+    {
+     "id": 63134,
+     "name": "Norsko",
+     "destinationIds": "63375|63377|63610|63611|63619|63625|64458"
+    },
+    {
+     "id": 63011,
+     "name": "Brazílie",
+     "destinationIds": "63927|63928|63929|63930|63931|63932|63933|63934|63935|63936|63937|64027"
+    },
+    {
+     "id": 63075,
+     "name": "Irsko",
+     "destinationIds": "63531|63532|63533|63534|63536"
+    },
+    {
+     "id": 63160,
+     "name": "Švédsko",
+     "destinationIds": "63657|63661|63656|63658|63659|63660"
+    },
+    {
+     "id": 63080,
+     "name": "Island",
+     "destinationIds": "63772|63776|63778|63773|63774|63775|63777|63779"
+    },
+    {
+     "id": 63197,
+     "name": "Vietnam",
+     "destinationIds": "64075|64076"
+    },
+    {
+     "id": 63026,
+     "name": "Čína",
+     "destinationIds": "64229|64238|63248|63275|64224|64225|64226|64227|64228|64230|64231|64232|64233|64234|64235|64236|64237|64239|64284|77805"
+    },
+    {
+     "id": 63017,
+     "name": "Kanada",
+     "destinationIds": "63207|63236|63351|63366|63370|63371|63374|63378|63400|63412|64033|64034|64035"
+    },
+    {
+     "id": 63083,
+     "name": "Jordánsko",
+     "destinationIds": "64204|74847"
+    },
+    {
+     "id": 63076,
+     "name": "Izrael",
+     "destinationIds": "64220|64221|64222|64223|74995|77231"
+    },
+    {
+     "id": 63055,
+     "name": "Gruzie",
+     "destinationIds": "63516|63523|63524"
+    },
+    {
+     "id": 63047,
+     "name": "Finsko",
+     "destinationIds": "63510|63511|63512"
+    },
+    {
+     "id": 63140,
+     "name": "Peru",
+     "destinationIds": "64004"
+    },
+    {
+     "id": 63156,
+     "name": "Saudská Arábie",
+     "destinationIds": "64085|64083|64084"
+    },
+    {
+     "id": 63126,
+     "name": "Malajsie",
+     "destinationIds": "64177|64178|64446"
+    },
+    {
+     "id": 62996,
+     "name": "Azerbajdžán",
+     "destinationIds": "64285"
+    },
+    {
+     "id": 62997,
+     "name": "Bosna a Herzegovina",
+     "destinationIds": "64305"
+    },
+    {
+     "id": 63021,
+     "name": "Švýcarsko",
+     "destinationIds": "63302|63309"
+    },
+    {
+     "id": 63046,
+     "name": "Etiopie",
+     "destinationIds": "63788|63789"
+    },
+    {
+     "id": 63091,
+     "name": "Jižní Korea",
+     "destinationIds": "74509"
+    },
+    {
+     "id": 63192,
+     "name": "Uzbekistán",
+     "destinationIds": "64147"
+    },
+    {
+     "id": 62994,
+     "name": "Austrálie",
+     "destinationIds": "63854"
+    },
+    {
+     "id": 63077,
+     "name": "Indie",
+     "destinationIds": "64266"
+    },
+    {
+     "id": 63094,
+     "name": "Kazachstán",
+     "destinationIds": "64200"
+    },
+    {
+     "id": 63102,
+     "name": "Litva",
+     "destinationIds": "63555"
+    },
+    {
+     "id": 63115,
+     "name": "Mongolsko",
+     "destinationIds": "64111"
+    },
+    {
+     "id": 63127,
+     "name": "Mosambik",
+     "destinationIds": "63743"
+    },
+    {
+     "id": 63128,
+     "name": "Namibia",
+     "destinationIds": "63810"
+    },
+    {
+     "id": 63166,
+     "name": "Senegal",
+     "destinationIds": "63823"
+    },
+    {
+     "id": 63167,
+     "name": "Somálsko",
+     "destinationIds": "63828"
+    },
+    {
+     "id": 63179,
+     "name": "Tádžikistán",
+     "destinationIds": "64122"
+    },
+    {
+     "id": 63189,
+     "name": "Uganda",
+     "destinationIds": "63833"
+    },
+    {
+     "id": 63201,
+     "name": "Jemen",
+     "destinationIds": "63792"
+    },
+    {
+     "id": 63203,
+     "name": "Zambie",
+     "destinationIds": "63843"
+    },
+    {
+     "id": 63084,
+     "name": "Japonsko",
+     "destinationIds": "64206|64207|64208|64209|64210|64211|64212|64213|64214"
+    }
+   ]
+  }
+ ]
+}

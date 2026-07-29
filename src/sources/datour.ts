@@ -15,51 +15,117 @@ import { SourceBlockedError } from '../core/http.js';
  * name-blocks "claudebot", so requests use only the project's standard Chrome UA (HttpClient
  * default) plus a `Referer: https://datour.cz/` header — the deviation logged in spec §16.4.
  *
- * Endpoint: `web-search?page=1&location=<country_id>&package=0` with `Referer: https://datour.cz/`
- * returns `{ total, total_docs, packages[] }`, 18 packages/page, filtered to one country by the
- * `location` id. (The earlier-recon `POST /search` has a NON-functional country filter — unused.)
+ * Query shape: `web-search?page=1&location=<ids>&package=0&page_size=<n>&adults_count=<n>`.
+ * Returns `{ total, total_docs, packages[] }` ordered by `unit_price` ASCENDING (server default —
+ * we send no `sort`, see below). Every parameter here is one the site's own search page sends;
+ * `page_size` is read verbatim out of the search bundle (chunk 76589: `page_size:18` on every
+ * pagination click), and `location` accepts a `|`-joined id list (URL-encoded `%7C`) so several
+ * countries can share one request. (The earlier-recon `POST /search` has a NON-functional country
+ * filter — unused.)
  *
- * Live verification 2026-07-07 (curl, Chrome UA + Referer; see .superpowers/sdd/task-40-report.md):
- *  (a) `?page=1&location=30182&package=0` (Maledivy) → HTTP 200, total 184, 18 packages, all
- *      `country_name: "Maledivy"` (the location filter works). Providers Čedok/Coral Travel/TUI/
- *      Flexi tours/Worldee; board mix Snídaně/Polopenze/Plná penze/Bez stravy; transport Letecky.
- *  (b) `?page=1&location=452587&package=0` (Zanzibar) → HTTP 200, total 90, 18 packages, all
- *      `country_name: "Zanzibar"`. Confirms the pattern generalizes across countries.
- *  (c) Detail deep-link: the `detail` field already IS the site path (e.g.
- *      `maledivy/ari-atoll/-ari-atol-jih-/liberty-guesthouse-maldives`). datour.cz is a Next.js
- *      catch-all SPA that returns HTTP 200 for every path, but the embedded router state proves the
- *      canonical route: `https://datour.cz/{detail}` yields `subpage: [maledivy, ari-atoll, …]`
- *      (the detail segments verbatim), whereas `https://datour.cz/dovolena/{detail}` prepends a
- *      bogus `dovolena` segment. So `https://datour.cz/{detail}` is the offer URL; the per-query
- *      `https://datour.cz/vyhledavani?location=<id>` search page is the fallback when a row has no
- *      `detail` slug.
+ * ── Live recon 2026-07-29 (curl, Chrome UA + Referer; supersedes the 2026-07-07 notes) ──
+ *  (a) `page_size` is honoured up to at least 1000 (Thajsko: page_size=1000 → 506 rows, total 508),
+ *      but the response is generated at roughly 0.09 s/row: 50 rows ≈ 4.5 s, 150 ≈ 13.8 s, 300 ≈
+ *      23.1 s, 500 ≈ 44 s. HttpClient aborts a single request after 25 s, so page_size is capped
+ *      well below that ceiling (see the budget block below). This is the reason the adapter buys
+ *      coverage with page_size rather than with `page=2,3,4…`: same rows, a third of the requests.
+ *  (b) `adults_count` is honoured (adults_count=3 → `persons: [18,18,18]`, total 168 not 187, prices
+ *      shift) and its default is 2, i.e. the previous "send nothing" behaviour. It is now sent
+ *      explicitly from ctx.adults so the prices are provably for the party size we advertise.
+ *  (c) Ordering: the endpoint's sort options are person_price / group_price / term / category /
+ *      trip_advisor_rating (search bundle), and with no `sort` the backend returns person_price ASC.
+ *      We deliberately keep that default — datour publishes NO discount plane at all (see below), so
+ *      there is no "discounted first" ordering to switch to, and price-ascending is the slice a
+ *      price watcher with a 60 000 CZK profile cap actually wants.
+ *  (d) Offer URL: `https://datour.cz/{detail}` is a 404. datour.cz is a Next.js catch-all that
+ *      answers HTTP 200 for ANY path (`https://datour.cz/zzz-nonexistent/abc` renders the site 404
+ *      too), so the old header's "the router echoes the detail segments, therefore the route is
+ *      canonical" argument was worthless. Oracle is `__NEXT_DATA__`: `/{detail}` → page
+ *      `/[...subpage]`, `props.pageProps.notFound: true`, body "Tady žádné zájezdy ani informace
+ *      nejsou…"; `/zajezd/{detail}` → page `/detail-hotel` with real `pageProps.data`. Re-verified
+ *      2026-07-29 on `maledivy/ari-atoll/-ari-atol-jih-/liberty-guesthouse-maldives`
+ *      (25.7 KB notFound vs 114.6 KB real detail page). Hence DETAIL_URL_BASE ends in `/zajezd`.
+ *      The `?item_id=<item_id_encrypted>` suffix is the site's own card link (search bundle:
+ *      `href:"/zajezd/".concat(detail,"?item_id=",…)`) and upgrades the page from `/detail-hotel`
+ *      (hotel, cheapest term) to `/detail` (the exact term). `adults_count` is deliberately omitted
+ *      from the link: the page defaults to 2 adults, matching config scan.adults=2 — revisit if
+ *      that config ever changes.
+ *  (e) `accommodation_category` half-steps are TRUNCATED by the platform, not rounded: detail page
+ *      `hotel_category` is 3 for `'3.5'` (thajsko/khao-lak/khao-lak-palm-beach) and 5 for `'5.5'`
+ *      (thajsko/ko-samui/w-koh-samui). The old `Math.round` inflated ~8 % of rows by one star.
+ *  (f) `departure_location_name` is populated on ~83 % of rows and is NOT always Czech: across an
+ *      811-offer live run it is Praha 508 / Vídeň 144 / Bratislava 17 / Mnichov 1 / Katowice 1 /
+ *      null 140. Dropping it made a Vienna departure look CZ-equivalent on the board, so it is now
+ *      mapped to departureAirport (a city name, same convention as skrz.ts `deptPlace.title`).
+ *      The literal placeholder "Neuvedeno" is mapped to null rather than to a fake city.
+ *
+ * ── Request budget (the hard constraint; run.ts aborts fetchOffers at 240 s) ──
+ * Cost per query ≈ 3 s host gap + ~0.5 s overhead + ~0.09 s per returned row. The plan below is
+ * 14 requests / ≈820 rows and measured 110–116 s end-to-end on 2026-07-29, i.e. >50 % headroom (the
+ * scan runs on a GitHub Actions runner, which may be slower than the recon machine — the headroom
+ * is the point). MAX_REQUESTS is a hard cap so a future edit to the country table cannot silently
+ * explode the count; PAGE_SIZE/GROUP_PAGE_SIZE keep every single response under the 25 s
+ * per-request HttpClient timeout.
+ *  - 12 countries with more inventory than one page → one request each, page_size=PAGE_SIZE.
+ *  - 12 small countries (total ≤ 40 rows each, 214 rows combined) → 2 batched `location=a|b|c`
+ *    requests, page_size=GROUP_PAGE_SIZE. Batching only preserves per-country coverage while the
+ *    batch's `total` fits in one page (136 and 78 rows on 2026-07-29, against a 150 page size), so
+ *    fetchOffers logs a `truncated` line whenever `total` exceeds the rows we got back — that line
+ *    is the tripwire for "a batch outgrew its page, split it".
+ *
+ * Known, accepted limitation: for the big countries this is still the CHEAPEST slice, not the whole
+ * catalogue. With page_size=50 Thajsko is covered from 15 839 to 21 629 CZK against the profile's
+ * 60 000 CZK cap (its full 508 rows reach 121 770). Closing that would need ~440 rows for Thajsko
+ * alone (~40 s) and does not fit the 240 s budget together with 23 other countries; the cheapest
+ * slice is also the slice the exotika profile is most likely to match. PAGE_SIZE is the single dial
+ * for trading budget against depth — 70 measured 1 034 offers in 145.6 s, also inside the budget.
  *
  * Pricing decision (documented because it is non-obvious):
  *  - `unit_price` is the PER-PERSON price (spec §16.1: "unit_price = za osobu") and is the sole live
- *    price → `pricePerPerson = round(unit_price)`; rows with `unit_price <= 0` are skipped.
+ *    price → `pricePerPerson = round(unit_price)`; rows with `unit_price <= 0` are skipped. Verified
+ *    against the site's own badge ("Cena za osobu od 22 529 Kč" = adapter 22529).
  *  - `package_price` (the party total) is `0.0` on EVERY live row — this endpoint does not populate
  *    the "package" pricing plane — so it is never used as the price source; `priceTotal` is set only
  *    when `package_price > 0`, else null.
- *  - `original_price` and `package_discount` are likewise `0.0` on every live row, so no discounted
- *    row exists to empirically pin down whether `original_price` is per-person or party-total. The
- *    documented decision (see report): treat `original_price` as PER-PERSON, directly comparable to
- *    `unit_price` — because `unit_price` is the only populated price plane and `package_price` (the
- *    party-total plane) is dead at 0.0, so a populated `original_price` is the crossed-out
- *    counterpart to the per-person `unit_price`. `claimedOriginalPrice` is set only when
- *    `original_price > pricePerPerson` (mirrors the alexandria "original > current" guard; cannot
- *    understate). `claimedDiscountPct` comes from `package_discount` (a percentage, unit-independent)
- *    only when `0 < pct < 100`. Both are null on all current live data.
+ *  - `package_discount` is `0.0` on every live row (811/811 on 2026-07-29), so `claimedDiscountPct`
+ *    — the only claimed field that feeds discount.ts's `fake` detector and format.ts's "uvádí
+ *    slevu" line — is always null for datour. Every datour alert therefore comes from our own
+ *    30-day price history, which is exactly why breadth of coverage matters more here than for
+ *    discount-publishing sources.
+ *  - `original_price` was 0.0 on all 210 rows the old page-1 adapter ever saw; widening coverage
+ *    made the branch live: 19 of 811 rows carry it, ALL of them Kapverdy/Blue Style first-minute
+ *    terms. It is read as PER-PERSON (directly comparable to `unit_price`), and that reading is
+ *    load-bearing enough to record the evidence: `original_fid` equals `price_id`, i.e. it is the
+ *    pre-recalculation price of the SAME per-person record; and the party-total reading is
+ *    falsified outright — `original_price/2` lands BELOW `unit_price` on several rows (Ouril Pontao
+ *    34 947 vs 18 890; "Kapverdy – zelené Santiago" 52 990 vs 49 990), which no crossed-out price
+ *    can do. Caveat kept honest: datour.cz never renders `original_price` (no JS chunk references
+ *    it), so there is no site-side oracle to confirm the resulting 6–57 % implied discounts.
+ *    `claimedOriginalPrice` is set only when `original_price > pricePerPerson` (mirrors the
+ *    alexandria "original > current" guard; cannot understate).
  *
  * Per-package field mapping:
  *  - tour_name          -> title
- *  - detail             -> url (`https://datour.cz/<detail>`; fallback = per-query search URL)
- *  - country_name       -> country, via isKnownCountry/normalizeCountry guard (null when not a
- *                          recognized canonical country — never a raw or locality string)
+ *  - detail (+ item_id_encrypted) -> url
+ *                          (`https://datour.cz/zajezd/<detail>?item_id=<item_id_encrypted>`;
+ *                          the query is dropped when item_id_encrypted is absent, and the whole URL
+ *                          falls back to the per-query search page when `detail` is absent)
+ *  - country_name       -> country, via COUNTRY_NAME_ALIASES + isKnownCountry/normalizeCountry guard
+ *                          (null when not a recognized canonical country — never a raw or locality
+ *                          string). The alias table exists because anchoice spells Kapverdy
+ *                          "Kapverdské ostrovy", which COUNTRY_BY_KEY does not know: without it all
+ *                          37 Kapverdy rows would ingest with country=null and be filtered out.
  *  - destination_name   -> locality (trimmed; state_name fallback; else null)
- *  - accommodation_category ("3.0"/"4.5"/null) -> stars = round(parseFloat), null when the ROUNDED
- *                          value is <= 0 (guard after rounding, so a raw 0.4 yields null, never 0)
+ *  - accommodation_category ("3.0"/"4.5"/null) -> stars = FLOOR (the platform truncates, see (e)),
+ *                          null when the floored value is <= 0 (so '0.4'/'0.0' yield null, never 0)
  *  - board_name         -> board (normalizeBoard)
- *  - transport_name     -> transport (normalizeTransport; every live row "Letecky" → flight)
+ *  - transport_name     -> transport (normalizeTransport; almost all rows "Letecky" → flight, but a
+ *                          minority — 20/210 in the 2026-07-07 audit — are "Vlastní" → own: cruise
+ *                          legs priced WITHOUT airfare. Faithful mapping, but worth knowing that
+ *                          the exotika profile omits the transport filter on purpose, so a 3 170 CZK
+ *                          Caribbean cruise segment can outrank real flight packages on price)
+ *  - departure_location_name -> departureAirport (city name: Praha/Vídeň/Bratislava/Mnichov/…;
+ *                          the "Neuvedeno" placeholder → null)
  *  - start (ISO)        -> departureDate; nights -> nights
  *  - unit_price         -> pricePerPerson (per person)
  *  - provider_name      -> tourOperator (Čedok, Coral Travel…)
@@ -67,46 +133,105 @@ import { SourceBlockedError } from '../core/http.js';
  *                          term+board key, room-agnostic (matching alexandria). item_id encodes the
  *                          room/flight variant, so hashing it would rotate the key whenever the
  *                          cheapest room variant changes week-to-week, resetting price history and
- *                          muting price-drop alerts. offerKeyHash([item_id]) is the fallback ONLY
- *                          when tour_id is missing (unobserved live: tour_id is set on all 36
- *                          fixture rows).
+ *                          muting price-drop alerts. departureAirport is deliberately NOT in the key
+ *                          (unlike fischer): live pages show one departure city per term row — 506/506
+ *                          distinct keys on a full 508-row Thajsko pull — so adding it would only
+ *                          reset every stored key for no gain. offerKeyHash([item_id]) is the
+ *                          fallback ONLY when tour_id is missing (unobserved live).
  *
- * departureAirport is null: `departure_location_name` is a single city (Vídeň/Praha) but the brief's
- * field list does not request it, so it is left null (parity with alexandria). omnibusLowestPrice is
- * null: no such field.
+ * omnibusLowestPrice is null: no such field.
  *
- * Dedup: multiple room variants of the same term come back as separate `item_id` rows, and price-asc
- * order is NOT guaranteed, so parseDatourPackages buckets rows by the (tour_id, start, nights,
- * board_id) key — i.e. by sourceOfferKey, whose item_id fallback keeps tour_id-less rows unmerged —
- * keeping the CHEAPEST unit_price explicitly. Different boards of the same term stay distinct offers
- * (board is part of the cross-source match identity). fetchOffers then dedupes across countries by
- * sourceOfferKey.
+ * Dedup: multiple room variants of the same term can come back as separate `item_id` rows, and
+ * price-asc order is NOT guaranteed within a bucket, so parseDatourPackages buckets rows by the
+ * (tour_id, start, nights, board_id) key — i.e. by sourceOfferKey, whose item_id fallback keeps
+ * tour_id-less rows unmerged — keeping the CHEAPEST unit_price explicitly. Different boards of the
+ * same term stay distinct offers (board is part of the cross-source match identity). fetchOffers
+ * then dedupes across queries by sourceOfferKey.
  */
 
 const API_URL = 'https://search.anchoice.cz/web-search';
-const DETAIL_URL_BASE = 'https://datour.cz';
+const DETAIL_URL_BASE = 'https://datour.cz/zajezd';
 const SEARCH_URL_BASE = 'https://datour.cz/vyhledavani';
 const REFERER = 'https://datour.cz/';
 
-// Country -> anchoice `location` id, verified live 2026-07-07 (spec §16.1 row 16). 12 exotic
-// countries → 12 page-1 requests/scan, one host, 3s gap ≈ 36 s.
+// Rows per request. Sized against two ceilings at once: HttpClient's 25 s per-request timeout
+// (~0.09 s/row ⇒ 50 rows ≈ 4.5 s, 150 rows ≈ 14 s) and run.ts's 240 s ADAPTER_FETCH_TIMEOUT_MS for
+// the whole plan. Raising these is the cheap way to buy coverage — but re-measure first.
+const PAGE_SIZE = 50;
+const GROUP_PAGE_SIZE = 150;
+
+// Hard ceiling on requests per scan. The plan below is 14; this exists so that adding countries to
+// LOCATION_IDS (or a batch getting split) can never silently push the adapter past its time budget
+// and get the whole source recorded as 'failed'. 20 × (3 s gap + ~7 s response) ≈ 200 s < 240 s.
+const MAX_REQUESTS = 20;
+
+// Country -> anchoice `location` id. All 24 ids re-verified live 2026-07-29 (each returns HTTP 200
+// with country_name matching); the trailing number is that country's `total` on the same day. This
+// is the full country list of the `exotika` watch profile — config/watch.yaml lists 24 countries and
+// all 24 are queried here (the adapter used to ship only the first 12).
 const LOCATION_IDS: Record<string, string> = {
-  Maledivy: '30182',
-  Thajsko: '29828',
-  Zanzibar: '452587',
-  Mauricius: '451780',
-  'Dominikánská republika': '28824',
-  'Spojené arabské emiráty': '30594',
-  Kuba: '28796',
-  Vietnam: '29920',
-  Seychely: '28075',
-  'Srí Lanka': '450831',
-  Indonésie: '29632',
-  Mexiko: '29011',
+  // One request per country — inventory larger than a single page.
+  Thajsko: '29828', //                  508
+  'Spojené arabské emiráty': '30594', // 265
+  'Dominikánská republika': '28824', //  198
+  Maledivy: '30182', //                  187
+  Mexiko: '29011', //                    139
+  'Srí Lanka': '450831', //              117
+  Japonsko: '29513', //                  112
+  Indonésie: '29632', //                 106
+  Mauricius: '451780', //                103
+  Zanzibar: '452587', //                  84
+  Vietnam: '29920', //                    71
+  Seychely: '28075', //                   53
+  // Batched — small enough that a shared page covers them whole.
+  Keňa: '27990', //                       40
+  Kapverdy: '452557', //                  37
+  'Jihoafrická republika': '28422', //    32
+  Filipíny: '29724', //                   27
+  Réunion: '567314', //                   24
+  Kambodža: '599485', //                  23
+  Kuba: '28796', //                       14
+  Nepál: '30211', //                       7
+  Peru: '29246', //                        5
+  Namibie: '28408', //                     3
+  Tanzanie: '452666', //                   1
+  Madagaskar: '27998', //                  1
 };
+
+/** The query plan: each entry becomes exactly ONE web-search request. Single-country groups get
+ *  PAGE_SIZE rows; multi-country groups share GROUP_PAGE_SIZE rows and are sized so the group's
+ *  combined `total` fits inside one page (136 and 78 rows on 2026-07-29). */
+const QUERY_GROUPS: string[][] = [
+  ['Thajsko'],
+  ['Spojené arabské emiráty'],
+  ['Dominikánská republika'],
+  ['Maledivy'],
+  ['Mexiko'],
+  ['Srí Lanka'],
+  ['Japonsko'],
+  ['Indonésie'],
+  ['Mauricius'],
+  ['Zanzibar'],
+  ['Vietnam'],
+  ['Seychely'],
+  ['Keňa', 'Kapverdy', 'Jihoafrická republika', 'Filipíny'],
+  ['Réunion', 'Kambodža', 'Kuba', 'Nepál', 'Peru', 'Namibie', 'Tanzanie', 'Madagaskar'],
+];
+
+/** anchoice spells a few countries differently from our canonical COUNTRY_BY_KEY list. Applied
+ *  BEFORE the isKnownCountry gate, otherwise those rows ingest with country=null and every
+ *  country-scoped watch profile drops them. Keys are lowercased NFC. */
+const COUNTRY_NAME_ALIASES: Record<string, string> = {
+  'kapverdské ostrovy': 'Kapverdy',
+};
+
+/** `departure_location_name` placeholders that mean "unknown", not a place. Observed live on 2 of
+ *  1 034 rows; without this they would render as a departure city called "Neuvedeno" on the board. */
+const DEPARTURE_PLACEHOLDERS = new Set(['neuvedeno', 'neuvedeno.', '-', 'n/a']);
 
 interface DatourPackage {
   item_id?: string | null;
+  item_id_encrypted?: string | null;
   tour_id?: string | number | null;
   tour_name?: string | null;
   detail?: string | null;
@@ -117,6 +242,7 @@ interface DatourPackage {
   board_name?: string | null;
   board_id?: string | number | null;
   transport_name?: string | null;
+  departure_location_name?: string | null;
   start?: string | null;
   nights?: string | number | null;
   unit_price?: string | number | null;
@@ -127,6 +253,7 @@ interface DatourPackage {
 }
 
 interface DatourResponse {
+  total?: number | string | null;
   packages?: DatourPackage[];
 }
 
@@ -152,14 +279,39 @@ function round(n: number): number {
   return Math.round(n);
 }
 
-/** The bounded set of web-search requests: one page-1 query per exotic country. Deterministic and
- *  side-effect-free so tests can assert the exact URL set. */
-function buildQueries(): DatourQuery[] {
-  return Object.entries(LOCATION_IDS).map(([country, id]) => ({
-    label: `${country} ${id}`,
-    url: `${API_URL}?page=1&location=${id}&package=0`,
-    fallbackUrl: `${SEARCH_URL_BASE}?location=${id}`,
-  }));
+/** The bounded set of web-search requests (see QUERY_GROUPS). Deterministic and side-effect-free so
+ *  tests can assert the exact URL set, and hard-capped at MAX_REQUESTS. */
+export function buildQueries(adults: number): DatourQuery[] {
+  const adultsCount = Number.isFinite(adults) && adults > 0 ? Math.round(adults) : 2;
+
+  return QUERY_GROUPS.slice(0, MAX_REQUESTS).map((countries) => {
+    const ids = countries.map((c) => LOCATION_IDS[c]).filter((id): id is string => Boolean(id));
+    // `|` is the endpoint's OR separator for `location`; encode it so the URL we build is the URL
+    // that goes on the wire (fetch would otherwise normalize it to %7C behind our back).
+    const location = encodeURIComponent(ids.join('|'));
+    const pageSize = countries.length === 1 ? PAGE_SIZE : GROUP_PAGE_SIZE;
+    return {
+      label: countries.join('+'),
+      url: `${API_URL}?page=1&location=${location}&package=0&page_size=${pageSize}&adults_count=${adultsCount}`,
+      fallbackUrl: `${SEARCH_URL_BASE}?location=${location}`,
+    };
+  });
+}
+
+/** Departure city or null — a single city name (Praha/Vídeň/Bratislava/Frankfurt), same convention
+ *  as skrz.ts. Placeholders are mapped to null so "unknown" never masquerades as a place. */
+function resolveDepartureAirport(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  return DEPARTURE_PLACEHOLDERS.has(trimmed.normalize('NFC').toLowerCase()) ? null : trimmed;
+}
+
+/** Canonical country or null. Runs the anchoice spelling through COUNTRY_NAME_ALIASES first. */
+function resolveCountry(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  const name = COUNTRY_NAME_ALIASES[trimmed.normalize('NFC').toLowerCase()] ?? trimmed;
+  return isKnownCountry(name) ? normalizeCountry(name) : null;
 }
 
 function mapPackage(p: DatourPackage, fallbackUrl: string): NormalizedOffer | null {
@@ -188,20 +340,36 @@ function mapPackage(p: DatourPackage, fallbackUrl: string): NormalizedOffer | nu
   const claimedDiscountPct =
     discountPct !== null && discountPct > 0 && discountPct < 100 ? round(discountPct) : null;
 
-  // Stars: guard AFTER rounding so a raw 0.4 (rounds to 0) yields null, never a 0-star offer.
+  // Stars: FLOOR, because the platform itself truncates half-steps ('3.5' renders as hotel_category
+  // 3 on the offer's own detail page). Guard applies after flooring so '0.4' yields null, never 0.
   const cat = toNumber(p.accommodation_category);
-  const catRounded = cat !== null ? round(cat) : null;
-  const stars = catRounded !== null && catRounded > 0 ? catRounded : null;
+  const catFloored = cat !== null ? Math.floor(cat) : null;
+  const stars = catFloored !== null && catFloored > 0 ? catFloored : null;
 
   const board = normalizeBoard(p.board_name ?? null);
   const transport = normalizeTransport(p.transport_name ?? null);
 
   // Country must be a recognized canonical country or null — never a raw string, never the locality.
-  const country = isKnownCountry(p.country_name) ? normalizeCountry(p.country_name) : null;
+  const country = resolveCountry(p.country_name);
   const locality = p.destination_name?.trim() || p.state_name?.trim() || null;
 
+  // `/zajezd/{detail}` is the hotel page; appending `?item_id=<item_id_encrypted>` is exactly what
+  // the site's own result card links to and lands on the TERM we priced (page `/detail`) instead of
+  // the hotel's cheapest term. Verified to degrade gracefully: a 3-week-old item_id still renders
+  // the term page at its current price.
+  // Caveat, measured 2026-07-29 on 3 random offers of a live run: the landing page's
+  // `pageProps.data.person_price` equals our pricePerPerson on 2 of 3 (Mauricius 32 305, Nepál
+  // 198 950) but NOT on the third — Thajsko "Naina Resort & Spa" renders 16 759 against our 15 839,
+  // and the search API re-queried minutes later still returned 15 839. So the platform's search
+  // index and its own detail page can price the same term differently, and this is NOT confined to
+  // Worldee products (that row is Čedok). The adapter deliberately mirrors the search index, which
+  // is what the site's own result cards show; the consequence is that a datour price alert can sit
+  // a few % under the click-through price.
   const detail = typeof p.detail === 'string' && p.detail.trim() ? p.detail.trim() : null;
-  const url = detail ? `${DETAIL_URL_BASE}/${detail}` : fallbackUrl;
+  const termId = p.item_id_encrypted?.trim();
+  const url = detail
+    ? `${DETAIL_URL_BASE}/${detail}${termId ? `?item_id=${encodeURIComponent(termId)}` : ''}`
+    : fallbackUrl;
 
   const nights = toNumber(p.nights);
 
@@ -226,7 +394,7 @@ function mapPackage(p: DatourPackage, fallbackUrl: string): NormalizedOffer | nu
     stars,
     board,
     transport,
-    departureAirport: null,
+    departureAirport: resolveDepartureAirport(p.departure_location_name),
     departureDate: start,
     nights,
     pricePerPerson,
@@ -271,8 +439,19 @@ export function parseDatourPackages(payload: unknown, fallbackUrl: string): Norm
   return order.map((k) => byTerm.get(k)!);
 }
 
+/** Rows we asked for vs rows that exist. Logged (not thrown) so a country/batch outgrowing its page
+ *  shows up in the scan log instead of silently capping coverage the way page=1 used to. */
+function logTruncation(ctx: SourceContext, label: string, payload: unknown): void {
+  const response = payload as DatourResponse | null | undefined;
+  const returned = Array.isArray(response?.packages) ? response.packages.length : 0;
+  const total = toNumber(response?.total);
+  if (total !== null && total > returned) {
+    ctx.log(`datour: ${label} truncated at ${returned}/${total} rows (price-ascending slice)`);
+  }
+}
+
 async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
-  const queries = buildQueries();
+  const queries = buildQueries(ctx.adults);
   const init: RequestInit = { headers: { Referer: REFERER } };
   const all: NormalizedOffer[] = [];
   const seen = new Set<string>();
@@ -284,6 +463,7 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
     try {
       const json = await ctx.http.json(query.url, init);
       offers = parseDatourPackages(json, query.fallbackUrl);
+      logTruncation(ctx, query.label, json);
       successCount += 1;
     } catch (err) {
       if (err instanceof SourceBlockedError) {
@@ -302,8 +482,8 @@ async function fetchOffers(ctx: SourceContext): Promise<NormalizedOffer[]> {
     }
 
     for (const offer of offers) {
-      // The same term can surface under more than one country query, so dedupe globally by
-      // sourceOfferKey (the per-term+board [tour_id, start, nights, board_id] hash).
+      // The same term can surface under more than one query, so dedupe globally by sourceOfferKey
+      // (the per-term+board [tour_id, start, nights, board_id] hash).
       if (seen.has(offer.sourceOfferKey)) continue;
       seen.add(offer.sourceOfferKey);
       all.push(offer);

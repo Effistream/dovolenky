@@ -33,6 +33,19 @@ const NO_DISCOUNT: DiscountResult = { realPct: null, reference: null, baseline: 
  */
 const NEW_OFFER_ELIGIBLE_MS = 3 * 24 * 60 * 60 * 1000;
 
+/**
+ * Re-key flood thresholds (see the guard in processOffers). Normal operation adds a handful of
+ * genuinely new offers per source per run; a source where most of a large harvest is new has had
+ * its identity definition changed (or is being scanned for the first time), which is bookkeeping,
+ * not news. Deliberately conservative — a real burst of 30+ offers that is also ≥60% of the
+ * source would be indistinguishable from a re-key anyway, and suppressing new_offer for one run
+ * costs nothing: the offers stay on the board and remain eligible once the source settles.
+ */
+const REKEY_FLOOD_MIN_OFFERS = 30;
+const REKEY_FLOOD_SHARE = 0.6;
+/** Rows per notifications_log insert when marking a flood announced (bounded round-trips). */
+const NOTIFICATION_LOG_CHUNK = 100;
+
 /** True while an offer is still inside the new_offer window (brand-new offers always qualify). */
 function isNewOfferEligible(ingest: { isNew: boolean; firstSeenAt: string }, now: Date): boolean {
   if (ingest.isNew) return true;
@@ -121,6 +134,7 @@ async function processOffers(
   now: Date,
   log: (s: string) => void,
   excluded: Set<string>,
+  dryRun: boolean,
 ): Promise<OfferProcessResult> {
   const candidates: Candidate[] = [];
   let snapshotsWritten = 0;
@@ -134,6 +148,47 @@ async function processOffers(
   // "every offer errored" outcome for a DB-wide failure. The per-offer loop keeps its own try/catch
   // to isolate the read-only discount/candidate work exactly as before.
   const ingestResults = await ingestSourceOffers(db, sourceOffers, now);
+
+  // RE-KEY FLOOD GUARD. new_offer fires on identity, and an offer's identity is
+  // offerKeyHash(...) over adapter-chosen fields. Whenever an adapter's key definition changes
+  // (the 2026-07-29 coverage work re-keyed invia/deluxea/eximtours/esotravel/firo/dovolenkovani),
+  // every stored offer of that source arrives as "brand new" at once — hundreds of them. The same
+  // happens on a brand-new source's first scan. Neither is a discovery worth notifying, and with
+  // new_offer eligibility now lasting 3 days the burst would repeat every run for days.
+  // So: if a source's harvest is overwhelmingly new AND large, we ingest normally but emit NO
+  // new_offer for it this run. hot_deal/price_drop are unaffected — a re-keyed offer with a real
+  // discount still deserves an alert, and those are self-limiting via the log + cap.
+  const newCount = ingestResults.filter((r) => r.isNew).length;
+  const isRekeyFlood =
+    newCount >= REKEY_FLOOD_MIN_OFFERS && newCount / ingestResults.length >= REKEY_FLOOD_SHARE;
+  if (isRekeyFlood) {
+    log(
+      `source ${sourceOffers[0]?.source ?? '?'}: ${newCount}/${ingestResults.length} offers are new — ` +
+        `treating as a re-key/first-scan flood, marking them announced without sending`,
+    );
+    // Marking them ANNOUNCED (a log row, no Telegram send) rather than merely skipping this run:
+    // these offers stay new_offer-eligible for 3 days, so a one-run skip would just postpone the
+    // burst to the next scan. The log row is what makes shouldSend return false for good — the
+    // same mechanism a real send uses. Written only for a real run; a dry run must not mutate the
+    // notification history.
+    if (!dryRun) {
+      const rows = ingestResults
+        .map((r, i) => ({ r, offer: sourceOffers[i]! }))
+        .filter(({ r }) => r.isNew)
+        .map(({ r, offer }) => ({
+          offerId: r.offerId,
+          type: 'new_offer' as const,
+          sentAt: now.toISOString(),
+          priceAtSend: offer.pricePerPerson,
+          matchKey: computeMatchKey(
+            r.persistedTitle === offer.title ? offer : { ...offer, title: r.persistedTitle },
+          ),
+        }));
+      for (let i = 0; i < rows.length; i += NOTIFICATION_LOG_CHUNK) {
+        await db.insert(notificationsLog).values(rows.slice(i, i + NOTIFICATION_LOG_CHUNK));
+      }
+    }
+  }
 
   // In-memory bucket context for the reference ladder, loaded lazily on the FIRST
   // profile-matching offer (sources whose offers match no profile pay nothing) and
@@ -199,7 +254,7 @@ async function processOffers(
       const outcomes = evaluateOffer({
         offerId: ingest.offerId,
         offer,
-        newOfferEligible: isNewOfferEligible(ingest, now),
+        newOfferEligible: !isRekeyFlood && isNewOfferEligible(ingest, now),
         previousPrice: ingest.previousPrice,
         discount,
         matches,
@@ -518,7 +573,7 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
       const fetched = outcome.fetched;
       offersFound = fetched.length;
 
-      const processed = await processOffers(db, cfg, fetched, now, log, excluded);
+      const processed = await processOffers(db, cfg, fetched, now, log, excluded, dryRun);
       allCandidates.push(...processed.candidates);
       snapshotsWritten = processed.snapshotsWritten;
       errorCount = processed.errored;

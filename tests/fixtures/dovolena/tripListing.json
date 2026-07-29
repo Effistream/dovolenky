@@ -1,1 +1,1681 @@
-{"lang":"cs","page":1,"perPage":10,"totalPages":275,"totalHotels":2749,"order":"recommended","destinations":[{"name":"Řecko","imagePath":"/GR_01.jpg"}],"destinationText":"","destinationPath":[{"id":4826,"name":"Řecko","url":"recko"}],"hotels":[{"additionalInfo":{"boarding":"Snídaně","transport":{"icon":"plane_ticket","label":"fields.transport.type.flight"}},"address":"Řecko, Ostrovy, Kos","destinations":[{"id":4826,"name":"Řecko"},{"id":9368,"name":"Ostrovy"},{"id":4827,"name":"Kos"}],"fullGalleryFetched":false,"gallery":[{"alt":"","id":27557042,"large":"https://image.dovolena.cz/photos/ca/3/d34347a8c5ac60ce8b58e8c7e086a.jpg","priority":1,"small":"https://image.dovolena.cz/_small/photos/ca/3/d34347a8c5ac60ce8b58e8c7e086a.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/ca/3/d34347a8c5ac60ce8b58e8c7e086a.jpg"},{"alt":"","id":27557073,"large":"https://image.dovolena.cz/photos/bf/4/e4c828674275356bf7b6c0583d81a.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/bf/4/e4c828674275356bf7b6c0583d81a.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/bf/4/e4c828674275356bf7b6c0583d81a.jpg"},{"alt":"","id":27557074,"large":"https://image.dovolena.cz/photos/03/c/d41af3a9891ef3bdcd531f958f4d3.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/03/c/d41af3a9891ef3bdcd531f958f4d3.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/03/c/d41af3a9891ef3bdcd531f958f4d3.jpg"},{"alt":"","id":27557072,"large":"https://image.dovolena.cz/photos/00/7/c41ac5a2377b9dd767063b3e28d0d.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/00/7/c41ac5a2377b9dd767063b3e28d0d.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/00/7/c41ac5a2377b9dd767063b3e28d0d.jpg"},{"alt":"","id":27557070,"large":"https://image.dovolena.cz/photos/96/4/af05c28967a47923d890dd8575c3d.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/96/4/af05c28967a47923d890dd8575c3d.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/96/4/af05c28967a47923d890dd8575c3d.jpg"},{"alt":"","id":27557071,"large":"https://image.dovolena.cz/photos/27/2/9a2b2ec3e3fea2d59633459ccc6b2.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/27/2/9a2b2ec3e3fea2d59633459ccc6b2.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/27/2/9a2b2ec3e3fea2d59633459ccc6b2.jpg"},{"alt":"","id":27557069,"large":"https://image.dovolena.cz/photos/3d/6/fb0edb239c0459540589765eba213.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/3d/6/fb0edb239c0459540589765eba213.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/3d/6/fb0edb239c0459540589765eba213.jpg"},{"alt":"","id":27557067,"large":"https://image.dovolena.cz/photos/da/6/afa9569d6261e059c7dd145e57a7b.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/da/6/afa9569d6261e059c7dd145e57a7b.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/da/6/afa9569d6261e059c7dd145e57a7b.jpg"},{"alt":"","id":27557068,"large":"https://image.dovolena.cz/photos/30/4/ac0e449febd08b9eaa9e44574d5ac.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/30/4/ac0e449febd08b9eaa9e44574d5ac.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/30/4/ac0e449febd08b9eaa9e44574d5ac.jpg"},{"alt":"","id":27557065,"large":"https://image.dovolena.cz/photos/8f/f/5482d4c955782a88d267bdb2b2d5a.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/8f/f/5482d4c955782a88d267bdb2b2d5a.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/8f/f/5482d4c955782a88d267bdb2b2d5a.jpg"},{"alt":"","id":27557066,"large":"https://image.dovolena.cz/photos/48/9/4be01ddfe47d773f2e61de99ef635.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/48/9/4be01ddfe47d773f2e61de99ef635.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/48/9/4be01ddfe47d773f2e61de99ef635.jpg"},{"alt":"","id":27557064,"large":"https://image.dovolena.cz/photos/ef/1/b4afbfea59243fb7f03e80bbe1283.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/ef/1/b4afbfea59243fb7f03e80bbe1283.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/ef/1/b4afbfea59243fb7f03e80bbe1283.jpg"},{"alt":"","id":27557063,"large":"https://image.dovolena.cz/photos/3e/6/d7d4cd3eed0ce06785a0f9a9d247f.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/3e/6/d7d4cd3eed0ce06785a0f9a9d247f.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/3e/6/d7d4cd3eed0ce06785a0f9a9d247f.jpg"},{"alt":"","id":27557062,"large":"https://image.dovolena.cz/photos/cc/8/fec0b134be37c34a033a488c4fe5f.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/cc/8/fec0b134be37c34a033a488c4fe5f.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/cc/8/fec0b134be37c34a033a488c4fe5f.jpg"},{"alt":"","id":27557061,"large":"https://image.dovolena.cz/photos/21/3/aa7117c5e934db8482b73ceac8f43.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/21/3/aa7117c5e934db8482b73ceac8f43.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/21/3/aa7117c5e934db8482b73ceac8f43.jpg"},{"alt":"","id":27557060,"large":"https://image.dovolena.cz/photos/b5/5/a804c8781b9ae32b6632b6d44ebbf.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/b5/5/a804c8781b9ae32b6632b6d44ebbf.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/b5/5/a804c8781b9ae32b6632b6d44ebbf.jpg"},{"alt":"","id":27557058,"large":"https://image.dovolena.cz/photos/24/5/e6a6ce7c2526509877488d7ca8b37.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/24/5/e6a6ce7c2526509877488d7ca8b37.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/24/5/e6a6ce7c2526509877488d7ca8b37.jpg"},{"alt":"","id":27557059,"large":"https://image.dovolena.cz/photos/d3/c/2a1de85a57b59aaaf52dfe0e58908.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/d3/c/2a1de85a57b59aaaf52dfe0e58908.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/d3/c/2a1de85a57b59aaaf52dfe0e58908.jpg"},{"alt":"","id":27557057,"large":"https://image.dovolena.cz/photos/97/b/131d2a564946eefa4e0a2a560b5e9.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/97/b/131d2a564946eefa4e0a2a560b5e9.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/97/b/131d2a564946eefa4e0a2a560b5e9.jpg"},{"alt":"","id":27557056,"large":"https://image.dovolena.cz/photos/81/7/5f72345cdec5fc4797b4fa4325afb.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/81/7/5f72345cdec5fc4797b4fa4325afb.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/81/7/5f72345cdec5fc4797b4fa4325afb.jpg"}],"gps":{"lat":36.900574,"lon":27.282057,"zoom":13},"hotelId":954985,"labels":[11,1,10,8],"noStars":2,"numberRating":0,"priceInfo":{"group":{"amount":9698,"currency":"CZK"},"regular":{"amount":4849,"currency":"CZK"}},"title":"Hotel Theonia"},{"additionalInfo":{"boarding":"Bez stravy","transport":{"icon":"plane_ticket","label":"fields.transport.type.flight"}},"address":"Řecko, Ostrovy, Kos","destinations":[{"id":4826,"name":"Řecko"},{"id":9368,"name":"Ostrovy"},{"id":4827,"name":"Kos"}],"fullGalleryFetched":false,"gallery":[{"alt":"","id":27567232,"large":"https://image.dovolena.cz/photos/8d/1/7a665fbe6ade590e0ddae802a18ed.jpg","priority":1,"small":"https://image.dovolena.cz/_small/photos/8d/1/7a665fbe6ade590e0ddae802a18ed.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/8d/1/7a665fbe6ade590e0ddae802a18ed.jpg"},{"alt":"","id":27567245,"large":"https://image.dovolena.cz/photos/ad/1/7d828e93034a5faa7d1bd86372228.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/ad/1/7d828e93034a5faa7d1bd86372228.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/ad/1/7d828e93034a5faa7d1bd86372228.jpg"},{"alt":"","id":27567244,"large":"https://image.dovolena.cz/photos/1d/b/f4cd130251d9759e586c37b5d7e58.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/1d/b/f4cd130251d9759e586c37b5d7e58.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/1d/b/f4cd130251d9759e586c37b5d7e58.jpg"},{"alt":"","id":27567243,"large":"https://image.dovolena.cz/photos/7a/6/dbb2e0ea22bd8d11e8472ab6c916e.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/7a/6/dbb2e0ea22bd8d11e8472ab6c916e.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/7a/6/dbb2e0ea22bd8d11e8472ab6c916e.jpg"},{"alt":"","id":27567242,"large":"https://image.dovolena.cz/photos/b9/5/ffd3c3cd7592872762c7fc16d1624.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/b9/5/ffd3c3cd7592872762c7fc16d1624.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/b9/5/ffd3c3cd7592872762c7fc16d1624.jpg"},{"alt":"","id":27567240,"large":"https://image.dovolena.cz/photos/4f/b/e74f8d9d2798c8ee32c2ba922f7e5.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/4f/b/e74f8d9d2798c8ee32c2ba922f7e5.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/4f/b/e74f8d9d2798c8ee32c2ba922f7e5.jpg"},{"alt":"","id":27567241,"large":"https://image.dovolena.cz/photos/a9/4/7a8dc67a206f9b2f8900393fac53e.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/a9/4/7a8dc67a206f9b2f8900393fac53e.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/a9/4/7a8dc67a206f9b2f8900393fac53e.jpg"},{"alt":"","id":27567239,"large":"https://image.dovolena.cz/photos/06/f/98594a91a3b5b80074c3c68571ed6.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/06/f/98594a91a3b5b80074c3c68571ed6.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/06/f/98594a91a3b5b80074c3c68571ed6.jpg"},{"alt":"","id":27567237,"large":"https://image.dovolena.cz/photos/57/b/93075e3d48cf6b6741dfee2badb3e.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/57/b/93075e3d48cf6b6741dfee2badb3e.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/57/b/93075e3d48cf6b6741dfee2badb3e.jpg"},{"alt":"","id":27567238,"large":"https://image.dovolena.cz/photos/e8/7/33780071d2ff1badf7a96ac05d8d6.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/e8/7/33780071d2ff1badf7a96ac05d8d6.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/e8/7/33780071d2ff1badf7a96ac05d8d6.jpg"},{"alt":"","id":27567236,"large":"https://image.dovolena.cz/photos/df/c/07ab0d6f634ff2ab7ca9be9a19e5b.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/df/c/07ab0d6f634ff2ab7ca9be9a19e5b.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/df/c/07ab0d6f634ff2ab7ca9be9a19e5b.jpg"},{"alt":"","id":27567235,"large":"https://image.dovolena.cz/photos/12/5/d0c57363d645a9a2c39dd30699062.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/12/5/d0c57363d645a9a2c39dd30699062.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/12/5/d0c57363d645a9a2c39dd30699062.jpg"},{"alt":"","id":27567234,"large":"https://image.dovolena.cz/photos/7e/7/bfbbf7d39ef2dd73a89ef17a74bbd.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/7e/7/bfbbf7d39ef2dd73a89ef17a74bbd.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/7e/7/bfbbf7d39ef2dd73a89ef17a74bbd.jpg"},{"alt":"","id":27567233,"large":"https://image.dovolena.cz/photos/4a/6/5845c9e21b0c77f2c5058be4da8de.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/4a/6/5845c9e21b0c77f2c5058be4da8de.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/4a/6/5845c9e21b0c77f2c5058be4da8de.jpg"}],"gps":{"lat":36.75619,"lon":26.98538,"zoom":13},"hotelId":955572,"labels":[11,1,10,8],"noStars":2,"numberRating":0,"priceInfo":{"group":{"amount":9988,"currency":"CZK"},"regular":{"amount":4994,"currency":"CZK"}},"title":"Maritsa Studios"},{"additionalInfo":{"boarding":"Snídaně","transport":{"icon":"plane_ticket","label":"fields.transport.type.flight"}},"address":"Řecko, Ostrovy, Kos","destinations":[{"id":4826,"name":"Řecko"},{"id":9368,"name":"Ostrovy"},{"id":4827,"name":"Kos"}],"fullGalleryFetched":false,"gallery":[{"alt":"","id":27574122,"large":"https://image.dovolena.cz/photos/6d/d/a6ab54d97e13cb0c84c2957576e3d.jpg","priority":1,"small":"https://image.dovolena.cz/_small/photos/6d/d/a6ab54d97e13cb0c84c2957576e3d.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/6d/d/a6ab54d97e13cb0c84c2957576e3d.jpg"},{"alt":"","id":27574133,"large":"https://image.dovolena.cz/photos/f6/5/f7333fd09fb9b72885a53eb939b37.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/f6/5/f7333fd09fb9b72885a53eb939b37.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/f6/5/f7333fd09fb9b72885a53eb939b37.jpg"},{"alt":"","id":27574132,"large":"https://image.dovolena.cz/photos/d6/9/28f62e9c2a9ac2747cf3b4d0f0f60.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/d6/9/28f62e9c2a9ac2747cf3b4d0f0f60.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/d6/9/28f62e9c2a9ac2747cf3b4d0f0f60.jpg"},{"alt":"","id":27574131,"large":"https://image.dovolena.cz/photos/5a/c/71ed91f69d95840c23db1860c5254.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/5a/c/71ed91f69d95840c23db1860c5254.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/5a/c/71ed91f69d95840c23db1860c5254.jpg"},{"alt":"","id":27574129,"large":"https://image.dovolena.cz/photos/e6/f/dee8d8423749d0f0c4b47e60575f5.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/e6/f/dee8d8423749d0f0c4b47e60575f5.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/e6/f/dee8d8423749d0f0c4b47e60575f5.jpg"},{"alt":"","id":27574130,"large":"https://image.dovolena.cz/photos/0c/d/c05600cce3e3186657c745c00afb3.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/0c/d/c05600cce3e3186657c745c00afb3.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/0c/d/c05600cce3e3186657c745c00afb3.jpg"},{"alt":"","id":27574128,"large":"https://image.dovolena.cz/photos/6f/a/5b5c50cfbb9decb81c24d58671b16.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/6f/a/5b5c50cfbb9decb81c24d58671b16.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/6f/a/5b5c50cfbb9decb81c24d58671b16.jpg"},{"alt":"","id":27574127,"large":"https://image.dovolena.cz/photos/fc/7/fa10251f97478408777bd908f635f.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/fc/7/fa10251f97478408777bd908f635f.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/fc/7/fa10251f97478408777bd908f635f.jpg"},{"alt":"","id":27574126,"large":"https://image.dovolena.cz/photos/b4/5/7b0d66347f55c6f83d15ba601ae9a.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/b4/5/7b0d66347f55c6f83d15ba601ae9a.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/b4/5/7b0d66347f55c6f83d15ba601ae9a.jpg"},{"alt":"","id":27574124,"large":"https://image.dovolena.cz/photos/fd/b/099bb1ccb44d503e9ea036ff53af7.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/fd/b/099bb1ccb44d503e9ea036ff53af7.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/fd/b/099bb1ccb44d503e9ea036ff53af7.jpg"},{"alt":"","id":27574125,"large":"https://image.dovolena.cz/photos/02/3/6adf2bc4e03d9c61f5840d27b07ef.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/02/3/6adf2bc4e03d9c61f5840d27b07ef.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/02/3/6adf2bc4e03d9c61f5840d27b07ef.jpg"},{"alt":"","id":27574123,"large":"https://image.dovolena.cz/photos/19/a/062d3e105aa207cd3f85ba709f71a.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/19/a/062d3e105aa207cd3f85ba709f71a.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/19/a/062d3e105aa207cd3f85ba709f71a.jpg"}],"gps":{"lat":36.75094,"lon":26.97641,"zoom":13},"hotelId":955968,"labels":[11,1,10,8],"noStars":2,"numberRating":0,"priceInfo":{"group":{"amount":10057,"currency":"CZK"},"regular":{"amount":5029,"currency":"CZK"}},"title":"Athinoula"},{"additionalInfo":{"boarding":"Bez stravy","transport":{"icon":"plane_ticket","label":"fields.transport.type.flight"}},"address":"Řecko, Ostrovy, Kos","destinations":[{"id":4826,"name":"Řecko"},{"id":9368,"name":"Ostrovy"},{"id":4827,"name":"Kos"}],"fullGalleryFetched":false,"gallery":[{"alt":"","id":27567783,"large":"https://image.dovolena.cz/photos/6a/8/effc14aae922260f0885df363e829.jpg","priority":1,"small":"https://image.dovolena.cz/_small/photos/6a/8/effc14aae922260f0885df363e829.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/6a/8/effc14aae922260f0885df363e829.jpg"},{"alt":"","id":27567793,"large":"https://image.dovolena.cz/photos/a6/1/b86b344762f5202ce71f24a574134.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/a6/1/b86b344762f5202ce71f24a574134.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/a6/1/b86b344762f5202ce71f24a574134.jpg"},{"alt":"","id":27567794,"large":"https://image.dovolena.cz/photos/d3/d/db2b3895efa3308812870348217bd.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/d3/d/db2b3895efa3308812870348217bd.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/d3/d/db2b3895efa3308812870348217bd.jpg"},{"alt":"","id":27567792,"large":"https://image.dovolena.cz/photos/7b/5/97e7473a7fd0ffa4849d49b178fb5.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/7b/5/97e7473a7fd0ffa4849d49b178fb5.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/7b/5/97e7473a7fd0ffa4849d49b178fb5.jpg"},{"alt":"","id":27567791,"large":"https://image.dovolena.cz/photos/aa/b/2a2fa998d745252d2c1a916d5f2c6.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/aa/b/2a2fa998d745252d2c1a916d5f2c6.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/aa/b/2a2fa998d745252d2c1a916d5f2c6.jpg"},{"alt":"","id":27567790,"large":"https://image.dovolena.cz/photos/c2/c/5b745fab2bf3fb7dbbbb1827815b7.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/c2/c/5b745fab2bf3fb7dbbbb1827815b7.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/c2/c/5b745fab2bf3fb7dbbbb1827815b7.jpg"},{"alt":"","id":27567789,"large":"https://image.dovolena.cz/photos/1b/1/c167a198d673dab62a4fa5394947c.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/1b/1/c167a198d673dab62a4fa5394947c.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/1b/1/c167a198d673dab62a4fa5394947c.jpg"},{"alt":"","id":27567788,"large":"https://image.dovolena.cz/photos/4f/d/d6ed3d7272eb7adcb4277802c37d0.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/4f/d/d6ed3d7272eb7adcb4277802c37d0.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/4f/d/d6ed3d7272eb7adcb4277802c37d0.jpg"},{"alt":"","id":27567786,"large":"https://image.dovolena.cz/photos/76/d/cb6d6da48aa57bc900043270a913e.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/76/d/cb6d6da48aa57bc900043270a913e.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/76/d/cb6d6da48aa57bc900043270a913e.jpg"},{"alt":"","id":27567787,"large":"https://image.dovolena.cz/photos/88/9/4144a117f0d354b5a647466e29184.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/88/9/4144a117f0d354b5a647466e29184.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/88/9/4144a117f0d354b5a647466e29184.jpg"},{"alt":"","id":27567785,"large":"https://image.dovolena.cz/photos/4b/2/75cc7a20b6e54b5a3188210f7de04.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/4b/2/75cc7a20b6e54b5a3188210f7de04.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/4b/2/75cc7a20b6e54b5a3188210f7de04.jpg"},{"alt":"","id":27567784,"large":"https://image.dovolena.cz/photos/11/c/a2b29906fb30ff324a61c0d664114.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/11/c/a2b29906fb30ff324a61c0d664114.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/11/c/a2b29906fb30ff324a61c0d664114.jpg"}],"gps":{"lat":36.74695,"lon":26.967419,"zoom":13},"hotelId":955604,"labels":[11,1,10,8],"noStars":2,"numberRating":0,"priceInfo":{"group":{"amount":10069,"currency":"CZK"},"regular":{"amount":5035,"currency":"CZK"}},"title":"Kefalos Studios"},{"additionalInfo":{"boarding":"Bez stravy","transport":{"icon":"plane_ticket","label":"fields.transport.type.flight"}},"address":"Řecko, Ostrovy, Kos","destinations":[{"id":4826,"name":"Řecko"},{"id":9368,"name":"Ostrovy"},{"id":4827,"name":"Kos"}],"fullGalleryFetched":false,"gallery":[{"alt":"","id":27527681,"large":"https://image.dovolena.cz/photos/95/d/27a21a48c6377c260dab189709359.jpg","priority":1,"small":"https://image.dovolena.cz/_small/photos/95/d/27a21a48c6377c260dab189709359.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/95/d/27a21a48c6377c260dab189709359.jpg"},{"alt":"","id":27527686,"large":"https://image.dovolena.cz/photos/6a/0/1682f15efd5b4ba174968c044b1f9.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/6a/0/1682f15efd5b4ba174968c044b1f9.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/6a/0/1682f15efd5b4ba174968c044b1f9.jpg"},{"alt":"","id":27527687,"large":"https://image.dovolena.cz/photos/4a/c/eb1c366c23ef1224bdfff795cf7d5.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/4a/c/eb1c366c23ef1224bdfff795cf7d5.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/4a/c/eb1c366c23ef1224bdfff795cf7d5.jpg"},{"alt":"","id":27527685,"large":"https://image.dovolena.cz/photos/fd/7/bd40105d0d037cc677a00ba7b1559.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/fd/7/bd40105d0d037cc677a00ba7b1559.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/fd/7/bd40105d0d037cc677a00ba7b1559.jpg"},{"alt":"","id":27527684,"large":"https://image.dovolena.cz/photos/bb/6/df93083e7c191ddae0d5e9658d091.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/bb/6/df93083e7c191ddae0d5e9658d091.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/bb/6/df93083e7c191ddae0d5e9658d091.jpg"},{"alt":"","id":27527683,"large":"https://image.dovolena.cz/photos/ba/a/6798aee9fad50f6dc97d1945ba437.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/ba/a/6798aee9fad50f6dc97d1945ba437.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/ba/a/6798aee9fad50f6dc97d1945ba437.jpg"},{"alt":"","id":27527682,"large":"https://image.dovolena.cz/photos/06/1/dc6927e4454e6fc7bc0f3829da1fc.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/06/1/dc6927e4454e6fc7bc0f3829da1fc.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/06/1/dc6927e4454e6fc7bc0f3829da1fc.jpg"}],"gps":{"lat":36.88467,"lon":37.31026,"zoom":13},"hotelId":953267,"labels":[11,1,10,8],"noStars":3,"numberRating":0,"priceInfo":{"group":{"amount":10312,"currency":"CZK"},"regular":{"amount":5156,"currency":"CZK"}},"title":"Olga's Paradise"},{"additionalInfo":{"boarding":"Bez stravy","transport":{"icon":"plane_ticket","label":"fields.transport.type.flight"}},"address":"Řecko, Ostrovy, Kos","destinations":[{"id":4826,"name":"Řecko"},{"id":9368,"name":"Ostrovy"},{"id":4827,"name":"Kos"}],"fullGalleryFetched":false,"gallery":[{"alt":"","id":27668577,"large":"https://image.dovolena.cz/photos/13/6/0db24179cd181dc1b4abc170b15e8.jpg","priority":1,"small":"https://image.dovolena.cz/_small/photos/13/6/0db24179cd181dc1b4abc170b15e8.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/13/6/0db24179cd181dc1b4abc170b15e8.jpg"},{"alt":"","id":27668588,"large":"https://image.dovolena.cz/photos/0a/7/551178b405c515e83ae68bf21c962.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/0a/7/551178b405c515e83ae68bf21c962.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/0a/7/551178b405c515e83ae68bf21c962.jpg"},{"alt":"","id":27668587,"large":"https://image.dovolena.cz/photos/ef/3/18b61a8bcda0ca9c4e05dcea58903.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/ef/3/18b61a8bcda0ca9c4e05dcea58903.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/ef/3/18b61a8bcda0ca9c4e05dcea58903.jpg"},{"alt":"","id":27668585,"large":"https://image.dovolena.cz/photos/ed/b/542e57d6a1f850692f440ece3705c.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/ed/b/542e57d6a1f850692f440ece3705c.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/ed/b/542e57d6a1f850692f440ece3705c.jpg"},{"alt":"","id":27668586,"large":"https://image.dovolena.cz/photos/ce/3/c67fbd8b5852874d3971a10ab0a00.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/ce/3/c67fbd8b5852874d3971a10ab0a00.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/ce/3/c67fbd8b5852874d3971a10ab0a00.jpg"},{"alt":"","id":27668584,"large":"https://image.dovolena.cz/photos/b1/a/d01f3d9bedf8fafdd84110ba956ab.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/b1/a/d01f3d9bedf8fafdd84110ba956ab.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/b1/a/d01f3d9bedf8fafdd84110ba956ab.jpg"},{"alt":"","id":27668583,"large":"https://image.dovolena.cz/photos/b6/8/6c74e0504e7f4570528683059fb03.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/b6/8/6c74e0504e7f4570528683059fb03.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/b6/8/6c74e0504e7f4570528683059fb03.jpg"},{"alt":"","id":27668582,"large":"https://image.dovolena.cz/photos/92/6/62a624b1d1032d4c39ca9007c5f91.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/92/6/62a624b1d1032d4c39ca9007c5f91.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/92/6/62a624b1d1032d4c39ca9007c5f91.jpg"},{"alt":"","id":27668581,"large":"https://image.dovolena.cz/photos/0f/1/5dd085cc525d4644093f476acc375.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/0f/1/5dd085cc525d4644093f476acc375.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/0f/1/5dd085cc525d4644093f476acc375.jpg"},{"alt":"","id":27668580,"large":"https://image.dovolena.cz/photos/29/d/15f40fa29278e5fddfd2d60c715cf.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/29/d/15f40fa29278e5fddfd2d60c715cf.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/29/d/15f40fa29278e5fddfd2d60c715cf.jpg"},{"alt":"","id":27668579,"large":"https://image.dovolena.cz/photos/3e/b/6a3bbe613ad803a363cc931b0f8d3.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/3e/b/6a3bbe613ad803a363cc931b0f8d3.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/3e/b/6a3bbe613ad803a363cc931b0f8d3.jpg"},{"alt":"","id":27668578,"large":"https://image.dovolena.cz/photos/43/c/4e2d4558df3025496138cf30c112f.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/43/c/4e2d4558df3025496138cf30c112f.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/43/c/4e2d4558df3025496138cf30c112f.jpg"}],"gps":{"lat":36.89963,"lon":27.28361,"zoom":13},"hotelId":962123,"labels":[11,1,10,8],"noStars":3,"numberRating":0,"priceInfo":{"group":{"amount":10834,"currency":"CZK"},"regular":{"amount":5417,"currency":"CZK"}},"title":"Saint Constantin"},{"additionalInfo":{"boarding":"Snídaně","transport":{"icon":"plane_ticket","label":"fields.transport.type.flight"}},"address":"Řecko, Ostrovy, Kos","destinations":[{"id":4826,"name":"Řecko"},{"id":9368,"name":"Ostrovy"},{"id":4827,"name":"Kos"}],"fullGalleryFetched":false,"gallery":[{"alt":"","id":27740219,"large":"https://image.dovolena.cz/photos/ab/6/34ba44f96b80f05f1d59bf9d3ef8c.jpg","priority":1,"small":"https://image.dovolena.cz/_small/photos/ab/6/34ba44f96b80f05f1d59bf9d3ef8c.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/ab/6/34ba44f96b80f05f1d59bf9d3ef8c.jpg"},{"alt":"","id":27740238,"large":"https://image.dovolena.cz/photos/02/3/7ce83b1d910c2fbc720ed803404c9.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/02/3/7ce83b1d910c2fbc720ed803404c9.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/02/3/7ce83b1d910c2fbc720ed803404c9.jpg"},{"alt":"","id":27740239,"large":"https://image.dovolena.cz/photos/c1/5/5057c4413d0845bb8544f66141d0f.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/c1/5/5057c4413d0845bb8544f66141d0f.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/c1/5/5057c4413d0845bb8544f66141d0f.jpg"},{"alt":"","id":27740237,"large":"https://image.dovolena.cz/photos/81/2/5ffb62643b2b72e0b292cdf64fe22.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/81/2/5ffb62643b2b72e0b292cdf64fe22.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/81/2/5ffb62643b2b72e0b292cdf64fe22.jpg"},{"alt":"","id":27740236,"large":"https://image.dovolena.cz/photos/02/e/5a08a2dbe617515a49db591d4cad3.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/02/e/5a08a2dbe617515a49db591d4cad3.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/02/e/5a08a2dbe617515a49db591d4cad3.jpg"},{"alt":"","id":27740234,"large":"https://image.dovolena.cz/photos/c6/1/441b6847ee29f15ecabc0c83a7e3f.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/c6/1/441b6847ee29f15ecabc0c83a7e3f.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/c6/1/441b6847ee29f15ecabc0c83a7e3f.jpg"},{"alt":"","id":27740235,"large":"https://image.dovolena.cz/photos/8e/d/fb15d11730f26f253812b0526032c.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/8e/d/fb15d11730f26f253812b0526032c.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/8e/d/fb15d11730f26f253812b0526032c.jpg"},{"alt":"","id":27740233,"large":"https://image.dovolena.cz/photos/f6/5/697b9d2cd7e738f253e37520633d5.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/f6/5/697b9d2cd7e738f253e37520633d5.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/f6/5/697b9d2cd7e738f253e37520633d5.jpg"},{"alt":"","id":27740232,"large":"https://image.dovolena.cz/photos/bb/5/a2cc74a893473b179b0587e79208e.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/bb/5/a2cc74a893473b179b0587e79208e.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/bb/5/a2cc74a893473b179b0587e79208e.jpg"},{"alt":"","id":27740231,"large":"https://image.dovolena.cz/photos/53/3/3374016b461615434764031f0623e.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/53/3/3374016b461615434764031f0623e.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/53/3/3374016b461615434764031f0623e.jpg"},{"alt":"","id":27740229,"large":"https://image.dovolena.cz/photos/e9/f/a42d2dc70a6c0841dc8b7c8fc2d41.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/e9/f/a42d2dc70a6c0841dc8b7c8fc2d41.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/e9/f/a42d2dc70a6c0841dc8b7c8fc2d41.jpg"},{"alt":"","id":27740230,"large":"https://image.dovolena.cz/photos/f7/3/7ff6fc8def19ad5a1e4ff3899a664.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/f7/3/7ff6fc8def19ad5a1e4ff3899a664.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/f7/3/7ff6fc8def19ad5a1e4ff3899a664.jpg"},{"alt":"","id":27740228,"large":"https://image.dovolena.cz/photos/5e/0/0d91ed65b490de37135cb822e9051.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/5e/0/0d91ed65b490de37135cb822e9051.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/5e/0/0d91ed65b490de37135cb822e9051.jpg"},{"alt":"","id":27740227,"large":"https://image.dovolena.cz/photos/94/e/b3fdc21a1c98828b4bea1c937ec92.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/94/e/b3fdc21a1c98828b4bea1c937ec92.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/94/e/b3fdc21a1c98828b4bea1c937ec92.jpg"},{"alt":"","id":27740226,"large":"https://image.dovolena.cz/photos/2b/d/5658f26c343f6c9e33ac22a7f9aff.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/2b/d/5658f26c343f6c9e33ac22a7f9aff.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/2b/d/5658f26c343f6c9e33ac22a7f9aff.jpg"},{"alt":"","id":27740225,"large":"https://image.dovolena.cz/photos/61/2/9f9e6c973d478049ebcb14d93b739.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/61/2/9f9e6c973d478049ebcb14d93b739.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/61/2/9f9e6c973d478049ebcb14d93b739.jpg"},{"alt":"","id":27740224,"large":"https://image.dovolena.cz/photos/75/e/b2f4ee8f43a5e35fe8db897c93ab8.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/75/e/b2f4ee8f43a5e35fe8db897c93ab8.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/75/e/b2f4ee8f43a5e35fe8db897c93ab8.jpg"},{"alt":"","id":27740223,"large":"https://image.dovolena.cz/photos/81/f/93af674e92bbf499fe50f9633fa3a.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/81/f/93af674e92bbf499fe50f9633fa3a.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/81/f/93af674e92bbf499fe50f9633fa3a.jpg"},{"alt":"","id":27740222,"large":"https://image.dovolena.cz/photos/95/f/590812c6e1f5c0527672dd68fcb15.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/95/f/590812c6e1f5c0527672dd68fcb15.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/95/f/590812c6e1f5c0527672dd68fcb15.jpg"},{"alt":"","id":27740221,"large":"https://image.dovolena.cz/photos/b7/c/da9aa979dc516c79b4d42b35b0846.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/b7/c/da9aa979dc516c79b4d42b35b0846.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/b7/c/da9aa979dc516c79b4d42b35b0846.jpg"}],"gps":{"lat":36.89748,"lon":27.28395,"zoom":13},"hotelId":967089,"labels":[11,1,10,8],"noStars":2,"numberRating":0,"priceInfo":{"group":{"amount":11124,"currency":"CZK"},"regular":{"amount":5562,"currency":"CZK"}},"title":"Dimitris Paritsa"},{"additionalInfo":{"boarding":"Bez stravy","transport":{"icon":"plane_ticket","label":"fields.transport.type.flight"}},"address":"Řecko, Ostrovy, Kos","destinations":[{"id":4826,"name":"Řecko"},{"id":9368,"name":"Ostrovy"},{"id":4827,"name":"Kos"}],"fullGalleryFetched":false,"gallery":[{"alt":"","id":27529952,"large":"https://image.dovolena.cz/photos/97/3/5e0a3295d6a966b6b1f4039e8083b.jpg","priority":1,"small":"https://image.dovolena.cz/_small/photos/97/3/5e0a3295d6a966b6b1f4039e8083b.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/97/3/5e0a3295d6a966b6b1f4039e8083b.jpg"},{"alt":"","id":27529963,"large":"https://image.dovolena.cz/photos/1d/4/00930f7a629af669bee6936134146.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/1d/4/00930f7a629af669bee6936134146.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/1d/4/00930f7a629af669bee6936134146.jpg"},{"alt":"","id":27529962,"large":"https://image.dovolena.cz/photos/79/7/9c471c4f2de30b95a93115e446c28.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/79/7/9c471c4f2de30b95a93115e446c28.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/79/7/9c471c4f2de30b95a93115e446c28.jpg"},{"alt":"","id":27529959,"large":"https://image.dovolena.cz/photos/ca/3/5ad225edc3aac578672844400ca0f.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/ca/3/5ad225edc3aac578672844400ca0f.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/ca/3/5ad225edc3aac578672844400ca0f.jpg"},{"alt":"","id":27529960,"large":"https://image.dovolena.cz/photos/dc/2/503bca453932e8875e1a2c93a7212.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/dc/2/503bca453932e8875e1a2c93a7212.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/dc/2/503bca453932e8875e1a2c93a7212.jpg"},{"alt":"","id":27529958,"large":"https://image.dovolena.cz/photos/ce/8/111f755363e022ce114bcdea19fd0.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/ce/8/111f755363e022ce114bcdea19fd0.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/ce/8/111f755363e022ce114bcdea19fd0.jpg"},{"alt":"","id":27529956,"large":"https://image.dovolena.cz/photos/b1/b/01d7d79abad2e8713e68c345b05c8.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/b1/b/01d7d79abad2e8713e68c345b05c8.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/b1/b/01d7d79abad2e8713e68c345b05c8.jpg"},{"alt":"","id":27529957,"large":"https://image.dovolena.cz/photos/d4/5/bb05bc791157172fe862ed0006ab7.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/d4/5/bb05bc791157172fe862ed0006ab7.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/d4/5/bb05bc791157172fe862ed0006ab7.jpg"},{"alt":"","id":27529955,"large":"https://image.dovolena.cz/photos/28/d/d81b24b7e7b8f4b1c69ab66be135e.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/28/d/d81b24b7e7b8f4b1c69ab66be135e.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/28/d/d81b24b7e7b8f4b1c69ab66be135e.jpg"},{"alt":"","id":27529954,"large":"https://image.dovolena.cz/photos/87/b/3c51b87ee304f6c479a24aba6d2a5.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/87/b/3c51b87ee304f6c479a24aba6d2a5.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/87/b/3c51b87ee304f6c479a24aba6d2a5.jpg"},{"alt":"","id":27529953,"large":"https://image.dovolena.cz/photos/ae/2/c8855afd0cfa66915a7a732f5327c.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/ae/2/c8855afd0cfa66915a7a732f5327c.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/ae/2/c8855afd0cfa66915a7a732f5327c.jpg"}],"gps":{"lat":36.75557,"lon":26.98469,"zoom":13},"hotelId":953408,"labels":[11,1,10,8],"noStars":2,"numberRating":0,"priceInfo":{"group":{"amount":11171,"currency":"CZK"},"regular":{"amount":5586,"currency":"CZK"}},"title":"Manolis Studios"},{"additionalInfo":{"boarding":"Bez stravy","transport":{"icon":"plane_ticket","label":"fields.transport.type.flight"}},"address":"Řecko, Ostrovy, Santorini, Kamari","destinations":[{"id":4826,"name":"Řecko"},{"id":9368,"name":"Ostrovy"},{"id":8693,"name":"Santorini"},{"id":11602,"name":"Kamari"}],"fullGalleryFetched":false,"gallery":[{"alt":"","id":26534895,"large":"https://image.dovolena.cz/photos/c5/c/f7809dcc5e78e39797d73faac724c.jpg","priority":1,"small":"https://image.dovolena.cz/_small/photos/c5/c/f7809dcc5e78e39797d73faac724c.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/c5/c/f7809dcc5e78e39797d73faac724c.jpg"},{"alt":"","id":26534903,"large":"https://image.dovolena.cz/photos/3b/5/cd30252ab89783b6b11818f04ea6c.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/3b/5/cd30252ab89783b6b11818f04ea6c.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/3b/5/cd30252ab89783b6b11818f04ea6c.jpg"},{"alt":"","id":26534901,"large":"https://image.dovolena.cz/photos/c1/1/c0947ac88a8be3ed3c589b191b82e.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/c1/1/c0947ac88a8be3ed3c589b191b82e.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/c1/1/c0947ac88a8be3ed3c589b191b82e.jpg"},{"alt":"","id":26534902,"large":"https://image.dovolena.cz/photos/ec/f/cb275c14151956b8c1ddf437c86a4.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/ec/f/cb275c14151956b8c1ddf437c86a4.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/ec/f/cb275c14151956b8c1ddf437c86a4.jpg"},{"alt":"","id":26534900,"large":"https://image.dovolena.cz/photos/cb/d/dc1b93860d6d240649aaa0b29cb76.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/cb/d/dc1b93860d6d240649aaa0b29cb76.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/cb/d/dc1b93860d6d240649aaa0b29cb76.jpg"},{"alt":"","id":26534899,"large":"https://image.dovolena.cz/photos/4e/c/957c535b8f9e6a875c459a8c0afa1.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/4e/c/957c535b8f9e6a875c459a8c0afa1.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/4e/c/957c535b8f9e6a875c459a8c0afa1.jpg"},{"alt":"","id":26534898,"large":"https://image.dovolena.cz/photos/48/d/220cfd65b0881b996c5f5afb705b2.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/48/d/220cfd65b0881b996c5f5afb705b2.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/48/d/220cfd65b0881b996c5f5afb705b2.jpg"},{"alt":"","id":26534897,"large":"https://image.dovolena.cz/photos/80/a/ae15572166cfb529e4566efb1963c.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/80/a/ae15572166cfb529e4566efb1963c.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/80/a/ae15572166cfb529e4566efb1963c.jpg"},{"alt":"","id":26534896,"large":"https://image.dovolena.cz/photos/8e/d/f12a8530522b4d0191dae96204862.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/8e/d/f12a8530522b4d0191dae96204862.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/8e/d/f12a8530522b4d0191dae96204862.jpg"}],"gps":{"lat":36.37694,"lon":25.484905,"zoom":13},"hotelId":924498,"labels":[],"noStars":2,"numberRating":0,"priceInfo":{"group":{"amount":11278,"currency":"CZK"},"regular":{"amount":5639,"currency":"CZK"}},"title":"Dilino Hotel"},{"additionalInfo":{"boarding":"Snídaně","transport":{"icon":"plane_ticket","label":"fields.transport.type.flight"}},"address":"Řecko, Ostrovy, Kos","destinations":[{"id":4826,"name":"Řecko"},{"id":9368,"name":"Ostrovy"},{"id":4827,"name":"Kos"}],"fullGalleryFetched":false,"gallery":[{"alt":"","id":27612192,"large":"https://image.dovolena.cz/photos/8a/4/a0cd417763ef05b420619b60f898a.jpg","priority":1,"small":"https://image.dovolena.cz/_small/photos/8a/4/a0cd417763ef05b420619b60f898a.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/8a/4/a0cd417763ef05b420619b60f898a.jpg"},{"alt":"","id":27612213,"large":"https://image.dovolena.cz/photos/56/c/e614075e255270923b5984b4f109d.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/56/c/e614075e255270923b5984b4f109d.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/56/c/e614075e255270923b5984b4f109d.jpg"},{"alt":"","id":27612212,"large":"https://image.dovolena.cz/photos/4f/f/5e3ede95e961d8a06e3ba537bade9.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/4f/f/5e3ede95e961d8a06e3ba537bade9.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/4f/f/5e3ede95e961d8a06e3ba537bade9.jpg"},{"alt":"","id":27612210,"large":"https://image.dovolena.cz/photos/d4/6/1680eb3aff3b1eb9a737161ea3473.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/d4/6/1680eb3aff3b1eb9a737161ea3473.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/d4/6/1680eb3aff3b1eb9a737161ea3473.jpg"},{"alt":"","id":27612211,"large":"https://image.dovolena.cz/photos/9f/a/79dc6f7a07658624deb28f087064d.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/9f/a/79dc6f7a07658624deb28f087064d.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/9f/a/79dc6f7a07658624deb28f087064d.jpg"},{"alt":"","id":27595158,"large":"https://image.dovolena.cz/photos/f9/a/e23af6c775d99f8b6a8a817a1f2e5.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/f9/a/e23af6c775d99f8b6a8a817a1f2e5.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/f9/a/e23af6c775d99f8b6a8a817a1f2e5.jpg"},{"alt":"","id":27612209,"large":"https://image.dovolena.cz/photos/ea/0/cadf7f8948d6eae4fca2ca83dd408.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/ea/0/cadf7f8948d6eae4fca2ca83dd408.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/ea/0/cadf7f8948d6eae4fca2ca83dd408.jpg"},{"alt":"","id":27612208,"large":"https://image.dovolena.cz/photos/fd/e/f58cdfe140b9d20bcb807faf0f266.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/fd/e/f58cdfe140b9d20bcb807faf0f266.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/fd/e/f58cdfe140b9d20bcb807faf0f266.jpg"},{"alt":"","id":27612206,"large":"https://image.dovolena.cz/photos/86/d/c7ae529a9992bc88d490f7453f43a.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/86/d/c7ae529a9992bc88d490f7453f43a.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/86/d/c7ae529a9992bc88d490f7453f43a.jpg"},{"alt":"","id":27612207,"large":"https://image.dovolena.cz/photos/7b/1/fff3ffa22e575c1ff28ef34bbb870.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/7b/1/fff3ffa22e575c1ff28ef34bbb870.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/7b/1/fff3ffa22e575c1ff28ef34bbb870.jpg"},{"alt":"","id":27612205,"large":"https://image.dovolena.cz/photos/67/f/03187cb969280a364d0e2ffb2bfb4.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/67/f/03187cb969280a364d0e2ffb2bfb4.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/67/f/03187cb969280a364d0e2ffb2bfb4.jpg"},{"alt":"","id":27612204,"large":"https://image.dovolena.cz/photos/8f/d/b03b8b241f500569807eeb5680e11.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/8f/d/b03b8b241f500569807eeb5680e11.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/8f/d/b03b8b241f500569807eeb5680e11.jpg"},{"alt":"","id":27612203,"large":"https://image.dovolena.cz/photos/f7/b/9188690ad3d78a8c55092c9b40150.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/f7/b/9188690ad3d78a8c55092c9b40150.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/f7/b/9188690ad3d78a8c55092c9b40150.jpg"},{"alt":"","id":27612202,"large":"https://image.dovolena.cz/photos/0f/e/d16c800f03541842d4eaeddc8e7ef.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/0f/e/d16c800f03541842d4eaeddc8e7ef.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/0f/e/d16c800f03541842d4eaeddc8e7ef.jpg"},{"alt":"","id":27612201,"large":"https://image.dovolena.cz/photos/dc/d/c5c98898d6f55218e9af889908348.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/dc/d/c5c98898d6f55218e9af889908348.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/dc/d/c5c98898d6f55218e9af889908348.jpg"},{"alt":"","id":27612200,"large":"https://image.dovolena.cz/photos/9c/9/da54da0828f3a117880b24bc27942.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/9c/9/da54da0828f3a117880b24bc27942.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/9c/9/da54da0828f3a117880b24bc27942.jpg"},{"alt":"","id":27612199,"large":"https://image.dovolena.cz/photos/62/3/008583329d61955ee8f3ff2835c8e.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/62/3/008583329d61955ee8f3ff2835c8e.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/62/3/008583329d61955ee8f3ff2835c8e.jpg"},{"alt":"","id":27612197,"large":"https://image.dovolena.cz/photos/e3/5/598cb074e2fdfc361a07e6e043b02.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/e3/5/598cb074e2fdfc361a07e6e043b02.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/e3/5/598cb074e2fdfc361a07e6e043b02.jpg"},{"alt":"","id":27612198,"large":"https://image.dovolena.cz/photos/74/c/ffe4ed49d210555ff5a530e9d9493.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/74/c/ffe4ed49d210555ff5a530e9d9493.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/74/c/ffe4ed49d210555ff5a530e9d9493.jpg"},{"alt":"","id":27612195,"large":"https://image.dovolena.cz/photos/9d/9/699d391be892c18f4a7e41bb61d6a.jpg","priority":0,"small":"https://image.dovolena.cz/_small/photos/9d/9/699d391be892c18f4a7e41bb61d6a.jpg","thumb":"https://image.dovolena.cz/_thumb/photos/9d/9/699d391be892c18f4a7e41bb61d6a.jpg"}],"gps":{"lat":36.78677,"lon":27.14757,"zoom":13},"hotelId":958354,"labels":[11,1,10,8],"noStars":3,"numberRating":0,"priceInfo":{"group":{"amount":11757,"currency":"CZK"},"regular":{"amount":5879,"currency":"CZK"}},"title":"Cleopatra Kris Mari"}],"tags":[{"name":"facts","ids":[{"id":4438,"count":119},{"id":4449,"count":64},{"id":34,"count":5},{"id":4432,"count":117},{"id":4468,"count":215},{"id":4400,"count":122},{"id":4426,"count":85},{"id":32,"count":80},{"id":4484,"count":20},{"id":35,"count":22},{"id":49,"count":6},{"id":4472,"count":53},{"id":4352,"count":61},{"id":4342,"count":81}]},{"name":"hotelicon","ids":[{"id":-2,"count":210},{"id":-3,"count":566},{"id":-4,"count":313},{"id":-5,"count":636},{"id":-33,"count":121},{"id":-1,"count":762},{"id":-32,"count":171},{"id":-6,"count":435}]},{"name":"labels","ids":[{"id":29,"count":642},{"id":27,"count":644},{"id":6,"count":1743},{"id":7,"count":500},{"id":10,"count":407},{"id":28,"count":109},{"id":26,"count":299},{"id":16,"count":866},{"id":13,"count":383},{"id":19,"count":6},{"id":20,"count":105},{"id":11,"count":450},{"id":2,"count":346},{"id":9,"count":837},{"id":15,"count":461},{"id":12,"count":750},{"id":14,"count":53},{"id":1,"count":2184},{"id":3,"count":332},{"id":8,"count":945},{"id":18,"count":383},{"id":5,"count":726},{"id":31,"count":1202},{"id":17,"count":491},{"id":4,"count":641}]},{"name":"board","ids":[{"id":20,"count":613},{"id":27,"count":638},{"id":21,"count":1001},{"id":28,"count":1},{"id":25,"count":48},{"id":26,"count":2},{"id":23,"count":625}]},{"name":"bonusicon","ids":[{"id":-30,"count":1124},{"id":-28,"count":1810},{"id":-27,"count":614}]},{"name":"discounticon","ids":[{"id":-37,"count":309},{"id":12,"count":13},{"id":-8,"count":9},{"id":-15,"count":309},{"id":-12,"count":562},{"id":-14,"count":618}]}],"done":true}
+{
+ "lang": "cs",
+ "page": 1,
+ "perPage": 10,
+ "totalPages": 278,
+ "totalHotels": 2778,
+ "order": "recommended",
+ "destinations": [
+  {
+   "name": "Řecko",
+   "imagePath": "/GR_01.jpg"
+  }
+ ],
+ "destinationText": "",
+ "destinationPath": [
+  {
+   "id": 4826,
+   "name": "Řecko",
+   "url": "recko"
+  }
+ ],
+ "hotels": [
+  {
+   "additionalInfo": {
+    "boarding": "Bez stravy",
+    "transport": {
+     "icon": "plane_ticket",
+     "label": "fields.transport.type.flight"
+    }
+   },
+   "address": "Řecko, Pevnina, poloostrov Chalkidiki a Thessaloniki, Metamorfosis",
+   "destinations": [
+    {
+     "id": 4826,
+     "name": "Řecko"
+    },
+    {
+     "id": 9367,
+     "name": "Pevnina"
+    },
+    {
+     "id": 5054,
+     "name": "poloostrov Chalkidiki a Thessaloniki"
+    },
+    {
+     "id": 11650,
+     "name": "Metamorfosis"
+    }
+   ],
+   "fullGalleryFetched": false,
+   "gallery": [
+    {
+     "alt": "",
+     "id": 26528366,
+     "large": "https://image.dovolena.cz/photos/c7/3/a5f5fe3b8768493d379fddb679e86.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/c7/3/a5f5fe3b8768493d379fddb679e86.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/c7/3/a5f5fe3b8768493d379fddb679e86.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528373,
+     "large": "https://image.dovolena.cz/photos/6f/9/a7d8084f639c40904cf722e4f9618.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/6f/9/a7d8084f639c40904cf722e4f9618.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/6f/9/a7d8084f639c40904cf722e4f9618.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528372,
+     "large": "https://image.dovolena.cz/photos/99/3/937bd0f514e1a5f57afe338fed6bb.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/99/3/937bd0f514e1a5f57afe338fed6bb.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/99/3/937bd0f514e1a5f57afe338fed6bb.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528370,
+     "large": "https://image.dovolena.cz/photos/1a/a/979909c01077fb95525f2b5c80acf.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/1a/a/979909c01077fb95525f2b5c80acf.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/1a/a/979909c01077fb95525f2b5c80acf.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528371,
+     "large": "https://image.dovolena.cz/photos/ca/0/fd74418bd97d22c37ad7e648d2c25.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/ca/0/fd74418bd97d22c37ad7e648d2c25.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/ca/0/fd74418bd97d22c37ad7e648d2c25.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528368,
+     "large": "https://image.dovolena.cz/photos/2b/2/2b4523cb64caf8b4389315b92a0b8.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/2b/2/2b4523cb64caf8b4389315b92a0b8.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/2b/2/2b4523cb64caf8b4389315b92a0b8.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528369,
+     "large": "https://image.dovolena.cz/photos/79/e/64c20883bca4c44712b466334f3bf.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/79/e/64c20883bca4c44712b466334f3bf.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/79/e/64c20883bca4c44712b466334f3bf.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528367,
+     "large": "https://image.dovolena.cz/photos/1c/a/89bac2ffb96f02c4b446a8d467d9d.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/1c/a/89bac2ffb96f02c4b446a8d467d9d.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/1c/a/89bac2ffb96f02c4b446a8d467d9d.jpg"
+    }
+   ],
+   "gps": {
+    "lat": 40.23247,
+    "lon": 23.604362,
+    "zoom": 13
+   },
+   "hotelId": 924338,
+   "labels": [],
+   "noStars": 3,
+   "numberRating": 0,
+   "priceInfo": {
+    "group": {
+     "amount": 10678,
+     "currency": "CZK"
+    },
+    "regular": {
+     "amount": 5339,
+     "currency": "CZK"
+    }
+   },
+   "title": "4 You Hotel Apartments"
+  },
+  {
+   "additionalInfo": {
+    "boarding": "Bez stravy",
+    "transport": {
+     "icon": "plane_ticket",
+     "label": "fields.transport.type.flight"
+    }
+   },
+   "address": "Řecko, Ostrovy, Korfu, Kavos",
+   "destinations": [
+    {
+     "id": 4826,
+     "name": "Řecko"
+    },
+    {
+     "id": 9368,
+     "name": "Ostrovy"
+    },
+    {
+     "id": 5196,
+     "name": "Korfu"
+    },
+    {
+     "id": 11469,
+     "name": "Kavos"
+    }
+   ],
+   "fullGalleryFetched": false,
+   "gallery": [
+    {
+     "alt": "",
+     "id": 26529167,
+     "large": "https://image.dovolena.cz/photos/58/5/a94e436dafc13786245aa76446198.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/58/5/a94e436dafc13786245aa76446198.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/58/5/a94e436dafc13786245aa76446198.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529172,
+     "large": "https://image.dovolena.cz/photos/df/e/c0fdbb8ffa642386952f93c0c2182.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/df/e/c0fdbb8ffa642386952f93c0c2182.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/df/e/c0fdbb8ffa642386952f93c0c2182.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529170,
+     "large": "https://image.dovolena.cz/photos/99/d/2f1c808fd81a2443f31ed7b5848d7.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/99/d/2f1c808fd81a2443f31ed7b5848d7.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/99/d/2f1c808fd81a2443f31ed7b5848d7.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529171,
+     "large": "https://image.dovolena.cz/photos/8d/6/8cc7f4219dbe2a5cb24104901de35.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/8d/6/8cc7f4219dbe2a5cb24104901de35.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/8d/6/8cc7f4219dbe2a5cb24104901de35.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529169,
+     "large": "https://image.dovolena.cz/photos/d6/6/c399f1b1429431786a6ddd2cfd427.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/d6/6/c399f1b1429431786a6ddd2cfd427.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/d6/6/c399f1b1429431786a6ddd2cfd427.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529168,
+     "large": "https://image.dovolena.cz/photos/2d/3/9f550cc8f171112bd8bed4a043486.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/2d/3/9f550cc8f171112bd8bed4a043486.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/2d/3/9f550cc8f171112bd8bed4a043486.jpg"
+    }
+   ],
+   "gps": {
+    "lat": 39.38413,
+    "lon": 20.115692,
+    "zoom": 13
+   },
+   "hotelId": 924375,
+   "labels": [
+    7,
+    8
+   ],
+   "noStars": 2,
+   "numberRating": 0,
+   "priceInfo": {
+    "group": {
+     "amount": 12538,
+     "currency": "CZK"
+    },
+    "regular": {
+     "amount": 6269,
+     "currency": "CZK"
+    }
+   },
+   "title": "Cavos Beach House"
+  },
+  {
+   "additionalInfo": {
+    "boarding": "Bez stravy",
+    "transport": {
+     "icon": "plane_ticket",
+     "label": "fields.transport.type.flight"
+    }
+   },
+   "address": "Řecko, Ostrovy, Santorini, Kamari",
+   "destinations": [
+    {
+     "id": 4826,
+     "name": "Řecko"
+    },
+    {
+     "id": 9368,
+     "name": "Ostrovy"
+    },
+    {
+     "id": 8693,
+     "name": "Santorini"
+    },
+    {
+     "id": 11602,
+     "name": "Kamari"
+    }
+   ],
+   "fullGalleryFetched": false,
+   "gallery": [
+    {
+     "alt": "",
+     "id": 26534895,
+     "large": "https://image.dovolena.cz/photos/c5/c/f7809dcc5e78e39797d73faac724c.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/c5/c/f7809dcc5e78e39797d73faac724c.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/c5/c/f7809dcc5e78e39797d73faac724c.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534901,
+     "large": "https://image.dovolena.cz/photos/c1/1/c0947ac88a8be3ed3c589b191b82e.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/c1/1/c0947ac88a8be3ed3c589b191b82e.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/c1/1/c0947ac88a8be3ed3c589b191b82e.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534903,
+     "large": "https://image.dovolena.cz/photos/3b/5/cd30252ab89783b6b11818f04ea6c.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/3b/5/cd30252ab89783b6b11818f04ea6c.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/3b/5/cd30252ab89783b6b11818f04ea6c.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534902,
+     "large": "https://image.dovolena.cz/photos/ec/f/cb275c14151956b8c1ddf437c86a4.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/ec/f/cb275c14151956b8c1ddf437c86a4.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/ec/f/cb275c14151956b8c1ddf437c86a4.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534900,
+     "large": "https://image.dovolena.cz/photos/cb/d/dc1b93860d6d240649aaa0b29cb76.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/cb/d/dc1b93860d6d240649aaa0b29cb76.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/cb/d/dc1b93860d6d240649aaa0b29cb76.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534899,
+     "large": "https://image.dovolena.cz/photos/4e/c/957c535b8f9e6a875c459a8c0afa1.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/4e/c/957c535b8f9e6a875c459a8c0afa1.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/4e/c/957c535b8f9e6a875c459a8c0afa1.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534898,
+     "large": "https://image.dovolena.cz/photos/48/d/220cfd65b0881b996c5f5afb705b2.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/48/d/220cfd65b0881b996c5f5afb705b2.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/48/d/220cfd65b0881b996c5f5afb705b2.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534897,
+     "large": "https://image.dovolena.cz/photos/80/a/ae15572166cfb529e4566efb1963c.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/80/a/ae15572166cfb529e4566efb1963c.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/80/a/ae15572166cfb529e4566efb1963c.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534896,
+     "large": "https://image.dovolena.cz/photos/8e/d/f12a8530522b4d0191dae96204862.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/8e/d/f12a8530522b4d0191dae96204862.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/8e/d/f12a8530522b4d0191dae96204862.jpg"
+    }
+   ],
+   "gps": {
+    "lat": 36.37694,
+    "lon": 25.484905,
+    "zoom": 13
+   },
+   "hotelId": 924498,
+   "labels": [],
+   "noStars": 2,
+   "numberRating": 0,
+   "priceInfo": {
+    "group": {
+     "amount": 13758,
+     "currency": "CZK"
+    },
+    "regular": {
+     "amount": 6879,
+     "currency": "CZK"
+    }
+   },
+   "title": "Dilino Hotel"
+  },
+  {
+   "additionalInfo": {
+    "boarding": "Bez stravy",
+    "transport": {
+     "icon": "plane_ticket",
+     "label": "fields.transport.type.flight"
+    }
+   },
+   "address": "Řecko, Ostrovy, Rhodos, Faliraki",
+   "destinations": [
+    {
+     "id": 4826,
+     "name": "Řecko"
+    },
+    {
+     "id": 9368,
+     "name": "Ostrovy"
+    },
+    {
+     "id": 5074,
+     "name": "Rhodos"
+    },
+    {
+     "id": 11498,
+     "name": "Faliraki"
+    }
+   ],
+   "fullGalleryFetched": false,
+   "gallery": [
+    {
+     "alt": "",
+     "id": 26543430,
+     "large": "https://image.dovolena.cz/photos/dc/2/3af0abaa695bc5432e7841d1e34a1.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/dc/2/3af0abaa695bc5432e7841d1e34a1.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/dc/2/3af0abaa695bc5432e7841d1e34a1.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26543443,
+     "large": "https://image.dovolena.cz/photos/c7/8/89b0e9249374562ca5ba7e26df472.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/c7/8/89b0e9249374562ca5ba7e26df472.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/c7/8/89b0e9249374562ca5ba7e26df472.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26543442,
+     "large": "https://image.dovolena.cz/photos/5d/2/e2f15f9b9fa55c9920f48222f611a.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/5d/2/e2f15f9b9fa55c9920f48222f611a.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/5d/2/e2f15f9b9fa55c9920f48222f611a.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26543441,
+     "large": "https://image.dovolena.cz/photos/96/1/ae642d21fdbbeb7a53ed768e32db5.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/96/1/ae642d21fdbbeb7a53ed768e32db5.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/96/1/ae642d21fdbbeb7a53ed768e32db5.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26543440,
+     "large": "https://image.dovolena.cz/photos/d3/a/35ee7cb76fd424aeb0f3c0681fc06.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/d3/a/35ee7cb76fd424aeb0f3c0681fc06.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/d3/a/35ee7cb76fd424aeb0f3c0681fc06.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26543439,
+     "large": "https://image.dovolena.cz/photos/d9/0/997f321e43cd7808251ec3290ae95.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/d9/0/997f321e43cd7808251ec3290ae95.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/d9/0/997f321e43cd7808251ec3290ae95.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26543438,
+     "large": "https://image.dovolena.cz/photos/7f/f/5574747dfaf65eb858eec18ffb12d.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/7f/f/5574747dfaf65eb858eec18ffb12d.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/7f/f/5574747dfaf65eb858eec18ffb12d.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26543437,
+     "large": "https://image.dovolena.cz/photos/24/6/6f2d0d4c808e89ca6b3920e255a8b.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/24/6/6f2d0d4c808e89ca6b3920e255a8b.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/24/6/6f2d0d4c808e89ca6b3920e255a8b.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26543436,
+     "large": "https://image.dovolena.cz/photos/30/f/eeeb12ce414c22a9578c9183e8c5b.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/30/f/eeeb12ce414c22a9578c9183e8c5b.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/30/f/eeeb12ce414c22a9578c9183e8c5b.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26543434,
+     "large": "https://image.dovolena.cz/photos/a3/0/9caebad571a2966679576e8ae86fe.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/a3/0/9caebad571a2966679576e8ae86fe.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/a3/0/9caebad571a2966679576e8ae86fe.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26543435,
+     "large": "https://image.dovolena.cz/photos/5d/e/83b32110c3e7e36469b921a2342d6.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/5d/e/83b32110c3e7e36469b921a2342d6.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/5d/e/83b32110c3e7e36469b921a2342d6.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26543433,
+     "large": "https://image.dovolena.cz/photos/89/7/774036197c0b903018d49b56772ea.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/89/7/774036197c0b903018d49b56772ea.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/89/7/774036197c0b903018d49b56772ea.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26543432,
+     "large": "https://image.dovolena.cz/photos/ce/f/cd507e27c559c95c0f3b53d9b9c29.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/ce/f/cd507e27c559c95c0f3b53d9b9c29.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/ce/f/cd507e27c559c95c0f3b53d9b9c29.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26543431,
+     "large": "https://image.dovolena.cz/photos/9e/7/8efef61875a2c2b89596c752e4528.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/9e/7/8efef61875a2c2b89596c752e4528.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/9e/7/8efef61875a2c2b89596c752e4528.jpg"
+    }
+   ],
+   "gps": {
+    "lat": 36.327232,
+    "lon": 28.192507,
+    "zoom": 13
+   },
+   "hotelId": 924771,
+   "labels": [],
+   "noStars": 3,
+   "numberRating": 0,
+   "priceInfo": {
+    "group": {
+     "amount": 13878,
+     "currency": "CZK"
+    },
+    "regular": {
+     "amount": 6939,
+     "currency": "CZK"
+    }
+   },
+   "title": "Studia Panorama Faliraki"
+  },
+  {
+   "additionalInfo": {
+    "boarding": "Bez stravy",
+    "transport": {
+     "icon": "plane_ticket",
+     "label": "fields.transport.type.flight"
+    }
+   },
+   "address": "Řecko, Ostrovy, Korfu, Gouvia",
+   "destinations": [
+    {
+     "id": 4826,
+     "name": "Řecko"
+    },
+    {
+     "id": 9368,
+     "name": "Ostrovy"
+    },
+    {
+     "id": 5196,
+     "name": "Korfu"
+    },
+    {
+     "id": 11482,
+     "name": "Gouvia"
+    }
+   ],
+   "fullGalleryFetched": false,
+   "gallery": [
+    {
+     "alt": "",
+     "id": 26529094,
+     "large": "https://image.dovolena.cz/photos/a6/0/13eeba5b01f8cc70cf9678a974dd8.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/a6/0/13eeba5b01f8cc70cf9678a974dd8.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/a6/0/13eeba5b01f8cc70cf9678a974dd8.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529133,
+     "large": "https://image.dovolena.cz/photos/97/5/fc57104cc5c50b5fe7fd5098881c5.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/97/5/fc57104cc5c50b5fe7fd5098881c5.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/97/5/fc57104cc5c50b5fe7fd5098881c5.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529134,
+     "large": "https://image.dovolena.cz/photos/f8/a/e0baed0124efe39c2a85b18d0d2d1.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/f8/a/e0baed0124efe39c2a85b18d0d2d1.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/f8/a/e0baed0124efe39c2a85b18d0d2d1.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529131,
+     "large": "https://image.dovolena.cz/photos/96/5/d56d8b20ed9327d368a5762fa860f.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/96/5/d56d8b20ed9327d368a5762fa860f.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/96/5/d56d8b20ed9327d368a5762fa860f.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529132,
+     "large": "https://image.dovolena.cz/photos/77/f/f447103f8c4885e3cb43da400375c.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/77/f/f447103f8c4885e3cb43da400375c.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/77/f/f447103f8c4885e3cb43da400375c.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529129,
+     "large": "https://image.dovolena.cz/photos/b8/3/a1cedf1d5beec87a395eff8f36633.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/b8/3/a1cedf1d5beec87a395eff8f36633.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/b8/3/a1cedf1d5beec87a395eff8f36633.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529130,
+     "large": "https://image.dovolena.cz/photos/6a/8/f357588dfa5ce8ff125ffe7a25d68.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/6a/8/f357588dfa5ce8ff125ffe7a25d68.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/6a/8/f357588dfa5ce8ff125ffe7a25d68.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529127,
+     "large": "https://image.dovolena.cz/photos/2e/b/c937426083684497a5dd0c195bad8.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/2e/b/c937426083684497a5dd0c195bad8.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/2e/b/c937426083684497a5dd0c195bad8.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529128,
+     "large": "https://image.dovolena.cz/photos/8a/a/2f19e76855b953f1a16472a4ddaa6.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/8a/a/2f19e76855b953f1a16472a4ddaa6.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/8a/a/2f19e76855b953f1a16472a4ddaa6.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529126,
+     "large": "https://image.dovolena.cz/photos/0c/8/d9d7ed993f76b7e3ec36a4ea97ae1.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/0c/8/d9d7ed993f76b7e3ec36a4ea97ae1.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/0c/8/d9d7ed993f76b7e3ec36a4ea97ae1.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529125,
+     "large": "https://image.dovolena.cz/photos/50/6/97bfbddf65de180a23dfdcc7c49ba.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/50/6/97bfbddf65de180a23dfdcc7c49ba.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/50/6/97bfbddf65de180a23dfdcc7c49ba.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529124,
+     "large": "https://image.dovolena.cz/photos/21/8/9f7a2c6341c966715e38f87d8d820.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/21/8/9f7a2c6341c966715e38f87d8d820.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/21/8/9f7a2c6341c966715e38f87d8d820.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529123,
+     "large": "https://image.dovolena.cz/photos/8f/3/0957ad51c9a0334dcde3254057f94.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/8f/3/0957ad51c9a0334dcde3254057f94.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/8f/3/0957ad51c9a0334dcde3254057f94.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529122,
+     "large": "https://image.dovolena.cz/photos/47/7/9f30ed97b798d54e94497666554dc.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/47/7/9f30ed97b798d54e94497666554dc.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/47/7/9f30ed97b798d54e94497666554dc.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529121,
+     "large": "https://image.dovolena.cz/photos/f9/a/6400d7efe826a83ce65f2c3152a47.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/f9/a/6400d7efe826a83ce65f2c3152a47.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/f9/a/6400d7efe826a83ce65f2c3152a47.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529119,
+     "large": "https://image.dovolena.cz/photos/af/2/1103e86aa0f4eae74e274c2da2992.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/af/2/1103e86aa0f4eae74e274c2da2992.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/af/2/1103e86aa0f4eae74e274c2da2992.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529120,
+     "large": "https://image.dovolena.cz/photos/f8/7/09e8cf3007c29201818e9a5f1d7d9.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/f8/7/09e8cf3007c29201818e9a5f1d7d9.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/f8/7/09e8cf3007c29201818e9a5f1d7d9.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529118,
+     "large": "https://image.dovolena.cz/photos/46/a/f5cf76bb9941865b780ce5e61531f.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/46/a/f5cf76bb9941865b780ce5e61531f.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/46/a/f5cf76bb9941865b780ce5e61531f.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529117,
+     "large": "https://image.dovolena.cz/photos/94/8/2aec86027aa0c09f6262b2fce8369.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/94/8/2aec86027aa0c09f6262b2fce8369.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/94/8/2aec86027aa0c09f6262b2fce8369.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529115,
+     "large": "https://image.dovolena.cz/photos/fd/d/b5b1c245b0e8d5db007d469e13c6a.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/fd/d/b5b1c245b0e8d5db007d469e13c6a.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/fd/d/b5b1c245b0e8d5db007d469e13c6a.jpg"
+    }
+   ],
+   "gps": {
+    "lat": 39.65808,
+    "lon": 19.839209,
+    "zoom": 13
+   },
+   "hotelId": 924368,
+   "labels": [
+    7,
+    8
+   ],
+   "noStars": 3,
+   "numberRating": 0,
+   "priceInfo": {
+    "group": {
+     "amount": 15078,
+     "currency": "CZK"
+    },
+    "regular": {
+     "amount": 7539,
+     "currency": "CZK"
+    }
+   },
+   "title": "Govino Bay Corfu"
+  },
+  {
+   "additionalInfo": {
+    "boarding": "Bez stravy",
+    "transport": {
+     "icon": "plane_ticket",
+     "label": "fields.transport.type.flight"
+    }
+   },
+   "address": "Řecko, Ostrovy, Kréta, Heraklion",
+   "destinations": [
+    {
+     "id": 4826,
+     "name": "Řecko"
+    },
+    {
+     "id": 9368,
+     "name": "Ostrovy"
+    },
+    {
+     "id": 4908,
+     "name": "Kréta"
+    },
+    {
+     "id": 11562,
+     "name": "Heraklion"
+    }
+   ],
+   "fullGalleryFetched": false,
+   "gallery": [
+    {
+     "alt": "",
+     "id": 26531068,
+     "large": "https://image.dovolena.cz/photos/2a/1/a09f1419690c20a9948056b838923.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/2a/1/a09f1419690c20a9948056b838923.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/2a/1/a09f1419690c20a9948056b838923.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26531080,
+     "large": "https://image.dovolena.cz/photos/e7/3/8744ada15fe3bbe644a499b2a7484.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/e7/3/8744ada15fe3bbe644a499b2a7484.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/e7/3/8744ada15fe3bbe644a499b2a7484.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26531081,
+     "large": "https://image.dovolena.cz/photos/b6/4/c2e7e48bba684fd66ce2d77230cad.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/b6/4/c2e7e48bba684fd66ce2d77230cad.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/b6/4/c2e7e48bba684fd66ce2d77230cad.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26531079,
+     "large": "https://image.dovolena.cz/photos/9d/b/2f996e173f4a3a89f88fba3629d5f.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/9d/b/2f996e173f4a3a89f88fba3629d5f.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/9d/b/2f996e173f4a3a89f88fba3629d5f.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26531077,
+     "large": "https://image.dovolena.cz/photos/45/7/f074a7d9372fe28a93287e77c56eb.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/45/7/f074a7d9372fe28a93287e77c56eb.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/45/7/f074a7d9372fe28a93287e77c56eb.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26531078,
+     "large": "https://image.dovolena.cz/photos/e2/9/4712b5ff1d3a33b106aaea4971c09.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/e2/9/4712b5ff1d3a33b106aaea4971c09.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/e2/9/4712b5ff1d3a33b106aaea4971c09.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26531076,
+     "large": "https://image.dovolena.cz/photos/87/e/a44ab44c880a4dc8421fba60a6f0d.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/87/e/a44ab44c880a4dc8421fba60a6f0d.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/87/e/a44ab44c880a4dc8421fba60a6f0d.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26531073,
+     "large": "https://image.dovolena.cz/photos/33/f/2d8f27788a04c8b0b3650fdd52ef1.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/33/f/2d8f27788a04c8b0b3650fdd52ef1.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/33/f/2d8f27788a04c8b0b3650fdd52ef1.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26531074,
+     "large": "https://image.dovolena.cz/photos/c4/5/531a3a865cbfdea6a85d4592dad11.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/c4/5/531a3a865cbfdea6a85d4592dad11.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/c4/5/531a3a865cbfdea6a85d4592dad11.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26531075,
+     "large": "https://image.dovolena.cz/photos/09/f/cb399db9e4292e8cf4fad902d1ed8.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/09/f/cb399db9e4292e8cf4fad902d1ed8.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/09/f/cb399db9e4292e8cf4fad902d1ed8.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26531071,
+     "large": "https://image.dovolena.cz/photos/8e/6/3f600f6300b2cec5ae43044a94538.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/8e/6/3f600f6300b2cec5ae43044a94538.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/8e/6/3f600f6300b2cec5ae43044a94538.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26531072,
+     "large": "https://image.dovolena.cz/photos/8c/9/3ee4a0e62dc8165f9c640db0a058b.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/8c/9/3ee4a0e62dc8165f9c640db0a058b.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/8c/9/3ee4a0e62dc8165f9c640db0a058b.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26531070,
+     "large": "https://image.dovolena.cz/photos/9b/0/bb58baed1cdf20d3115de00f930f6.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/9b/0/bb58baed1cdf20d3115de00f930f6.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/9b/0/bb58baed1cdf20d3115de00f930f6.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26531069,
+     "large": "https://image.dovolena.cz/photos/d1/1/c9244ef5b863d6e98a0b9385079dc.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/d1/1/c9244ef5b863d6e98a0b9385079dc.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/d1/1/c9244ef5b863d6e98a0b9385079dc.jpg"
+    }
+   ],
+   "gps": {
+    "lat": 35.28672,
+    "lon": 25.466627,
+    "zoom": 13
+   },
+   "hotelId": 924404,
+   "labels": [
+    7
+   ],
+   "noStars": 3,
+   "numberRating": 0,
+   "priceInfo": {
+    "group": {
+     "amount": 15098,
+     "currency": "CZK"
+    },
+    "regular": {
+     "amount": 7549,
+     "currency": "CZK"
+    }
+   },
+   "title": "Marianna Studios"
+  },
+  {
+   "additionalInfo": {
+    "boarding": "Snídaně",
+    "transport": {
+     "icon": "plane_ticket",
+     "label": "fields.transport.type.flight"
+    }
+   },
+   "address": "Řecko, Ostrovy, Rhodos, Kolymbia",
+   "destinations": [
+    {
+     "id": 4826,
+     "name": "Řecko"
+    },
+    {
+     "id": 9368,
+     "name": "Ostrovy"
+    },
+    {
+     "id": 5074,
+     "name": "Rhodos"
+    },
+    {
+     "id": 11499,
+     "name": "Kolymbia"
+    }
+   ],
+   "fullGalleryFetched": false,
+   "gallery": [
+    {
+     "alt": "",
+     "id": 26534268,
+     "large": "https://image.dovolena.cz/photos/94/f/415fec3724a32cfcc10cdadcd1a95.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/94/f/415fec3724a32cfcc10cdadcd1a95.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/94/f/415fec3724a32cfcc10cdadcd1a95.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534279,
+     "large": "https://image.dovolena.cz/photos/fd/b/8a2ee3e4abffbae729d0e26bf9870.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/fd/b/8a2ee3e4abffbae729d0e26bf9870.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/fd/b/8a2ee3e4abffbae729d0e26bf9870.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534277,
+     "large": "https://image.dovolena.cz/photos/91/d/302cdc8ca56b2211bd76cd43948d7.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/91/d/302cdc8ca56b2211bd76cd43948d7.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/91/d/302cdc8ca56b2211bd76cd43948d7.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534278,
+     "large": "https://image.dovolena.cz/photos/56/d/2e25bbcdb6a61322a07b7921c2d70.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/56/d/2e25bbcdb6a61322a07b7921c2d70.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/56/d/2e25bbcdb6a61322a07b7921c2d70.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534274,
+     "large": "https://image.dovolena.cz/photos/4c/3/05ae2837842a8612481d770fd796a.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/4c/3/05ae2837842a8612481d770fd796a.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/4c/3/05ae2837842a8612481d770fd796a.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534276,
+     "large": "https://image.dovolena.cz/photos/39/0/b2ff8f5cea98641a7bb4dd0029fdb.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/39/0/b2ff8f5cea98641a7bb4dd0029fdb.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/39/0/b2ff8f5cea98641a7bb4dd0029fdb.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534275,
+     "large": "https://image.dovolena.cz/photos/8f/5/a68a175ac467456be8a2a95894cef.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/8f/5/a68a175ac467456be8a2a95894cef.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/8f/5/a68a175ac467456be8a2a95894cef.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534273,
+     "large": "https://image.dovolena.cz/photos/ff/5/0e6212f4aa1c3eb9c2888294af784.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/ff/5/0e6212f4aa1c3eb9c2888294af784.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/ff/5/0e6212f4aa1c3eb9c2888294af784.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534272,
+     "large": "https://image.dovolena.cz/photos/77/c/a443bba7a1345a2ed4e8d795b0a5d.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/77/c/a443bba7a1345a2ed4e8d795b0a5d.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/77/c/a443bba7a1345a2ed4e8d795b0a5d.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534270,
+     "large": "https://image.dovolena.cz/photos/69/3/40858a4776bebb0d65a846b9e6fcc.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/69/3/40858a4776bebb0d65a846b9e6fcc.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/69/3/40858a4776bebb0d65a846b9e6fcc.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534271,
+     "large": "https://image.dovolena.cz/photos/d7/2/ed419b209ce5192ddebce0cd563cc.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/d7/2/ed419b209ce5192ddebce0cd563cc.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/d7/2/ed419b209ce5192ddebce0cd563cc.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26534269,
+     "large": "https://image.dovolena.cz/photos/66/9/ca7c9715a3f438fc0565ba87c7fbd.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/66/9/ca7c9715a3f438fc0565ba87c7fbd.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/66/9/ca7c9715a3f438fc0565ba87c7fbd.jpg"
+    }
+   ],
+   "gps": {
+    "lat": 36.22283,
+    "lon": 28.1153,
+    "zoom": 13
+   },
+   "hotelId": 924483,
+   "labels": [],
+   "noStars": 2,
+   "numberRating": 0,
+   "priceInfo": {
+    "group": {
+     "amount": 15478,
+     "currency": "CZK"
+    },
+    "regular": {
+     "amount": 7739,
+     "currency": "CZK"
+    }
+   },
+   "title": "Varelis Hotel"
+  },
+  {
+   "additionalInfo": {
+    "boarding": "Bez stravy",
+    "transport": {
+     "icon": "plane_ticket",
+     "label": "fields.transport.type.flight"
+    }
+   },
+   "address": "Řecko, Ostrovy, Korfu, Kavos",
+   "destinations": [
+    {
+     "id": 4826,
+     "name": "Řecko"
+    },
+    {
+     "id": 9368,
+     "name": "Ostrovy"
+    },
+    {
+     "id": 5196,
+     "name": "Korfu"
+    },
+    {
+     "id": 11469,
+     "name": "Kavos"
+    }
+   ],
+   "fullGalleryFetched": false,
+   "gallery": [
+    {
+     "alt": "",
+     "id": 26529187,
+     "large": "https://image.dovolena.cz/photos/89/f/110b474c0344f124ebd6866d53a58.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/89/f/110b474c0344f124ebd6866d53a58.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/89/f/110b474c0344f124ebd6866d53a58.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529199,
+     "large": "https://image.dovolena.cz/photos/9c/8/ada35fe3f42f390d22a24463f0bcb.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/9c/8/ada35fe3f42f390d22a24463f0bcb.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/9c/8/ada35fe3f42f390d22a24463f0bcb.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529198,
+     "large": "https://image.dovolena.cz/photos/8f/c/002ce3a8efeeb9f96593b88f75194.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/8f/c/002ce3a8efeeb9f96593b88f75194.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/8f/c/002ce3a8efeeb9f96593b88f75194.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529196,
+     "large": "https://image.dovolena.cz/photos/70/3/2f084e9307ca3b4808a806990e800.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/70/3/2f084e9307ca3b4808a806990e800.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/70/3/2f084e9307ca3b4808a806990e800.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529197,
+     "large": "https://image.dovolena.cz/photos/da/4/fe833ba7f7d0f5436359c6e4fa466.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/da/4/fe833ba7f7d0f5436359c6e4fa466.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/da/4/fe833ba7f7d0f5436359c6e4fa466.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529194,
+     "large": "https://image.dovolena.cz/photos/4d/c/2de9c8c3eabee1d2f661a13a86d09.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/4d/c/2de9c8c3eabee1d2f661a13a86d09.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/4d/c/2de9c8c3eabee1d2f661a13a86d09.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529195,
+     "large": "https://image.dovolena.cz/photos/d1/d/668f930898fb8281dbded47e96b15.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/d1/d/668f930898fb8281dbded47e96b15.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/d1/d/668f930898fb8281dbded47e96b15.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529193,
+     "large": "https://image.dovolena.cz/photos/be/9/1865a397de02f4fb5b191712d00db.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/be/9/1865a397de02f4fb5b191712d00db.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/be/9/1865a397de02f4fb5b191712d00db.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529192,
+     "large": "https://image.dovolena.cz/photos/01/d/e64a7f1ee000cd3de18bceb149134.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/01/d/e64a7f1ee000cd3de18bceb149134.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/01/d/e64a7f1ee000cd3de18bceb149134.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529191,
+     "large": "https://image.dovolena.cz/photos/5c/7/4077a6e698b229a57be98fde39241.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/5c/7/4077a6e698b229a57be98fde39241.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/5c/7/4077a6e698b229a57be98fde39241.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529189,
+     "large": "https://image.dovolena.cz/photos/20/a/36d89ba3e3eec32d9ff49242bcaa1.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/20/a/36d89ba3e3eec32d9ff49242bcaa1.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/20/a/36d89ba3e3eec32d9ff49242bcaa1.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529190,
+     "large": "https://image.dovolena.cz/photos/9b/3/72bea248d923bd46cb73f846a1e9a.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/9b/3/72bea248d923bd46cb73f846a1e9a.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/9b/3/72bea248d923bd46cb73f846a1e9a.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26529188,
+     "large": "https://image.dovolena.cz/photos/46/d/98a2f80d9e898a45ba547db7bc2e6.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/46/d/98a2f80d9e898a45ba547db7bc2e6.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/46/d/98a2f80d9e898a45ba547db7bc2e6.jpg"
+    }
+   ],
+   "gps": {
+    "lat": 39.39767,
+    "lon": 20.10162,
+    "zoom": 13
+   },
+   "hotelId": 924377,
+   "labels": [
+    7,
+    8
+   ],
+   "noStars": 2,
+   "numberRating": 0,
+   "priceInfo": {
+    "group": {
+     "amount": 15918,
+     "currency": "CZK"
+    },
+    "regular": {
+     "amount": 7959,
+     "currency": "CZK"
+    }
+   },
+   "title": "Captain's Studios Apartments"
+  },
+  {
+   "additionalInfo": {
+    "boarding": "Snídaně",
+    "transport": {
+     "icon": "plane_ticket",
+     "label": "fields.transport.type.flight"
+    }
+   },
+   "address": "Řecko, Pevnina, poloostrov Chalkidiki a Thessaloniki, Kryopigi",
+   "destinations": [
+    {
+     "id": 4826,
+     "name": "Řecko"
+    },
+    {
+     "id": 9367,
+     "name": "Pevnina"
+    },
+    {
+     "id": 5054,
+     "name": "poloostrov Chalkidiki a Thessaloniki"
+    },
+    {
+     "id": 11658,
+     "name": "Kryopigi"
+    }
+   ],
+   "fullGalleryFetched": false,
+   "gallery": [
+    {
+     "alt": "",
+     "id": 26528342,
+     "large": "https://image.dovolena.cz/photos/77/f/7acbc0429e18ac0a7187830624a16.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/77/f/7acbc0429e18ac0a7187830624a16.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/77/f/7acbc0429e18ac0a7187830624a16.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528347,
+     "large": "https://image.dovolena.cz/photos/bf/8/12f12425cc589e980226eea3b7a74.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/bf/8/12f12425cc589e980226eea3b7a74.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/bf/8/12f12425cc589e980226eea3b7a74.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528346,
+     "large": "https://image.dovolena.cz/photos/3c/7/b77f98a4c425ea14545684b6e4851.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/3c/7/b77f98a4c425ea14545684b6e4851.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/3c/7/b77f98a4c425ea14545684b6e4851.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528348,
+     "large": "https://image.dovolena.cz/photos/43/3/e1a0022b3b82e4ae7f4f1185f697f.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/43/3/e1a0022b3b82e4ae7f4f1185f697f.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/43/3/e1a0022b3b82e4ae7f4f1185f697f.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528344,
+     "large": "https://image.dovolena.cz/photos/06/d/4524fd1967378538739bc958a5b44.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/06/d/4524fd1967378538739bc958a5b44.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/06/d/4524fd1967378538739bc958a5b44.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528345,
+     "large": "https://image.dovolena.cz/photos/37/0/179cb631e5e2532a654662c27efc7.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/37/0/179cb631e5e2532a654662c27efc7.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/37/0/179cb631e5e2532a654662c27efc7.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528343,
+     "large": "https://image.dovolena.cz/photos/55/6/17115b9234479372c883b347f3290.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/55/6/17115b9234479372c883b347f3290.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/55/6/17115b9234479372c883b347f3290.jpg"
+    }
+   ],
+   "gps": {
+    "lat": 40.03676,
+    "lon": 23.474688,
+    "zoom": 13
+   },
+   "hotelId": 924336,
+   "labels": [],
+   "noStars": 3,
+   "numberRating": 0,
+   "priceInfo": {
+    "group": {
+     "amount": 15918,
+     "currency": "CZK"
+    },
+    "regular": {
+     "amount": 7959,
+     "currency": "CZK"
+    }
+   },
+   "title": "Medusa Aparthotel"
+  },
+  {
+   "additionalInfo": {
+    "boarding": "Snídaně",
+    "transport": {
+     "icon": "plane_ticket",
+     "label": "fields.transport.type.flight"
+    }
+   },
+   "address": "Řecko, Pevnina, poloostrov Chalkidiki a Thessaloniki, Chanioti",
+   "destinations": [
+    {
+     "id": 4826,
+     "name": "Řecko"
+    },
+    {
+     "id": 9367,
+     "name": "Pevnina"
+    },
+    {
+     "id": 5054,
+     "name": "poloostrov Chalkidiki a Thessaloniki"
+    },
+    {
+     "id": 11634,
+     "name": "Chanioti"
+    }
+   ],
+   "fullGalleryFetched": false,
+   "gallery": [
+    {
+     "alt": "",
+     "id": 26528296,
+     "large": "https://image.dovolena.cz/photos/7f/5/ac6dc91a4529af7e39cb9ab680045.jpg",
+     "priority": 1,
+     "small": "https://image.dovolena.cz/_small/photos/7f/5/ac6dc91a4529af7e39cb9ab680045.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/7f/5/ac6dc91a4529af7e39cb9ab680045.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528307,
+     "large": "https://image.dovolena.cz/photos/5d/e/6fda94f12fa9f347aa5a1416c0f8e.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/5d/e/6fda94f12fa9f347aa5a1416c0f8e.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/5d/e/6fda94f12fa9f347aa5a1416c0f8e.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528306,
+     "large": "https://image.dovolena.cz/photos/f6/9/36bf93842ce1fe708f9c3fe1d32e2.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/f6/9/36bf93842ce1fe708f9c3fe1d32e2.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/f6/9/36bf93842ce1fe708f9c3fe1d32e2.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528305,
+     "large": "https://image.dovolena.cz/photos/71/7/64f1cb36e6d9eb5f9b572f89995e3.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/71/7/64f1cb36e6d9eb5f9b572f89995e3.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/71/7/64f1cb36e6d9eb5f9b572f89995e3.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528304,
+     "large": "https://image.dovolena.cz/photos/81/8/5639a133c0da92d5787ee92d470cd.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/81/8/5639a133c0da92d5787ee92d470cd.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/81/8/5639a133c0da92d5787ee92d470cd.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528303,
+     "large": "https://image.dovolena.cz/photos/85/9/a4013fe2617cd18f7826315b85120.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/85/9/a4013fe2617cd18f7826315b85120.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/85/9/a4013fe2617cd18f7826315b85120.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528302,
+     "large": "https://image.dovolena.cz/photos/1a/8/4435914e4f74cb97d45ce74a3fd97.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/1a/8/4435914e4f74cb97d45ce74a3fd97.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/1a/8/4435914e4f74cb97d45ce74a3fd97.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528301,
+     "large": "https://image.dovolena.cz/photos/f6/f/bae5d55c9309e0365512750c71a89.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/f6/f/bae5d55c9309e0365512750c71a89.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/f6/f/bae5d55c9309e0365512750c71a89.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528300,
+     "large": "https://image.dovolena.cz/photos/31/f/5a22a593be1cc8dd33e58c25e53ca.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/31/f/5a22a593be1cc8dd33e58c25e53ca.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/31/f/5a22a593be1cc8dd33e58c25e53ca.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528299,
+     "large": "https://image.dovolena.cz/photos/2d/a/524e5ee1cc5938ca60dc4a3d62984.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/2d/a/524e5ee1cc5938ca60dc4a3d62984.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/2d/a/524e5ee1cc5938ca60dc4a3d62984.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528298,
+     "large": "https://image.dovolena.cz/photos/5a/0/1c7009be1dc8bf3ed18b29fbff0c6.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/5a/0/1c7009be1dc8bf3ed18b29fbff0c6.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/5a/0/1c7009be1dc8bf3ed18b29fbff0c6.jpg"
+    },
+    {
+     "alt": "",
+     "id": 26528297,
+     "large": "https://image.dovolena.cz/photos/1b/9/a12d76e4e86d60e5a8f0b49e1ba41.jpg",
+     "priority": 0,
+     "small": "https://image.dovolena.cz/_small/photos/1b/9/a12d76e4e86d60e5a8f0b49e1ba41.jpg",
+     "thumb": "https://image.dovolena.cz/_thumb/photos/1b/9/a12d76e4e86d60e5a8f0b49e1ba41.jpg"
+    }
+   ],
+   "gps": {
+    "lat": 39.998207,
+    "lon": 23.5778,
+    "zoom": 13
+   },
+   "hotelId": 924333,
+   "labels": [],
+   "noStars": 3,
+   "numberRating": 0,
+   "priceInfo": {
+    "group": {
+     "amount": 16338,
+     "currency": "CZK"
+    },
+    "regular": {
+     "amount": 8169,
+     "currency": "CZK"
+    }
+   },
+   "title": "Dionysos Hotel and Studios"
+  }
+ ],
+ "done": true,
+ "tags": [
+  {
+   "ids": [
+    {
+     "id": 4432
+    },
+    {
+     "id": 34
+    },
+    {
+     "id": 4426
+    },
+    {
+     "id": 4438
+    },
+    {
+     "id": 4449
+    },
+    {
+     "id": 4400
+    },
+    {
+     "id": 4484
+    },
+    {
+     "id": 35
+    },
+    {
+     "id": 49
+    },
+    {
+     "id": 4472
+    },
+    {
+     "id": 4352
+    },
+    {
+     "id": 4468
+    },
+    {
+     "id": 4342
+    },
+    {
+     "id": 32
+    }
+   ],
+   "name": "facts"
+  },
+  {
+   "ids": [
+    {
+     "id": 27
+    },
+    {
+     "id": 20
+    },
+    {
+     "id": 25
+    },
+    {
+     "id": 23
+    },
+    {
+     "id": 21
+    },
+    {
+     "id": 26
+    }
+   ],
+   "name": "board"
+  },
+  {
+   "ids": [
+    {
+     "id": 12
+    },
+    {
+     "id": -14
+    },
+    {
+     "id": -12
+    },
+    {
+     "id": -37
+    },
+    {
+     "id": -15
+    }
+   ],
+   "name": "discounticon"
+  },
+  {
+   "ids": [
+    {
+     "id": -27
+    },
+    {
+     "id": -30
+    },
+    {
+     "id": -28
+    }
+   ],
+   "name": "bonusicon"
+  },
+  {
+   "ids": [
+    {
+     "id": 7
+    },
+    {
+     "id": 28
+    },
+    {
+     "id": 12
+    },
+    {
+     "id": 17
+    },
+    {
+     "id": 26
+    },
+    {
+     "id": 9
+    },
+    {
+     "id": 29
+    },
+    {
+     "id": 10
+    },
+    {
+     "id": 27
+    },
+    {
+     "id": 20
+    },
+    {
+     "id": 2
+    },
+    {
+     "id": 4
+    },
+    {
+     "id": 19
+    },
+    {
+     "id": 3
+    },
+    {
+     "id": 14
+    },
+    {
+     "id": 1
+    },
+    {
+     "id": 31
+    },
+    {
+     "id": 13
+    },
+    {
+     "id": 6
+    },
+    {
+     "id": 11
+    },
+    {
+     "id": 15
+    },
+    {
+     "id": 18
+    },
+    {
+     "id": 5
+    },
+    {
+     "id": 16
+    },
+    {
+     "id": 8
+    }
+   ],
+   "name": "labels"
+  },
+  {
+   "ids": [
+    {
+     "id": -33
+    },
+    {
+     "id": -5
+    },
+    {
+     "id": -2
+    },
+    {
+     "id": -4
+    },
+    {
+     "id": -3
+    },
+    {
+     "id": -6
+    },
+    {
+     "id": -32
+    },
+    {
+     "id": -1
+    }
+   ],
+   "name": "hotelicon"
+  }
+ ]
+}
