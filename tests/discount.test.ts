@@ -524,8 +524,11 @@ describe('computeRealDiscount', () => {
       expect(result.fake).toBe(false);
     });
 
-    it('fake threshold at exactly 15 on the hotel tier', () => {
-      // basePN 2000, currentPN 1700 -> realPct = round((2000-1700)/2000*100) = 15
+    it('never flags fake on a PEER tier, however large the claimed-vs-real gap (2026-07-29)', () => {
+      // basePN 2000, currentPN 1700 -> realPct = round((2000-1700)/2000*100) = 15.
+      // claimedPct 30 leaves a 15pp gap, which would trip the old threshold — but the hotel rung
+      // measures "cheap vs peers", not "did it ever cost the claimed original price", so a claim
+      // is not checkable here and `fake` must stay false.
       const hotelTermPricesPN = [1800, 1900, 2000, 2100, 2200]; // median 2000
       const result = computeRealDiscount({
         current: 1700 * 4, // nights=4 -> currentPN=1700
@@ -535,9 +538,48 @@ describe('computeRealDiscount', () => {
         hotelTermPricesPN,
         localityPricesPN: [],
         marketPricesPN: [],
-        claimedPct: 30, // 30 - 15 = 15 -> fake
+        claimedPct: 30,
         now: NOW,
       });
+      expect(result.reference).toBe('hotel');
+      expect(result.realPct).toBe(15);
+      expect(result.fake).toBe(false);
+    });
+
+    it('a peer tier with a NEGATIVE realPct (pricier than peers) is not fake either', () => {
+      // The production over-fire: an honest claimed discount on an offer that simply costs more
+      // than its peers scored realPct < 0 and got branded fake.
+      const result = computeRealDiscount({
+        current: 2500 * 4,
+        nights: 4,
+        ownSnapshots: [],
+        omnibus: null,
+        hotelTermPricesPN: [1800, 1900, 2000, 2100, 2200], // median 2000 -> realPct = -25
+        localityPricesPN: [],
+        marketPricesPN: [],
+        claimedPct: 13,
+        now: NOW,
+      });
+      expect(result.realPct).toBe(-25);
+      expect(result.fake).toBe(false);
+    });
+
+    it('still flags fake on the OWN tier, where the claim IS checkable', () => {
+      // Own history says it sat at 2000 for weeks; the seller claims 30% off while realPct is 15.
+      const at = (d: number) => new Date(NOW.getTime() - d * 24 * 60 * 60 * 1000).toISOString();
+      const result = computeRealDiscount({
+        current: 1700,
+        nights: null,
+        ownSnapshots: [
+          { price: 2000, at: at(20) },
+          { price: 2000, at: at(12) },
+          { price: 2000, at: at(4) },
+        ],
+        omnibus: null,
+        claimedPct: 30,
+        now: NOW,
+      });
+      expect(result.reference).toBe('own');
       expect(result.realPct).toBe(15);
       expect(result.fake).toBe(true);
     });

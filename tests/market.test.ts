@@ -311,17 +311,22 @@ describe('localityBucketPricesPN (spec §15 locality rung)', () => {
     const subject = bucketOffer(); // Kréta, Řecko, AI, 4★, 2026-08-15
     const selfId = await seedFull(db, { key: 'self', title: 'Hotel Alfa', price: 21000, at });
 
-    // 8 in-bucket offers (Kréta, month 08, AI, 4★) — nights VARY, so per-night
-    // matters; all normalize to 2000/night.
+    // 8 in-bucket offers (Kréta, month 08, AI, 4★). The subject has nights=7 → band 6–8, so nights
+    // still VARY within the band (per-night normalization matters) and all normalize to 2000/night.
     await seedFull(db, { key: 'l1', title: 'Hotel B1', price: 14000, at, nights: 7, departureDate: '2026-08-10' });
     await seedFull(db, { key: 'l2', title: 'Hotel B2', price: 12000, at, nights: 6, departureDate: '2026-08-12' });
     await seedFull(db, { key: 'l3', title: 'Hotel B3', price: 16000, at, nights: 8, departureDate: '2026-08-14' });
-    await seedFull(db, { key: 'l4', title: 'Hotel B4', price: 20000, at, nights: 10, departureDate: '2026-08-16' });
-    await seedFull(db, { key: 'l5', title: 'Hotel B5', price: 10000, at, nights: 5, departureDate: '2026-08-18' });
-    await seedFull(db, { key: 'l6', title: 'Hotel B6', price: 24000, at, nights: 12, departureDate: '2026-08-20' });
-    await seedFull(db, { key: 'l7', title: 'Hotel B7', price: 18000, at, nights: 9, departureDate: '2026-08-22' });
-    await seedFull(db, { key: 'l8', title: 'Hotel B8', price: 8000, at, nights: 4, departureDate: '2026-08-24' });
+    await seedFull(db, { key: 'l4', title: 'Hotel B4', price: 14000, at, nights: 7, departureDate: '2026-08-16' });
+    await seedFull(db, { key: 'l5', title: 'Hotel B5', price: 12000, at, nights: 6, departureDate: '2026-08-18' });
+    await seedFull(db, { key: 'l6', title: 'Hotel B6', price: 16000, at, nights: 8, departureDate: '2026-08-20' });
+    await seedFull(db, { key: 'l7', title: 'Hotel B7', price: 14000, at, nights: 7, departureDate: '2026-08-22' });
+    await seedFull(db, { key: 'l8', title: 'Hotel B8', price: 12000, at, nights: 6, departureDate: '2026-08-24' });
 
+    // OUTSIDE the subject's nights band (2026-07-29 fix): a 12-night stay amortizes the fixed
+    // flight cost over more nights, so its per-night rate is not comparable to a 7-night one.
+    await seedFull(db, { key: 'long', title: 'Hotel L', price: 12000, at, nights: 12, departureDate: '2026-08-11' });
+    // Same, below the band.
+    await seedFull(db, { key: 'short', title: 'Hotel S', price: 12000, at, nights: 3, departureDate: '2026-08-13' });
     // Different locality (same month/board/stars): excluded.
     await seedFull(db, { key: 'rhodos', title: 'Hotel R', price: 99999, at, locality: 'Rhodos', departureDate: '2026-08-15' });
     // Different month: excluded.
@@ -335,6 +340,8 @@ describe('localityBucketPricesPN (spec §15 locality rung)', () => {
     expect(prices).toHaveLength(8);
     expect(prices.every((p) => p === 2000)).toBe(true);
     expect(prices).not.toContain(Math.round(99999 / 7));
+    expect(prices).not.toContain(1000); // 12000/12 — the out-of-band long stay
+    expect(prices).not.toContain(4000); // 12000/3  — the out-of-band short stay
   });
 
   it('returns [] when the subject locality is null', async () => {

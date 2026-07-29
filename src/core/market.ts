@@ -35,17 +35,31 @@ function departureMonth(departureDate: string | null): string | null {
  * both funnel through this so the dedup math has ONE definition. Result order is
  * irrelevant — computeRealDiscount only takes its median/length.
  */
-function perNightReduce(rows: { matchKey: string | null; nights: number | null; price: number }[]): number[] {
+function perNightReduce(
+  rows: { matchKey: string | null; hotelKey?: string | null; nights: number | null; price: number }[],
+  opts: { collapseByHotel?: boolean } = {},
+): number[] {
   const groupMin = new Map<string, number>();
   const prices: number[] = [];
   for (const row of rows) {
     if (row.nights == null || row.nights < 1) continue; // cannot normalize per-night
     const perNight = Math.round(row.price / row.nights);
-    if (row.matchKey == null) {
+
+    // One vote per PROPERTY for the peer rungs. Collapsing only exact cross-source twins let a
+    // hotel with many listed departure dates cast a full vote for each of them — production
+    // buckets averaged 2.16 rows per distinct hotel (max 3.8), so whichever property happened to
+    // list the most dates could set the "market median" (audit 2026-07-29). Falls back to the
+    // match_key twin collapse when a row has no hotel_key.
+    // NOT used for the hotel rung: every row there shares one hotel_key by construction, so
+    // collapsing would reduce that bucket to a single price.
+    const hotel = opts.collapseByHotel ? row.hotelKey : null;
+    // Namespaced so a hotel_key hash can never collide with a match_key hash in this map.
+    const key = hotel != null ? `h:${hotel}` : row.matchKey != null ? `m:${row.matchKey}` : null;
+    if (key == null) {
       prices.push(perNight);
     } else {
-      const prev = groupMin.get(row.matchKey);
-      if (prev == null || perNight < prev) groupMin.set(row.matchKey, perNight);
+      const prev = groupMin.get(key);
+      if (prev == null || perNight < prev) groupMin.set(key, perNight);
     }
   }
   return [...prices, ...groupMin.values()];
@@ -59,9 +73,10 @@ function perNightReduce(rows: { matchKey: string | null; nights: number | null; 
  */
 async function perNightPricesFor(
   db: Db,
-  rows: { id: number; matchKey: string | null; nights: number | null }[],
+  rows: { id: number; matchKey: string | null; hotelKey?: string | null; nights: number | null }[],
+  opts: { collapseByHotel?: boolean } = {},
 ): Promise<number[]> {
-  const withPrice: { matchKey: string | null; nights: number | null; price: number }[] = [];
+  const withPrice: { matchKey: string | null; hotelKey: string | null; nights: number | null; price: number }[] = [];
   for (const row of rows) {
     if (row.nights == null || row.nights < 1) continue; // cannot normalize per-night
     const [snap] = await db
@@ -71,9 +86,9 @@ async function perNightPricesFor(
       .orderBy(desc(priceSnapshots.id))
       .limit(1);
     if (!snap) continue;
-    withPrice.push({ matchKey: row.matchKey, nights: row.nights, price: snap.price });
+    withPrice.push({ matchKey: row.matchKey, hotelKey: row.hotelKey ?? null, nights: row.nights, price: snap.price });
   }
-  return perNightReduce(withPrice);
+  return perNightReduce(withPrice, opts);
 }
 
 /**
@@ -121,11 +136,11 @@ export async function marketBucketPrices(db: Db, offerId: number, offer: Normali
   }
 
   const rows = await db
-    .select({ id: offers.id, matchKey: offers.matchKey, nights: offers.nights })
+    .select({ id: offers.id, matchKey: offers.matchKey, hotelKey: offers.hotelKey, nights: offers.nights })
     .from(offers)
     .where(and(...conditions));
 
-  return perNightPricesFor(db, rows);
+  return perNightPricesFor(db, rows, { collapseByHotel: true });
 }
 
 /**
@@ -168,7 +183,7 @@ export async function hotelTermPricesPN(db: Db, offerId: number, offer: Normaliz
   conditions.push(lte(offers.departureDate, hiIso));
 
   const rows = await db
-    .select({ id: offers.id, matchKey: offers.matchKey, nights: offers.nights })
+    .select({ id: offers.id, matchKey: offers.matchKey, hotelKey: offers.hotelKey, nights: offers.nights })
     .from(offers)
     .where(and(...conditions));
 
@@ -185,6 +200,7 @@ export async function hotelTermPricesPN(db: Db, offerId: number, offer: Normaliz
 export async function localityBucketPricesPN(db: Db, offerId: number, offer: NormalizedOffer): Promise<number[]> {
   if (offer.locality == null) return []; // no locality → this rung doesn't apply
   const month = departureMonth(offer.departureDate);
+  const band = nightsBand(offer.nights);
   const subjectKey = computeMatchKey(offer);
 
   const conditions = [
@@ -196,6 +212,18 @@ export async function localityBucketPricesPN(db: Db, offerId: number, offer: Nor
   ];
   if (subjectKey != null) conditions.push(or(isNull(offers.matchKey), ne(offers.matchKey, subjectKey))!);
 
+  // Nights band, same as the market rung. Per-night normalization does NOT amortize the fixed
+  // flight cost, so a 3-night package has a structurally higher per-night rate than a 7-night one
+  // at the same hotel. Without this band a short stay was measured against 7-night per-night rates
+  // and scored realPct ≈ -90% (audit 2026-07-29: all 3 locality reps with nights ≤5 had median
+  // -89%, while the market rung — which already had the band — sat at 0%).
+  if (band.lo == null) {
+    conditions.push(isNull(offers.nights));
+  } else {
+    conditions.push(gte(offers.nights, band.lo));
+    if (band.hi != null) conditions.push(lte(offers.nights, band.hi));
+  }
+
   // Departure month (compare the YYYY-MM prefix).
   if (month == null) {
     conditions.push(isNull(offers.departureDate));
@@ -204,11 +232,11 @@ export async function localityBucketPricesPN(db: Db, offerId: number, offer: Nor
   }
 
   const rows = await db
-    .select({ id: offers.id, matchKey: offers.matchKey, nights: offers.nights })
+    .select({ id: offers.id, matchKey: offers.matchKey, hotelKey: offers.hotelKey, nights: offers.nights })
     .from(offers)
     .where(and(...conditions));
 
-  return perNightPricesFor(db, rows);
+  return perNightPricesFor(db, rows, { collapseByHotel: true });
 }
 
 /** Own-history snapshots for an offer over the last 30 days, as {price, at}. */
@@ -355,7 +383,7 @@ export function bucketPricesInMemory(
     // key; drop the subject's own twin. subjectKey null → no exclusion (all kept).
     if (subjectKey != null && c.matchKey != null && c.matchKey === subjectKey) continue;
 
-    const row = { matchKey: c.matchKey, nights: c.nights, price };
+    const row = { matchKey: c.matchKey, hotelKey: c.hotelKey, nights: c.nights, price };
 
     // MARKET: country × board × stars × nights band × departure month.
     if (
@@ -368,13 +396,15 @@ export function bucketPricesInMemory(
       marketRows.push(row);
     }
 
-    // LOCALITY: same locality × board × stars × departure month (no nights band).
+    // LOCALITY: same locality × board × stars × departure month × nights band (the band mirrors
+    // the SQL fn — see localityBucketPricesPN for why per-night rates need it).
     if (
       localityPossible &&
       c.locality === offer.locality &&
       eqNullable(c.board, offer.board) &&
       eqNullable(c.stars, offer.stars) &&
-      matchesMonth(c.departureDate, month)
+      matchesMonth(c.departureDate, month) &&
+      matchesNightsBand(c.nights, band)
     ) {
       localityRows.push(row);
     }
@@ -396,8 +426,10 @@ export function bucketPricesInMemory(
   }
 
   return {
+    // collapseByHotel mirrors the SQL fns exactly (parity test): one vote per property on the
+    // peer rungs, but NOT on the hotel rung where every row shares the subject's hotel_key.
     hotelTermPricesPN: hotelPossible ? perNightReduce(hotelRows) : [],
-    localityPricesPN: localityPossible ? perNightReduce(localityRows) : [],
-    marketPricesPN: perNightReduce(marketRows),
+    localityPricesPN: localityPossible ? perNightReduce(localityRows, { collapseByHotel: true }) : [],
+    marketPricesPN: perNightReduce(marketRows, { collapseByHotel: true }),
   };
 }

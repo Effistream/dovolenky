@@ -445,25 +445,37 @@ describe('runScan', () => {
     expect(alerts.length).toBe(1);
     expect(alerts[0]).toContain('broken');
 
-    // Case B: three prior failures already recorded → this run is the 4th → NO new alert.
-    const db2 = openDb(':memory:');
-    await ensureSchema(db2);
-    const tg2 = new TelegramMock();
-    await seedSourceRun(db2, 'broken', 'failed', '2026-07-04T04:00:00.000Z');
-    await seedSourceRun(db2, 'broken', 'failed', '2026-07-04T06:00:00.000Z');
-    await seedSourceRun(db2, 'broken', 'failed', '2026-07-04T08:00:00.000Z');
+    // Case A also records the alert, so a repeat inside the cooldown is suppressed.
+    const [logged] = await db
+      .select()
+      .from(notificationsLog)
+      .where(eq(notificationsLog.type, 'health_alert'));
+    expect(logged?.matchKey).toBe('health:broken'); // auditable, unlike the old fire-and-forget alert
 
-    await runScan({
-      db: db2,
+    // Case B: the source keeps failing, but an alert already went out 2h ago → stay quiet.
+    // (The OLD rule fired only on the exact 2→3 transition, which meant a source that stayed
+    // broken never alerted again; the cooldown is what prevents spam now — audit 2026-07-29.)
+    const summaryB = await runScan({
+      db,
       cfg: makeConfig({ profiles: {} }),
       http: makeHttp(),
-      telegram: tg2 as unknown as import('../src/core/telegram.js').Telegram,
+      telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
       adapters: [throwingAdapter()],
-      now: new Date('2026-07-04T10:00:00.000Z'),
+      now: new Date('2026-07-04T12:00:00.000Z'),
     });
+    expect(summaryB.perSource[0]?.status).toBe('failed');
+    expect(tg.messages.filter((m) => m.includes('🛠')).length).toBe(1); // still just the one
 
-    const alerts2 = tg2.messages.filter((m) => m.includes('🛠'));
-    expect(alerts2.length).toBe(0);
+    // Case C: once the 24h cooldown lapses and it is STILL broken, alert again.
+    await runScan({
+      db,
+      cfg: makeConfig({ profiles: {} }),
+      http: makeHttp(),
+      telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [throwingAdapter()],
+      now: new Date('2026-07-05T12:00:00.000Z'),
+    });
+    expect(tg.messages.filter((m) => m.includes('🛠')).length).toBe(2);
   });
 
   it('scenario 5: digest sent once at 08:15 when none today, not sent a second time same day', async () => {
@@ -972,84 +984,18 @@ describe('runScan', () => {
     expect(alerts.length).toBe(1);
     expect(alerts[0]).toContain('blocked');
 
-    // With a 4th real prior failure in the filtered chain, this would be the 4th failure → no alert.
-    const db2 = openDb(':memory:');
-    await ensureSchema(db2);
-    const tg2 = new TelegramMock();
-    await db2.insert(sourceRuns).values([
-      {
-        source: 'blocked',
-        startedAt: '2026-06-30T00:00:00.000Z',
-        finishedAt: '2026-06-30T00:00:00.000Z',
-        offersFound: 0,
-        snapshotsWritten: 0,
-        errorCount: 1,
-        status: 'failed',
-        errorSample: 'BLOCKED:Request blocked with status 403',
-      },
-      {
-        source: 'blocked',
-        startedAt: '2026-06-30T04:00:00.000Z',
-        finishedAt: '2026-06-30T04:00:00.000Z',
-        offersFound: 0,
-        snapshotsWritten: 0,
-        errorCount: 0,
-        status: 'partial',
-        errorSample: 'backoff',
-      },
-      {
-        source: 'blocked',
-        startedAt: '2026-07-01T00:00:00.000Z',
-        finishedAt: '2026-07-01T00:00:00.000Z',
-        offersFound: 0,
-        snapshotsWritten: 0,
-        errorCount: 1,
-        status: 'failed',
-        errorSample: 'BLOCKED:Request blocked with status 403',
-      },
-      {
-        source: 'blocked',
-        startedAt: '2026-07-01T04:00:00.000Z',
-        finishedAt: '2026-07-01T04:00:00.000Z',
-        offersFound: 0,
-        snapshotsWritten: 0,
-        errorCount: 0,
-        status: 'partial',
-        errorSample: 'backoff',
-      },
-      {
-        source: 'blocked',
-        startedAt: '2026-07-02T02:00:00.000Z',
-        finishedAt: '2026-07-02T02:00:00.000Z',
-        offersFound: 0,
-        snapshotsWritten: 0,
-        errorCount: 1,
-        status: 'failed',
-        errorSample: 'BLOCKED:Request blocked with status 403',
-      },
-      {
-        source: 'blocked',
-        startedAt: '2026-07-02T06:00:00.000Z',
-        finishedAt: '2026-07-02T06:00:00.000Z',
-        offersFound: 0,
-        snapshotsWritten: 0,
-        errorCount: 0,
-        status: 'partial',
-        errorSample: 'backoff',
-      },
-    ]);
-
+    // The alert is rate-limited, not transition-gated: it stays quiet while the 24h cooldown
+    // holds even though the source keeps failing (the old rule instead went permanently silent
+    // after the first 3-failure transition — audit 2026-07-29).
     await runScan({
-      db: db2,
+      db,
       cfg: makeConfig({ profiles: {} }),
       http: makeHttp(),
-      telegram: tg2 as unknown as import('../src/core/telegram.js').Telegram,
+      telegram: tg as unknown as import("../src/core/telegram.js").Telegram,
       adapters: [blockedAdapter()],
-      now: new Date('2026-07-04T10:00:00.000Z'),
+      now: new Date("2026-07-04T14:00:00.000Z"),
     });
-
-    const alerts2 = tg2.messages.filter((m) => m.includes('🛠'));
-    expect(alerts2.length).toBe(0);
+    expect(tg.messages.filter((m) => m.includes("🛠")).length).toBe(1);
   });
 
   it('scenario 12: two sources of the same physical tour → ONE message with "Také:" and a match_key-carrying log row (spec §13)', async () => {

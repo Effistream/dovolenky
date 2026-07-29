@@ -147,6 +147,17 @@ export async function ensureSchema(db: Db): Promise<void> {
     CREATE INDEX IF NOT EXISTS offers_match_key_idx ON offers (match_key)
   `);
 
+  // notifications_log had no index at all, so every dedup lookup (one per candidate, hundreds per
+  // scan) full-scanned a table growing ~106 rows/day — the same rows-read pattern that blew the
+  // Turso quota in July. filterAgainstLog looks up by (match_key, type) OR (offer_id, type).
+  // Must come AFTER the ensureColumn above that adds notifications_log.match_key.
+  await db.run(`
+    CREATE INDEX IF NOT EXISTS notifications_log_match_key_type_idx ON notifications_log (match_key, type)
+  `);
+  await db.run(`
+    CREATE INDEX IF NOT EXISTS notifications_log_offer_id_type_idx ON notifications_log (offer_id, type)
+  `);
+
   // Hotel identity key (spec §15) — one level up from match_key (no date/nights/board), used
   // by the discount-v2 "hotel" reference rung. Same ALTER TABLE + index + backfill pattern.
   await ensureColumn(db, 'offers', 'hotel_key', 'hotel_key TEXT');

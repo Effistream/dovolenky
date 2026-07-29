@@ -18,7 +18,24 @@ import { hasDeparted } from './dates.js';
  * normalized offer) and everything downstream agree. Departing TODAY is kept.
  */
 function normalizeDeparture(offer: NormalizedOffer, now: Date): NormalizedOffer {
-  return hasDeparted(offer.departureDate, now) ? { ...offer, departureDate: null } : offer;
+  const departureDate = hasDeparted(offer.departureDate, now) ? null : offer.departureDate;
+
+  // price_per_person / price_total are INTEGER columns, but adapters that derive a per-person
+  // price by dividing a party total (e.g. zajezdy: total / 2 adults) can produce fractions —
+  // 170 stored snapshots carried values like 35854.7 (audit 2026-07-29). SQLite keeps them as
+  // REAL, which makes ingest's `priceChanged` equality test and formatCzk both see decimals.
+  // Round once here, at the single write path, so the stored value matches the declared type.
+  const pricePerPerson = Math.round(offer.pricePerPerson);
+  const priceTotal = offer.priceTotal == null ? null : Math.round(offer.priceTotal);
+
+  if (
+    departureDate === offer.departureDate &&
+    pricePerPerson === offer.pricePerPerson &&
+    priceTotal === offer.priceTotal
+  ) {
+    return offer;
+  }
+  return { ...offer, departureDate, pricePerPerson, priceTotal };
 }
 
 // A snapshot is written on every price change; absent a change, a "heartbeat" snapshot records
@@ -81,6 +98,15 @@ export interface IngestResult {
    * from what's actually stored in the DB (2026-07-07 fix).
    */
   persistedTitle: string;
+  /**
+   * The offer's persisted `first_seen_at` (ISO). For a brand-new offer this is the current scan's
+   * timestamp. Exposed so run.ts can keep a new_offer notification ELIGIBLE for a short window
+   * rather than only on the single run where isNew was true: the per-run message cap used to
+   * discard overflowing new_offer candidates permanently (they never regenerate, so 58% of all
+   * eligible new offers were never sent — audit 2026-07-29). Comes from a row already loaded, so
+   * it costs no extra query.
+   */
+  firstSeenAt: string;
 }
 
 // Does `err` look like a libsql/SQLite unique-constraint violation? Checks the
@@ -148,7 +174,9 @@ async function ingestExistingOffer(
   // can legitimately come back as a placeholder in run N+1 — without this guard that would
   // silently revert the stored name (2026-07-07 regression). Any other combination (real->real,
   // placeholder->real, placeholder->placeholder) refreshes the title as before.
-  const [existingRow] = await db.select({ title: offers.title }).from(offers).where(eq(offers.id, offerId));
+  // firstSeenAt rides along on this already-needed read (no extra query) — run.ts uses it to keep
+  // a new_offer eligible for a short window instead of only on the isNew run.
+  const [existingRow] = await db.select({ title: offers.title, firstSeenAt: offers.firstSeenAt }).from(offers).where(eq(offers.id, offerId));
   const incomingIsPlaceholder = isPlaceholderTitle(offer.title);
   const existingIsReal = existingRow ? !isPlaceholderTitle(existingRow.title) : false;
   const nextTitle = incomingIsPlaceholder && existingIsReal ? existingRow!.title : offer.title;
@@ -182,7 +210,14 @@ async function ingestExistingOffer(
     })
     .where(eq(offers.id, offerId));
 
-  return { offerId, isNew: false, snapshotWritten: shouldWriteSnapshot, previousPrice, persistedTitle: nextTitle };
+  return {
+    offerId,
+    isNew: false,
+    snapshotWritten: shouldWriteSnapshot,
+    previousPrice,
+    persistedTitle: nextTitle,
+    firstSeenAt: existingRow?.firstSeenAt ?? nowIso,
+  };
 }
 
 export async function ingestOffer(db: Db, offer: NormalizedOffer, now: Date = new Date()): Promise<IngestResult> {
@@ -241,7 +276,7 @@ export async function ingestOffer(db: Db, offer: NormalizedOffer, now: Date = ne
         omnibusLowestPrice: offer.omnibusLowestPrice,
       });
 
-      return { offerId, isNew: true, snapshotWritten: true, previousPrice: null, persistedTitle: offer.title };
+      return { offerId, isNew: true, snapshotWritten: true, previousPrice: null, persistedTitle: offer.title, firstSeenAt: nowIso };
     } catch (err) {
       if (!isUniqueConstraintError(err)) {
         throw err;
@@ -481,6 +516,7 @@ export async function ingestSourceOffers(
       snapshotWritten: shouldWriteSnapshot,
       previousPrice,
       persistedTitle: nextTitle,
+      firstSeenAt: existing.firstSeenAt,
     };
   }
 
@@ -499,6 +535,7 @@ export async function ingestSourceOffers(
         snapshotWritten: true,
         previousPrice: null,
         persistedTitle: offer.title,
+        firstSeenAt: nowIso,
       };
       newSnapshotStmts.push(
         db.insert(priceSnapshots).values({

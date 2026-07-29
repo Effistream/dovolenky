@@ -22,15 +22,41 @@ import { BLOCKED_PREFIX, BACKOFF_MARKER, RECENT_RUN_SCAN_LIMIT, isBackoffRow, ba
 const NO_DISCOUNT: DiscountResult = { realPct: null, reference: null, baseline: null, fake: false };
 
 /**
+ * How long after first_seen_at an offer can still produce a new_offer notification.
+ *
+ * Gating on ingest's one-shot `isNew` made an overflowing new_offer unrecoverable: the per-run
+ * message cap dropped it, nothing was logged, and `isNew` never came back — 58% of all eligible
+ * new offers were never sent (audit 2026-07-29). Keeping eligibility open for a window turns the
+ * cap into a DELAY instead of a loss; notify.ts#shouldSend still enforces at-most-once via the
+ * notifications_log row. 3 days covers a weekend of GitHub-cron hiccups (observed gaps up to
+ * 4.5h) without resurrecting offers so old they are no longer "new".
+ */
+const NEW_OFFER_ELIGIBLE_MS = 3 * 24 * 60 * 60 * 1000;
+
+/** True while an offer is still inside the new_offer window (brand-new offers always qualify). */
+function isNewOfferEligible(ingest: { isNew: boolean; firstSeenAt: string }, now: Date): boolean {
+  if (ingest.isNew) return true;
+  const firstSeen = new Date(ingest.firstSeenAt).getTime();
+  if (!Number.isFinite(firstSeen)) return false;
+  return now.getTime() - firstSeen <= NEW_OFFER_ELIGIBLE_MS;
+}
+
+/**
  * Overall wall-clock ceiling for a single adapter's fetchOffers. The per-request 25s HttpClient
  * timeout bounds one request, but an adapter that makes many requests to a host that tarpits our
  * IP (some sites do this to datacenter IPs like a GitHub Actions runner) would still take
  * minutes — and since the fetch phase runs all adapters concurrently, one such adapter would
  * stall the whole scan. This caps each adapter: on timeout its fetch is abandoned and that source
- * is recorded 'failed', while every responsive source completes normally. Set comfortably above
- * the slowest legit adapter (adventura ~25 pages × 3s ≈ 80s; zajezdy 12 slugs × 5s ≈ 65s).
+ * is recorded 'failed', while every responsive source completes normally.
+ *
+ * Sized against the per-adapter REQUEST BUDGET (see docs/audits/2026-07-29): adapters paginate to
+ * at most ~40 requests, and HttpClient enforces a 3s per-host gap, so a legit worst case is
+ * ~40 × (3s gap + ~1s fetch) ≈ 160s. 240s leaves margin for a slow-but-alive host without letting
+ * a tarpitting one stall the concurrent fetch phase. The whole scan is bounded by the SLOWEST
+ * adapter (they run concurrently), so this also bounds scan wall-clock — comfortably inside the
+ * GitHub Actions job's 30min timeout.
  */
-const ADAPTER_FETCH_TIMEOUT_MS = 120000;
+const ADAPTER_FETCH_TIMEOUT_MS = 240000;
 
 /** Reject with an Error after `ms` if `p` hasn't settled. Does not cancel `p` (its in-flight
  * requests still settle via their own per-request timeout); the caller just stops waiting. */
@@ -173,7 +199,7 @@ async function processOffers(
       const outcomes = evaluateOffer({
         offerId: ingest.offerId,
         offer,
-        isNew: ingest.isNew,
+        newOfferEligible: isNewOfferEligible(ingest, now),
         previousPrice: ingest.previousPrice,
         discount,
         matches,
@@ -212,32 +238,86 @@ async function processOffers(
  * fail (absent rows count as success). The current run's row must already be
  * written before calling this.
  */
+/** notifications_log `type` for scraper-health alerts (not an offer notification). */
+const HEALTH_ALERT_TYPE = 'health_alert';
+/** Synthetic per-source dedup identity stored in notifications_log.match_key. */
+const HEALTH_ALERT_IDENTITY_PREFIX = 'health:';
+/** At most one health alert per source per 24h. */
+const HEALTH_ALERT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+/** Chronic trigger needs a meaningful window before it can fire. */
+const HEALTH_CHRONIC_MIN_RUNS = 6;
+/** Share of recent runs that must be barren for the chronic trigger. */
+const HEALTH_CHRONIC_BAD_RATE = 0.5;
+
 async function maybeSendHealthAlert(
   db: Db,
   source: string,
   telegram: Telegram | null,
   dryRun: boolean,
+  now: Date,
 ): Promise<boolean> {
   // Pull a generous window and drop the benign backoff-skip bookkeeping rows: a persistently
   // blocked source alternates failed / backoff-partial rows, so counting raw rows would break the
   // consecutive-failure chain and the alert would NEVER fire (I2 defect). The chain is computed
   // over REAL runs only; index 0 of the filtered sequence = current run just written.
   const rows = await db
-    .select({ status: sourceRuns.status, errorSample: sourceRuns.errorSample })
+    .select({ status: sourceRuns.status, errorSample: sourceRuns.errorSample, offersFound: sourceRuns.offersFound })
     .from(sourceRuns)
     .where(eq(sourceRuns.source, source))
     .orderBy(desc(sourceRuns.id))
     .limit(RECENT_RUN_SCAN_LIMIT);
   const recent = rows.filter((r) => !isBackoffRow(r.errorSample));
+  if (recent.length === 0) return false;
 
-  const failedAt = (i: number): boolean => recent[i]?.status === 'failed';
-  const succeededAt = (i: number): boolean => !failedAt(i); // absent counts as success
+  // "Barren" = the run produced nothing usable: an outright failure, OR a run that finished but
+  // returned zero offers. The old rule looked only at status==='failed', so zajezdy — the largest
+  // source — logged status 'partial' with 0 offers on 68% of its runs and never once alerted
+  // (audit 2026-07-29).
+  const barrenAt = (i: number): boolean => {
+    const r = recent[i];
+    if (!r) return false; // absent = no evidence of trouble
+    return r.status === 'failed' || (r.offersFound ?? 0) === 0;
+  };
 
-  const shouldAlert = failedAt(0) && failedAt(1) && failedAt(2) && succeededAt(3);
-  if (!shouldAlert) return false;
+  // Two independent triggers:
+  // (a) ACUTE — three barren runs in a row (the classic "scraper just broke").
+  // (b) CHRONIC — at least half of a full window is barren. The old 2→3-transition-only rule was
+  //     blind to sources that alternate fail/succeed forever: etravel failed 38% of runs and
+  //     alerted once ever; eximtours 31% and fischer 27% never alerted at all.
+  const acute = barrenAt(0) && barrenAt(1) && barrenAt(2);
+  const barrenCount = recent.filter((_, i) => barrenAt(i)).length;
+  const chronic =
+    recent.length >= HEALTH_CHRONIC_MIN_RUNS && barrenCount / recent.length >= HEALTH_CHRONIC_BAD_RATE;
+  if (!acute && !chronic) return false;
 
+  // Rate limit + audit trail in one: the alert is recorded in notifications_log under a synthetic
+  // per-source identity, so (1) repeated alerts inside the cooldown are suppressed — the old rule
+  // re-fired every time a flapping source's streak re-reached 3 (16 alerts in 7 days from
+  // dovolenkovani+firo alone) — and (2) health alerts finally show up in notification audits,
+  // where they were previously invisible.
+  const identity = `${HEALTH_ALERT_IDENTITY_PREFIX}${source}`;
+  const [last] = await db
+    .select({ sentAt: notificationsLog.sentAt })
+    .from(notificationsLog)
+    .where(and(eq(notificationsLog.matchKey, identity), eq(notificationsLog.type, HEALTH_ALERT_TYPE)))
+    .orderBy(desc(notificationsLog.id))
+    .limit(1);
+  if (last && now.getTime() - new Date(last.sentAt).getTime() < HEALTH_ALERT_COOLDOWN_MS) return false;
+
+  const reason = acute
+    ? 'selhal 3× v řadě'
+    : `nic nevrátil v ${barrenCount} z posledních ${recent.length} běhů`;
   if (!dryRun && telegram) {
-    await telegram.send(`🛠 Zdroj <b>${source}</b> selhal 3× v řadě — scraper může být rozbitý.`);
+    await telegram.send(`🛠 Zdroj <b>${source}</b> ${reason} — scraper může být rozbitý.`);
+  }
+  if (!dryRun) {
+    await db.insert(notificationsLog).values({
+      offerId: null,
+      type: HEALTH_ALERT_TYPE,
+      sentAt: now.toISOString(),
+      priceAtSend: null,
+      matchKey: identity,
+    });
   }
   return true;
 }
@@ -526,7 +606,7 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
   // --- Health alerts (per source whose current run failed) ---
   for (const s of perSource) {
     if (s.status === 'failed') {
-      await maybeSendHealthAlert(db, s.source, telegram, dryRun);
+      await maybeSendHealthAlert(db, s.source, telegram, dryRun, now);
     }
   }
 

@@ -146,7 +146,18 @@ export function computeRealDiscount(input: ComputeRealDiscountInput): DiscountRe
   // baseline" figure, because both go through independent rounding steps.
   // Known and accepted (spec §15) — not worth a shared unrounded intermediate.
   const realPct = Math.round(((baseForPct - currentForPct) / baseForPct) * 100);
-  const fake = input.claimedPct != null && realPct != null && input.claimedPct - realPct >= FAKE_THRESHOLD_PP;
+
+  // `fake` = "the advertised discount is inflated". That is only a sound inference against THIS
+  // offer's own price history (own) or the seller's Omnibus 30-day low — both answer "did it ever
+  // cost the claimed original price?". The hotel/locality/market rungs answer a different question
+  // ("is it cheap versus peers?"), so subtracting them from a claimed discount compares unlike
+  // quantities: an offer pricier than its peers scored a negative realPct and got branded fake
+  // even with an honest discount. That over-fired on 57% of comparable offers, ~100 of them purely
+  // from peer rungs (audit 2026-07-29). Peer-based rungs now leave `fake` false; the board still
+  // shows their realPct/baseline, which is the honest signal there.
+  const claimIsCheckable = reference === 'own' || reference === 'omnibus';
+  const fake =
+    claimIsCheckable && input.claimedPct != null && input.claimedPct - realPct >= FAKE_THRESHOLD_PP;
 
   return { realPct, reference, baseline, fake };
 }

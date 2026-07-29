@@ -75,7 +75,7 @@ describe('evaluateOffer', () => {
     const result = evaluateOffer({
       offerId: 1,
       offer: makeOffer(),
-      isNew: false,
+      newOfferEligible: false,
       previousPrice: null,
       discount: makeDiscount({ realPct: 20 }),
       matches: [{ name: 'summer-sea', profile: makeProfile({ minRealDiscountPct: 15 }) }],
@@ -89,7 +89,7 @@ describe('evaluateOffer', () => {
     const result = evaluateOffer({
       offerId: 1,
       offer: makeOffer(),
-      isNew: false,
+      newOfferEligible: false,
       previousPrice: null,
       discount: makeDiscount({ realPct: null }),
       matches: [{ name: 'summer-sea', profile: makeProfile({ minRealDiscountPct: 15 }) }],
@@ -103,7 +103,7 @@ describe('evaluateOffer', () => {
     const result = evaluateOffer({
       offerId: 1,
       offer: makeOffer(),
-      isNew: false,
+      newOfferEligible: false,
       previousPrice: null,
       discount: makeDiscount({ realPct: 10 }),
       matches: [{ name: 'summer-sea', profile: makeProfile({ minRealDiscountPct: 15 }) }],
@@ -117,7 +117,7 @@ describe('evaluateOffer', () => {
     const result = evaluateOffer({
       offerId: 1,
       offer: makeOffer(),
-      isNew: false,
+      newOfferEligible: false,
       previousPrice: null,
       discount: makeDiscount({ realPct: 30 }),
       matches: [
@@ -137,7 +137,7 @@ describe('evaluateOffer', () => {
     const result = evaluateOffer({
       offerId: 1,
       offer,
-      isNew: false,
+      newOfferEligible: false,
       previousPrice: 10000,
       discount: makeDiscount(),
       matches: [{ name: 'summer-sea', profile: makeProfile() }],
@@ -152,7 +152,7 @@ describe('evaluateOffer', () => {
     const result = evaluateOffer({
       offerId: 1,
       offer,
-      isNew: false,
+      newOfferEligible: false,
       previousPrice: null,
       discount: makeDiscount(),
       matches: [{ name: 'summer-sea', profile: makeProfile() }],
@@ -167,7 +167,7 @@ describe('evaluateOffer', () => {
     const result = evaluateOffer({
       offerId: 1,
       offer,
-      isNew: false,
+      newOfferEligible: false,
       previousPrice: 10000,
       discount: makeDiscount(),
       matches: [{ name: 'summer-sea', profile: makeProfile() }],
@@ -181,7 +181,7 @@ describe('evaluateOffer', () => {
     const result = evaluateOffer({
       offerId: 1,
       offer: makeOffer(),
-      isNew: true,
+      newOfferEligible: true,
       previousPrice: null,
       discount: makeDiscount(),
       matches: [{ name: 'summer-sea', profile: makeProfile({ notifyNewOffers: true }) }],
@@ -195,7 +195,7 @@ describe('evaluateOffer', () => {
     const result = evaluateOffer({
       offerId: 1,
       offer: makeOffer(),
-      isNew: false,
+      newOfferEligible: false,
       previousPrice: null,
       discount: makeDiscount(),
       matches: [{ name: 'summer-sea', profile: makeProfile({ notifyNewOffers: true }) }],
@@ -209,7 +209,7 @@ describe('evaluateOffer', () => {
     const result = evaluateOffer({
       offerId: 1,
       offer: makeOffer(),
-      isNew: true,
+      newOfferEligible: true,
       previousPrice: null,
       discount: makeDiscount(),
       matches: [{ name: 'summer-sea', profile: makeProfile({ notifyNewOffers: false }) }],
@@ -224,7 +224,7 @@ describe('evaluateOffer', () => {
     const result = evaluateOffer({
       offerId: 1,
       offer,
-      isNew: true,
+      newOfferEligible: true,
       previousPrice: 10000,
       discount: makeDiscount({ realPct: 20 }),
       matches: [
@@ -245,7 +245,7 @@ describe('evaluateOffer', () => {
     const result = evaluateOffer({
       offerId: 1,
       offer: makeOffer(),
-      isNew: false,
+      newOfferEligible: false,
       previousPrice: null,
       discount: makeDiscount(),
       matches: [],
@@ -294,14 +294,34 @@ describe('groupCandidates', () => {
     ]);
   });
 
-  it('same matchKey but different type are NOT merged', () => {
+  it('collapses several types of the SAME offer into one message, keeping the strongest (2026-07-29)', () => {
+    // One physical tour that produced both a hot_deal and a price_drop this run. Sending both is
+    // duplicate noise (18.6% of all production messages) and burns two slots of the per-run cap.
     const cands = [
       cand({ offerId: 1, matchKey: 'M', type: 'hot_deal', source: 'invia', price: 14000 }),
       cand({ offerId: 2, matchKey: 'M', type: 'price_drop', source: 'skrz', price: 13000 }),
     ];
     const grouped = groupCandidates(cands);
-    expect(grouped).toHaveLength(2);
-    for (const g of grouped) expect(g.alternatives).toEqual([]);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]!.type).toBe('hot_deal'); // hot_deal > price_drop > new_offer
+  });
+
+  it('collapses types for a null-matchKey offer too, keyed on offerId', () => {
+    const cands = [
+      cand({ offerId: 7, matchKey: null, type: 'new_offer', source: 'invia', price: 14000 }),
+      cand({ offerId: 7, matchKey: null, type: 'price_drop', source: 'invia', price: 14000 }),
+    ];
+    const grouped = groupCandidates(cands);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]!.type).toBe('price_drop');
+  });
+
+  it('does NOT collapse different offers that merely share a type', () => {
+    const cands = [
+      cand({ offerId: 1, matchKey: 'A', type: 'hot_deal', source: 'invia', price: 14000 }),
+      cand({ offerId: 2, matchKey: 'B', type: 'hot_deal', source: 'skrz', price: 13000 }),
+    ];
+    expect(groupCandidates(cands)).toHaveLength(2);
   });
 
   it('null matchKeys are never merged, even when otherwise identical', () => {
@@ -657,5 +677,40 @@ describe('capMessages', () => {
     const { send, overflow } = capMessages(candidates, 20);
     expect(send).toHaveLength(2);
     expect(overflow).toBe(0);
+  });
+
+  it('reserves cap slots for new_offer so a burst of hot deals cannot starve it (2026-07-29)', () => {
+    // Production shape: new offers have no own-price history, so realPct is null and a pure
+    // "best discount first" ranking always sorted them into the overflow tail — 58% of eligible
+    // new offers were never sent.
+    const hot = Array.from({ length: 18 }, (_, i) => ({
+      ...makeCandidateWithRealPct(40 - i, 100 + i),
+      type: 'hot_deal' as const,
+    }));
+    const news = Array.from({ length: 10 }, (_, i) => ({
+      ...makeCandidateWithRealPct(null, 200 + i),
+      type: 'new_offer' as const,
+    }));
+
+    const { send, overflow } = capMessages([...hot, ...news], 10);
+    expect(send).toHaveLength(10);
+    expect(overflow).toBe(18);
+    // Half the cap is reserved for new offers; the rest goes to the strongest discounts.
+    expect(send.filter((c) => c.type === 'new_offer')).toHaveLength(5);
+    expect(send.filter((c) => c.type === 'hot_deal')).toHaveLength(5);
+  });
+
+  it('does not idle reserved capacity when there are few new offers', () => {
+    const hot = Array.from({ length: 12 }, (_, i) => ({
+      ...makeCandidateWithRealPct(40 - i, 100 + i),
+      type: 'hot_deal' as const,
+    }));
+    const news = [{ ...makeCandidateWithRealPct(null, 200), type: 'new_offer' as const }];
+
+    const { send } = capMessages([...hot, ...news], 10);
+    expect(send).toHaveLength(10);
+    // Only 1 new offer exists, so it takes 1 slot and hot deals get the other 9.
+    expect(send.filter((c) => c.type === 'new_offer')).toHaveLength(1);
+    expect(send.filter((c) => c.type === 'hot_deal')).toHaveLength(9);
   });
 });
