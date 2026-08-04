@@ -63,13 +63,20 @@ function isNewOfferEligible(ingest: { isNew: boolean; firstSeenAt: string }, now
  * is recorded 'failed', while every responsive source completes normally.
  *
  * Sized against the per-adapter REQUEST BUDGET (see docs/audits/2026-07-29): adapters paginate to
- * at most ~40 requests, and HttpClient enforces a 3s per-host gap, so a legit worst case is
- * ~40 × (3s gap + ~1s fetch) ≈ 160s. 240s leaves margin for a slow-but-alive host without letting
- * a tarpitting one stall the concurrent fetch phase. The whole scan is bounded by the SLOWEST
- * adapter (they run concurrently), so this also bounds scan wall-clock — comfortably inside the
- * GitHub Actions job's 30min timeout.
+ * at most ~40 requests. The first sizing (240s) assumed ~1s per fetch on top of the 3s per-host
+ * gap — measured reality is worse, and it made three healthy adapters fail outright: firo and
+ * dovolenkovani (53 requests, 128s locally, plus a 150s hotel-name enrichment tail) and zajezdy
+ * (20 pages behind a 5s per-host gap = 193s locally) blew the budget from BOTH a residential and
+ * a datacenter IP, so those sources went red with zero offers.
+ *
+ * 420s is sized from those measurements with room for a datacenter IP's slower fetches. Cutting
+ * pagination instead would have traded away the coverage this budget exists to enable, and a
+ * source that returns nothing is strictly worse than one that returns a lot slowly. The scan runs
+ * adapters CONCURRENTLY, so this bounds total scan wall-clock at ~7min — still far inside the
+ * GitHub Actions job's 30min timeout. (Note: api/cron/scan.ts is capped at Vercel's 300s
+ * maxDuration; that route is unused — scanning runs on GitHub Actions and the Mac fallback.)
  */
-const ADAPTER_FETCH_TIMEOUT_MS = 240000;
+const ADAPTER_FETCH_TIMEOUT_MS = 420000;
 
 /** Reject with an Error after `ms` if `p` hasn't settled. Does not cancel `p` (its in-flight
  * requests still settle via their own per-request timeout); the caller just stops waiting. */
