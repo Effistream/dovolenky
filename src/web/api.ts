@@ -10,6 +10,7 @@ import { matchProfiles } from '../core/filters.js';
 import { hasDeparted } from '../core/dates.js';
 import { RECENT_RUN_SCAN_LIMIT, backoffUntilFrom } from '../core/backoff.js';
 import { getExcludedCountries, setExcludedCountries } from '../core/db/exclusions.js';
+import { loadLatestSnapshots, loadRecentSnapshots, type LatestSnap } from '../core/snapshots.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SPARKLINE_POINTS = 14;
@@ -73,81 +74,6 @@ function rowToOffer(
     tourOperator: row.tourOperator,
     url: row.url,
   };
-}
-
-/** The subset of a price snapshot the board needs (latest per offer). */
-interface LatestSnap {
-  pricePerPerson: number;
-  priceTotal: number | null;
-  claimedOriginalPrice: number | null;
-  claimedDiscountPct: number | null;
-  omnibusLowestPrice: number | null;
-}
-
-/**
- * Latest snapshot for every ACTIVE offer, in a single query (max(id) per
- * offer_id, joined back to its row, restricted to active offers). Replaces the
- * per-row latestSnapshot loop and the per-representative rebuild; its price-only
- * projection also feeds bucketPricesInMemory (the reference ladder) so no
- * per-bucket-row snapshot query is needed. No writes happen during a read, so the
- * map is consistent for the whole request.
- */
-async function loadLatestSnapshots(db: Db): Promise<Map<number, LatestSnap>> {
-  const latestIds = db
-    .select({ offerId: priceSnapshots.offerId, maxId: sql<number>`max(${priceSnapshots.id})`.as('max_id') })
-    .from(priceSnapshots)
-    .groupBy(priceSnapshots.offerId)
-    .as('latest_ids');
-
-  const rows = await db
-    .select({
-      offerId: priceSnapshots.offerId,
-      pricePerPerson: priceSnapshots.pricePerPerson,
-      priceTotal: priceSnapshots.priceTotal,
-      claimedOriginalPrice: priceSnapshots.claimedOriginalPrice,
-      claimedDiscountPct: priceSnapshots.claimedDiscountPct,
-      omnibusLowestPrice: priceSnapshots.omnibusLowestPrice,
-    })
-    .from(priceSnapshots)
-    .innerJoin(latestIds, eq(priceSnapshots.id, latestIds.maxId))
-    .innerJoin(offers, and(eq(offers.id, priceSnapshots.offerId), eq(offers.active, true)));
-
-  const map = new Map<number, LatestSnap>();
-  for (const r of rows) {
-    map.set(r.offerId, {
-      pricePerPerson: r.pricePerPerson,
-      priceTotal: r.priceTotal,
-      claimedOriginalPrice: r.claimedOriginalPrice,
-      claimedDiscountPct: r.claimedDiscountPct,
-      omnibusLowestPrice: r.omnibusLowestPrice,
-    });
-  }
-  return map;
-}
-
-/**
- * All price snapshots from the last `windowDays` days, grouped by offer id and
- * ordered oldest→newest within each offer. One bulk query that serves BOTH the
- * own-history baseline (computeRealDiscount medians the full 30-day window) and
- * the sparkline (last SPARKLINE_POINTS by id) — so the read path never issues a
- * per-representative snapshot query. Active offers are seen recently, so their
- * latest writes fall inside this window.
- */
-async function loadRecentSnapshots(db: Db, now: Date, windowDays: number): Promise<Map<number, { price: number; at: string }[]>> {
-  const sinceIso = new Date(now.getTime() - windowDays * DAY_MS).toISOString();
-  const rows = await db
-    .select({ offerId: priceSnapshots.offerId, price: priceSnapshots.pricePerPerson, at: priceSnapshots.capturedAt })
-    .from(priceSnapshots)
-    .where(gte(priceSnapshots.capturedAt, sinceIso))
-    .orderBy(priceSnapshots.offerId, priceSnapshots.id);
-
-  const map = new Map<number, { price: number; at: string }[]>();
-  for (const r of rows) {
-    let list = map.get(r.offerId);
-    if (!list) { list = []; map.set(r.offerId, list); }
-    list.push({ price: r.price, at: r.at });
-  }
-  return map;
 }
 
 interface OfferItem {

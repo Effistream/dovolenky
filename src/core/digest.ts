@@ -5,11 +5,14 @@ import type { AppConfig } from './config.js';
 import type { NormalizedOffer } from './types.js';
 import { computeRealDiscount, type DiscountResult } from './discount.js';
 import { formatDigest } from './format.js';
-import { bucketPricesInMemory, loadBucketContext, ownSnapshotsFor } from './market.js';
+import { bucketPricesInMemory, loadBucketContext } from './market.js';
+import { loadLatestSnapshots, loadRecentSnapshots } from './snapshots.js';
 import { hasDeparted } from './dates.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DIGEST_TOP_N = 10;
+/** Own-history window for the discount ladder's own tier — matches market.ts OWN_WINDOW_DAYS. */
+const OWN_WINDOW_DAYS = 30;
 
 /**
  * Assembles the daily digest (spec §7): top 10 active offers by realPct
@@ -42,6 +45,10 @@ export async function buildDigest(
   // representative below (replacing a per-row latest-snapshot query), and the
   // items loop reuses it for the in-memory reference ladder.
   const bucketCtx = await loadBucketContext(db);
+  // Two more bulk loads instead of two queries PER representative: at ~7 400 representatives that
+  // was ~14 800 round-trips and turned a scan from 8 into 22 minutes (measured 2026-08-04).
+  const snapByOfferId = await loadLatestSnapshots(db);
+  const recentByOfferId = await loadRecentSnapshots(db, now, OWN_WINDOW_DAYS);
 
   // Cross-source dedup (spec §13): collapse active rows sharing a match_key to a
   // single representative — the cheapest by latest price — BEFORE ranking, so a
@@ -67,12 +74,7 @@ export async function buildDigest(
 
   const items: { offer: NormalizedOffer; d: DiscountResult }[] = [];
   for (const row of representatives) {
-    const [snap] = await db
-      .select()
-      .from(priceSnapshots)
-      .where(eq(priceSnapshots.offerId, row.id))
-      .orderBy(desc(priceSnapshots.id))
-      .limit(1);
+    const snap = snapByOfferId.get(row.id);
     if (!snap) continue;
 
     const offer: NormalizedOffer = {
@@ -96,7 +98,7 @@ export async function buildDigest(
       url: row.url,
     };
 
-    const ownSnapshots = await ownSnapshotsFor(db, row.id, now);
+    const ownSnapshots = recentByOfferId.get(row.id) ?? [];
     // Per-night reference ladder (spec §15): same assembly as run.ts processOffers.
     const buckets = bucketPricesInMemory(row.id, offer, bucketCtx, bucketCtx.latestPriceByOfferId);
     const d = computeRealDiscount({
