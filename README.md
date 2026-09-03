@@ -49,7 +49,11 @@ jednou denně navíc souhrnný digest top 10 nabídek.
    neposílá na Telegram ani neoznačuje zmizelé nabídky, ale nabídky a cenové
    snapshoty do DB zapisuje (sbírá historii).
 7. `ops/install-launchd.sh` — zaregistruje pravidelný běh (viz níže). Skript si
-   spouští uživatel sám, až je připravený.
+   spouští uživatel sám, až je připravený. Tenhle launchd běh z rezidenční IP je
+   zároveň jediné pokrytí pro dovolenkovani, firo a zajezdy: cloudový scan
+   (GitHub Actions, `.github/workflows/scan.yml`) je přes `SCAN_EXCLUDE_SOURCES`
+   vynechává, protože z datacentrové IP je za 7 dní nedal ani jednou
+   (0/55, 0/55, 0/56 úspěšných běhů do 2026-09-03).
 
 ## Příkazy
 
@@ -57,6 +61,7 @@ jednou denně navíc souhrnný digest top 10 nabídek.
 |---|---|
 | `npm run scan` | proběhne všemi zdroji, zapíše do DB, pošle notifikace/digest |
 | `npm run scan -- --source=invia` | jen jeden zdroj (jméno viz `src/sources/index.ts`) |
+| `npm run scan -- --exclude=firo,zajezdy` | všechny (nebo `--source=` vybrané) zdroje kromě vyjmenovaných; totéž přes env `SCAN_EXCLUDE_SOURCES` — takhle cloud vynechává dovolenkovani, firo a zajezdy |
 | `npm run scan -- --dry-run` | neposílá zprávy, nezapisuje notifikace a neoznačuje zmizelé nabídky; nabídky a cenové snapshoty do DB ukládá (sbírá historii) |
 | `npm run scan -- --no-notify` | zapíše do DB, ale neposílá na Telegram |
 | `npm run digest` | ruční vyvolání denního digestu (mimo běžný rozvrh) |
@@ -172,6 +177,11 @@ Design tokeny a pravidla copy jsou v `design-system/MASTER.md`, referenční
 mockup v `docs/design/terminal-mockup.html`.
 
 ## Nasazení (Vercel + cron-job.org + Turso)
+
+> **Stav 2026-09:** scan dnes běží přes GitHub Actions (`.github/workflows/scan.yml`, každé 2 h,
+> `SCAN_EXCLUDE_SOURCES` vynechává dovolenkovani, firo a zajezdy) plus Mac launchd fallback.
+> Route `api/cron/scan.ts` a cron-job.org níže jsou záložní varianta — ta exclude nečte, takže
+> kdyby ses k ní vracel, nastav ho i tam.
 
 Fáze 2: dashboard „Terminál" jako statické SPA na Vercelu, API + scan jako
 serverless funkce (`api/`), data v [Turso](https://turso.tech) (libSQL v cloudu),

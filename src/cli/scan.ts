@@ -10,14 +10,16 @@ import { selectSources } from './select-sources.js';
 
 interface CliArgs {
   source: string | null;
+  exclude: string | null;
   dryRun: boolean;
   noNotify: boolean;
 }
 
 function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { source: null, dryRun: false, noNotify: false };
+  const args: CliArgs = { source: null, exclude: null, dryRun: false, noNotify: false };
   for (const arg of argv) {
     if (arg.startsWith('--source=')) args.source = arg.slice('--source='.length);
+    else if (arg.startsWith('--exclude=')) args.exclude = arg.slice('--exclude='.length);
     else if (arg === '--dry-run') args.dryRun = true;
     else if (arg === '--no-notify') args.noNotify = true;
   }
@@ -42,13 +44,27 @@ async function main(): Promise<void> {
   // Select adapters: all by default, or a comma-separated subset via --source=
   // or the SCAN_SOURCES env var (the Mac fallback scanner uses SCAN_SOURCES to
   // scrape only the sources the cloud IP can't reach). --source= wins over env.
+  // Then drop --exclude= / SCAN_EXCLUDE_SOURCES (CLI wins again): the cloud
+  // workflow excludes the CESYS sources its datacenter IP never reaches (0/55,
+  // 0/55, 0/56 successes over the 7 days to 2026-09-03), so it stops writing a
+  // `failed` source_runs row every 2 h that only feeds the health alerts.
   const rawSources = args.source ?? process.env.SCAN_SOURCES ?? null;
-  const { adapters, unknown } = selectSources(allAdapters, rawSources);
+  const rawExclude = args.exclude ?? process.env.SCAN_EXCLUDE_SOURCES ?? null;
+  const { adapters, unknown, excluded } = selectSources(allAdapters, rawSources, rawExclude);
+  const knownNames = allAdapters.map((a) => a.name).join(', ');
   if (unknown.length > 0) {
-    console.warn(`Ignoring unknown source(s): ${unknown.join(', ')} — known: ${allAdapters.map((a) => a.name).join(', ')}`);
+    console.warn(`Ignoring unknown source(s): ${unknown.join(', ')} — known: ${knownNames}`);
+  }
+  if (excluded.length > 0) {
+    console.log(`Excluding source(s): ${excluded.join(', ')}`);
   }
   if (adapters.length === 0) {
-    console.error(`No known sources in "${rawSources}". Known: ${allAdapters.map((a) => a.name).join(', ')}`);
+    // Zero adapters is a misconfig either way — nothing matched, or the exclude
+    // list swallowed everything that did. Name the actual cause.
+    const cause = excluded.length > 0
+      ? `every selected source is excluded (${excluded.join(', ')})`
+      : `no known sources in "${rawSources}"`;
+    console.error(`Nothing to scan: ${cause}. Known: ${knownNames}`);
     process.exit(1);
   }
 

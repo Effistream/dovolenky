@@ -1,5 +1,6 @@
 name: scan
-# Spouští plný scan (16 zdrojů) proti Turso a posílá notifikace na Telegram.
+# Spouští scan 13 ze 16 zdrojů proti Turso (CESYS trojici vynechává přes SCAN_EXCLUDE_SOURCES
+# níže) a posílá notifikace na Telegram.
 # GitHub-hosted runner nemá 300s limit jako Vercel funkce → write-heavy scan v pohodě doběhne.
 on:
   schedule:
@@ -33,3 +34,11 @@ jobs:
           DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # CESYS zdroje (dovolenkovani.cz, firotravel.cz, api-ng.cesys.eu) zahazují datacentrovou
+          # IP GitHubu už na úrovni spojení (`fetch failed`), takže je cloud nikdy nedá.
+          # Naměřeno v source_runs za 7 dní (2026-08-27 → 09-03): dovolenkovani 0/55 ok,
+          # firo 0/55, zajezdy 0/56 (34× partial s 0 nabídkami + 22× failed). Každý pokus jen
+          # zapsal `failed` řádek a živil 🛠 health alerty. Pokrývá je Mac launchd fallback
+          # (ops/launchd, rezidenční IP). Vratné: smaž tenhle řádek, kdyby CESYS datacentrovou IP
+          # někdy pustil.
+          SCAN_EXCLUDE_SOURCES: dovolenkovani,firo,zajezdy
