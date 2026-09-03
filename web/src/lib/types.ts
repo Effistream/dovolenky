@@ -45,7 +45,13 @@ export interface OffersResponse {
   offers: Offer[];
 }
 
-/** Per-source status from the latest source_run, plus a 24h backoff flag. */
+/**
+ * Per-source status: the latest source_run (the last ATTEMPT — status/startedAt/
+ * errorSample), a 24h backoff flag, and the newest run that brought usable data
+ * (lastOkAt/lastOkOffers). Health on the dashboard is judged by the age of that
+ * data (history.ts#sourceHealth), not by the latest attempt — the Mac fallback
+ * and the drifted cloud cron overlap, so the newest row is often a stale failure.
+ */
 export interface SourceStatus {
   source: string;
   status: string;
@@ -56,6 +62,10 @@ export interface SourceStatus {
   errorCount: number | null;
   errorSample: string | null;
   backoff: boolean;
+  /** startedAt of the newest run with status 'ok', or 'partial' with offers; null = none in the window. */
+  lastOkAt: string | null;
+  /** offersFound of that run; null when lastOkAt is null. */
+  lastOkOffers: number | null;
 }
 
 export interface SourcesResponse {

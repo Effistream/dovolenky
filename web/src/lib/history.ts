@@ -5,11 +5,12 @@
  * with no DOM. Copy follows design-system/MASTER.md (Czech, concrete numbers,
  * active voice, no exclamations, fake-slevy verdict names the actor).
  */
-import type { HistoryResponse, Offer } from './types.js';
+import type { HistoryResponse, Offer, SourceStatus } from './types.js';
 import { formatCzk, formatNumber, referenceLabel } from './format.js';
-import { formatDayMonth } from './term.js';
+import { formatDayMonth, pragueHhmm } from './term.js';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
 // ---------------------------------------------------------------------------
 // Source display names — title-case for prose ("Exim počítá…"), distinct from
@@ -82,28 +83,66 @@ export function offerCtaLabel(source: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Source status dot (ZDROJE card)
+// Source health (ZDROJE card + status strip)
 // ---------------------------------------------------------------------------
 
 /** Dot colour for a source: 'ok' green, 'partial' amber (incl. backoff), 'failed' red. */
-export type SourceDotTone = 'ok' | 'partial' | 'failed';
+export type SourceTone = 'ok' | 'partial' | 'failed';
 
-/**
- * Maps a source run's status + backoff flag to a dot tone (MASTER.md: green ok /
- * amber partial-or-backoff / red failed). A source in backoff is amber even if
- * its latest completed run was 'ok', because the scanner is currently pausing it.
- */
-export function sourceDotTone(status: string, backoff: boolean): SourceDotTone {
-  if (status === 'failed') return 'failed';
-  if (backoff || status === 'partial') return 'partial';
-  return 'ok';
+export interface SourceHealth {
+  tone: SourceTone;
+  /** Via-note shown next to the source name, or null. */
+  note: string | null;
 }
 
-/** Via-note shown next to a source name in the ZDROJE card, or null. */
-export function sourceViaNote(source: string, backoff: boolean): string | null {
-  if (backoff) return 'v pauze';
-  if (source === 'skrz') return 'vč. Slevomatu';
-  return null;
+/**
+ * Data younger than this is fresh. 5 h = the 2 h scan cadence plus the GitHub
+ * cron drift (1.8–4.5 h documented, measured again 2026-09-03), so a late cloud
+ * run alone never shades a source amber.
+ */
+export const FRESH_MS = 5 * HOUR_MS;
+/** Data older than this is missing: the source skipped every slot for a day. */
+export const STALE_MS = 24 * HOUR_MS;
+
+/**
+ * Health of a source judged by the AGE of its last usable data (lastOkAt), not
+ * by the latest attempt's status. The Mac fallback and the drifted cloud cron
+ * overlap — on 2026-09-03 the Mac wrote 'ok' at 10:40 and the cloud wrote
+ * 'failed' at 10:51, so "latest row wins" painted dovolenkovani red over 617
+ * fresh offers. While the data is fresh, a failed/partial latest attempt still
+ * shades the source amber (a broken scanner stays visible); once the data ages
+ * past FRESH_MS the age alone decides. Backoff wins throughout: the scanner is
+ * pausing the source on purpose. Skrz's "vč. Slevomatu" only fills an empty slot.
+ */
+export function sourceHealth(
+  s: Pick<SourceStatus, 'source' | 'status' | 'backoff' | 'lastOkAt'>,
+  nowMs: number,
+): SourceHealth {
+  if (s.backoff) return { tone: 'partial', note: 'v pauze' };
+  const okMs = s.lastOkAt == null ? NaN : new Date(s.lastOkAt).getTime();
+  // null covers both "never" and "the last usable run fell out of the ~1000-row read
+  // window (≈2–3 days)", so the copy must not claim the source is new.
+  if (!Number.isFinite(okMs)) return { tone: 'failed', note: 'bez dat' };
+  const age = nowMs - okMs;
+  const hours = Math.floor(age / HOUR_MS);
+  if (age > STALE_MS) return { tone: 'failed', note: `bez dat ${hours} h` };
+  if (age > FRESH_MS) return { tone: 'partial', note: `před ${hours} h` };
+  if (s.status === 'failed') return { tone: 'partial', note: 'poslední pokus selhal' };
+  if (s.status !== 'ok') return { tone: 'partial', note: 'částečný běh' };
+  return { tone: 'ok', note: s.source === 'skrz' ? 'vč. Slevomatu' : null };
+}
+
+/**
+ * Hover title for a ZDROJE row: the latest ATTEMPT (Prague time · status · error
+ * sample). The visible time is now when data last arrived, so this keeps the
+ * error behind an amber/red dot one hover away.
+ */
+export function sourceAttemptTitle(
+  s: Pick<SourceStatus, 'startedAt' | 'status' | 'errorSample'>,
+): string {
+  const parts = [`poslední pokus ${pragueHhmm(s.startedAt)}`, s.status];
+  if (s.errorSample) parts.push(s.errorSample);
+  return parts.join(' · ');
 }
 
 /** Czech plural for "den": 1 den, 2–4 dny, 5+ dní. */

@@ -385,6 +385,108 @@ describe('web api', () => {
       expect(invia.status).toBe('ok');
       expect(invia.backoff).toBe(false);
     });
+
+    // lastOkAt / lastOkOffers: the newest run that brought usable data, independent of
+    // the latest attempt. Measured 2026-09-03: the Mac fallback wrote 'ok' for
+    // dovolenkovani at 10:40 and the drifted cloud run wrote 'failed' at 10:51 — the
+    // dashboard showed red over 617 fresh offers because it only looked at the newest row.
+    it('lastOkAt points at the older ok run when the newest attempt failed (status stays failed)', async () => {
+      await db.insert(sourceRuns).values({
+        source: 'dovolenkovani', startedAt: '2026-07-04T08:40:00.000Z', finishedAt: '2026-07-04T08:45:00.000Z',
+        offersFound: 617, snapshotsWritten: 617, errorCount: 0, status: 'ok', errorSample: null,
+      });
+      await db.insert(sourceRuns).values({
+        source: 'dovolenkovani', startedAt: '2026-07-04T08:51:00.000Z', finishedAt: '2026-07-04T08:52:00.000Z',
+        offersFound: 0, snapshotsWritten: 0, errorCount: 1, status: 'failed', errorSample: 'fetch exceeded 420000ms budget',
+      });
+
+      const client = makeClient(db);
+      const { body } = await client('/api/sources');
+      const row = body.sources.find((s: any) => s.source === 'dovolenkovani');
+      expect(row).toBeDefined();
+      // Existing fields keep describing the latest ATTEMPT.
+      expect(row.status).toBe('failed');
+      expect(row.startedAt).toBe('2026-07-04T08:51:00.000Z');
+      expect(row.errorSample).toBe('fetch exceeded 420000ms budget');
+      // New fields describe the latest run that brought DATA.
+      expect(row.lastOkAt).toBe('2026-07-04T08:40:00.000Z');
+      expect(row.lastOkOffers).toBe(617);
+    });
+
+    it('a partial run counts as usable data only when it found offers', async () => {
+      // etravel: older ok, then a newer partial that still brought 320 offers
+      // (a sleep-truncated harvest, 2026-09-03 log) → the partial is the last ok.
+      await db.insert(sourceRuns).values({
+        source: 'etravel', startedAt: '2026-07-04T00:00:00.000Z', finishedAt: '2026-07-04T00:05:00.000Z',
+        offersFound: 916, snapshotsWritten: 916, errorCount: 0, status: 'ok', errorSample: null,
+      });
+      await db.insert(sourceRuns).values({
+        source: 'etravel', startedAt: '2026-07-04T08:00:00.000Z', finishedAt: '2026-07-04T08:07:00.000Z',
+        offersFound: 320, snapshotsWritten: 320, errorCount: 3, status: 'partial', errorSample: 'timeout',
+      });
+      // zajezdy: older ok, then a newer partial with 0 offers → the older ok stays the last ok.
+      await db.insert(sourceRuns).values({
+        source: 'zajezdy', startedAt: '2026-07-04T00:00:00.000Z', finishedAt: '2026-07-04T00:05:00.000Z',
+        offersFound: 50, snapshotsWritten: 50, errorCount: 0, status: 'ok', errorSample: null,
+      });
+      await db.insert(sourceRuns).values({
+        source: 'zajezdy', startedAt: '2026-07-04T08:00:00.000Z', finishedAt: '2026-07-04T08:01:00.000Z',
+        offersFound: 0, snapshotsWritten: 0, errorCount: 1, status: 'partial', errorSample: 'fetch failed',
+      });
+
+      const client = makeClient(db);
+      const { body } = await client('/api/sources');
+
+      const etravel = body.sources.find((s: any) => s.source === 'etravel');
+      expect(etravel.status).toBe('partial');
+      expect(etravel.lastOkAt).toBe('2026-07-04T08:00:00.000Z');
+      expect(etravel.lastOkOffers).toBe(320);
+
+      const zajezdy = body.sources.find((s: any) => s.source === 'zajezdy');
+      expect(zajezdy.status).toBe('partial');
+      expect(zajezdy.lastOkAt).toBe('2026-07-04T00:00:00.000Z');
+      expect(zajezdy.lastOkOffers).toBe(50);
+    });
+
+    it('lastOkAt is null when no run in the window brought data', async () => {
+      await db.insert(sourceRuns).values({
+        source: 'firo', startedAt: '2026-07-04T06:00:00.000Z', finishedAt: '2026-07-04T06:07:00.000Z',
+        offersFound: 0, snapshotsWritten: 0, errorCount: 1, status: 'failed', errorSample: 'fetch failed',
+      });
+      await db.insert(sourceRuns).values({
+        source: 'firo', startedAt: '2026-07-04T08:00:00.000Z', finishedAt: '2026-07-04T08:07:00.000Z',
+        offersFound: 0, snapshotsWritten: 0, errorCount: 1, status: 'failed', errorSample: 'fetch failed',
+      });
+
+      const client = makeClient(db);
+      const { body } = await client('/api/sources');
+      const firo = body.sources.find((s: any) => s.source === 'firo');
+      expect(firo.status).toBe('failed');
+      expect(firo.lastOkAt).toBeNull();
+      expect(firo.lastOkOffers).toBeNull();
+    });
+
+    it('lastOkAt is the LATEST startedAt among data runs, not the newest row by id', async () => {
+      // The inverse of the 2026-09-03 race: the drifted cloud run STARTED earlier (10:29) but
+      // WROTE later (higher id) than the Mac run that started at 10:40. "Data as of" is the
+      // run's start, so the Mac's 10:40 must win even though the cloud row is newer by id.
+      await db.insert(sourceRuns).values({
+        source: 'fischer', startedAt: '2026-07-04T08:40:00.000Z', finishedAt: '2026-07-04T08:45:00.000Z',
+        offersFound: 185, snapshotsWritten: 44, errorCount: 0, status: 'ok', errorSample: null,
+      });
+      await db.insert(sourceRuns).values({
+        source: 'fischer', startedAt: '2026-07-04T08:29:00.000Z', finishedAt: '2026-07-04T08:29:00.000Z',
+        offersFound: 185, snapshotsWritten: 0, errorCount: 0, status: 'ok', errorSample: null,
+      });
+
+      const client = makeClient(db);
+      const { body } = await client('/api/sources');
+      const fischer = body.sources.find((s: any) => s.source === 'fischer');
+      // The latest ATTEMPT is still the newest row by id (the cloud one).
+      expect(fischer.startedAt).toBe('2026-07-04T08:29:00.000Z');
+      expect(fischer.lastOkAt).toBe('2026-07-04T08:40:00.000Z');
+      expect(fischer.lastOkOffers).toBe(185);
+    });
   });
 
   describe('/api/stats', () => {

@@ -1,12 +1,14 @@
 /**
  * The two quiet light cards below the board: TRH DNES (three market numbers from
- * /api/stats) and ZDROJE (a status grid from /api/sources). Dot tone follows
- * MASTER.md: green ok, amber partial or in-backoff ("v pauze"), red failed. Skrz
- * carries a "vč. Slevomatu" via-note. Times are the latest run's start.
+ * /api/stats) and ZDROJE (a status grid from /api/sources). Dot tone and via-note
+ * come from history.ts#sourceHealth — judged by the age of the last usable data,
+ * not by the latest attempt (MASTER.md: green ok, amber partial/backoff/aging,
+ * red failed). The time is when data last arrived ("—" when never); the latest
+ * attempt (time · status · error) sits in the row's hover title.
  */
 import { formatNumber } from '../lib/format.js';
 import { pragueHhmm, sourceLabel } from '../lib/term.js';
-import { sourceDotTone, sourceViaNote } from '../lib/history.js';
+import { sourceAttemptTitle, sourceHealth } from '../lib/history.js';
 import type { SourceStatus, StatsResponse } from '../lib/types.js';
 
 /** Dot tone → the CSS modifier: ok green (base), partial amber, failed red. */
@@ -29,6 +31,7 @@ function letoMedian(stats: StatsResponse | null): number | null {
 
 export function MarketCards({ stats, sources }: Props) {
   const median = letoMedian(stats);
+  const nowMs = Date.now();
 
   return (
     <div className="cards">
@@ -54,14 +57,13 @@ export function MarketCards({ stats, sources }: Props) {
         <h3>ZDROJE</h3>
         <div className="sources">
           {(sources ?? []).map((s) => {
-            const tone = sourceDotTone(s.status, s.backoff);
-            const via = sourceViaNote(s.source, s.backoff);
+            const { tone, note } = sourceHealth(s, nowMs);
             return (
-              <div className="sourc" key={s.source}>
+              <div className="sourc" key={s.source} title={sourceAttemptTitle(s)}>
                 <span className={DOT_CLASS[tone]} />
                 {sourceLabel(s.source)}
-                {via && <span className="via">{via}</span>}
-                <time>{pragueHhmm(s.startedAt)}</time>
+                {note && <span className="via">{note}</span>}
+                <time>{pragueHhmm(s.lastOkAt)}</time>
               </div>
             );
           })}

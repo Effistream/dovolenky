@@ -4,13 +4,15 @@ import {
   buildFacts,
   buildVerdict,
   offerCtaLabel,
+  sourceAttemptTitle,
   sourceDisplayName,
-  sourceDotTone,
-  sourceViaNote,
+  sourceHealth,
+  FRESH_MS,
+  STALE_MS,
   SOURCE_NAMES,
 } from './history.js';
 import { formatCzk, formatNumber } from './format.js';
-import type { HistoryResponse, Offer } from './types.js';
+import type { HistoryResponse, Offer, SourceStatus } from './types.js';
 
 // formatCzk/formatNumber group thousands with a non-breaking space and put one
 // before "Kč" too. Compose expected strings from the same formatters so NBSP
@@ -151,34 +153,108 @@ describe('registry slugs have real copy (no fallback)', () => {
   });
 });
 
-// --- sourceDotTone / sourceViaNote ------------------------------------------
+// --- sourceHealth -------------------------------------------------------------
 
-describe('sourceDotTone', () => {
-  it('ok + no backoff → ok (green)', () => {
-    expect(sourceDotTone('ok', false)).toBe('ok');
+const HOUR_MS = 60 * 60 * 1000;
+const NOW_MS = new Date('2026-09-03T09:00:00.000Z').getTime();
+
+/** ISO timestamp `ageMs` before NOW_MS. */
+const ago = (ageMs: number): string => new Date(NOW_MS - ageMs).toISOString();
+
+function src(over: Partial<SourceStatus> = {}): SourceStatus {
+  return {
+    source: 'invia',
+    status: 'ok',
+    startedAt: ago(0),
+    finishedAt: ago(0),
+    offersFound: 100,
+    snapshotsWritten: 100,
+    errorCount: 0,
+    errorSample: null,
+    backoff: false,
+    lastOkAt: ago(0),
+    lastOkOffers: 100,
+    ...over,
+  };
+}
+
+describe('sourceHealth', () => {
+  it('thresholds: 5 h fresh (covers the measured 4.5 h GH cron drift), 24 h stale', () => {
+    expect(FRESH_MS).toBe(5 * HOUR_MS);
+    expect(STALE_MS).toBe(24 * HOUR_MS);
   });
-  it('failed → failed (red), regardless of backoff', () => {
-    expect(sourceDotTone('failed', false)).toBe('failed');
-    expect(sourceDotTone('failed', true)).toBe('failed');
+
+  it('backoff wins over everything → partial "v pauze"', () => {
+    expect(sourceHealth(src({ backoff: true }), NOW_MS)).toEqual({ tone: 'partial', note: 'v pauze' });
+    expect(sourceHealth(src({ backoff: true, status: 'failed', lastOkAt: null }), NOW_MS)).toEqual({ tone: 'partial', note: 'v pauze' });
+    expect(sourceHealth(src({ backoff: true, lastOkAt: ago(30 * HOUR_MS) }), NOW_MS)).toEqual({ tone: 'partial', note: 'v pauze' });
+    // skrz in backoff shows the pause, not the Slevomat note.
+    expect(sourceHealth(src({ source: 'skrz', backoff: true }), NOW_MS)).toEqual({ tone: 'partial', note: 'v pauze' });
   });
-  it('partial → partial (amber)', () => {
-    expect(sourceDotTone('partial', false)).toBe('partial');
+
+  it('no usable run in the window → failed "bez dat"', () => {
+    expect(sourceHealth(src({ status: 'failed', lastOkAt: null, lastOkOffers: null }), NOW_MS)).toEqual({ tone: 'failed', note: 'bez dat' });
+    // An unparseable timestamp is treated the same as none.
+    expect(sourceHealth(src({ lastOkAt: 'not-a-date' }), NOW_MS)).toEqual({ tone: 'failed', note: 'bez dat' });
   });
-  it('backoff makes an otherwise-ok source amber', () => {
-    expect(sourceDotTone('ok', true)).toBe('partial');
+
+  it('fresh (≤ 5 h) and the latest attempt ok → ok, no note', () => {
+    expect(sourceHealth(src({ lastOkAt: ago(0) }), NOW_MS)).toEqual({ tone: 'ok', note: null });
+    expect(sourceHealth(src({ lastOkAt: ago(2 * HOUR_MS) }), NOW_MS)).toEqual({ tone: 'ok', note: null });
+    // Boundary: exactly 5 h is still fresh.
+    expect(sourceHealth(src({ lastOkAt: ago(5 * HOUR_MS) }), NOW_MS)).toEqual({ tone: 'ok', note: null });
+  });
+
+  it('fresh data but the latest attempt failed → partial "poslední pokus selhal"', () => {
+    // The 2026-09-03 case: Mac ok at 10:40, drifted cloud failed at 10:51.
+    const s = src({ status: 'failed', startedAt: ago(9 * 60 * 1000), lastOkAt: ago(20 * 60 * 1000), errorSample: 'fetch exceeded 420000ms budget' });
+    expect(sourceHealth(s, NOW_MS)).toEqual({ tone: 'partial', note: 'poslední pokus selhal' });
+    expect(sourceHealth(src({ status: 'failed', lastOkAt: ago(5 * HOUR_MS) }), NOW_MS)).toEqual({ tone: 'partial', note: 'poslední pokus selhal' });
+  });
+
+  it('fresh data but the latest attempt partial → partial "částečný běh"', () => {
+    expect(sourceHealth(src({ status: 'partial', lastOkAt: ago(HOUR_MS) }), NOW_MS)).toEqual({ tone: 'partial', note: 'částečný běh' });
+    // Any other non-ok status (e.g. a null status column) reads as a partial run too.
+    expect(sourceHealth(src({ status: '', lastOkAt: ago(HOUR_MS) }), NOW_MS)).toEqual({ tone: 'partial', note: 'částečný běh' });
+  });
+
+  it('aging (5 h < age ≤ 24 h) → partial "před N h", whole hours, regardless of the latest status', () => {
+    expect(sourceHealth(src({ lastOkAt: ago(5 * HOUR_MS + 1) }), NOW_MS)).toEqual({ tone: 'partial', note: 'před 5 h' });
+    expect(sourceHealth(src({ lastOkAt: ago(7 * HOUR_MS + 59 * 60 * 1000) }), NOW_MS)).toEqual({ tone: 'partial', note: 'před 7 h' });
+    expect(sourceHealth(src({ status: 'failed', lastOkAt: ago(12 * HOUR_MS) }), NOW_MS)).toEqual({ tone: 'partial', note: 'před 12 h' });
+    // Boundary: exactly 24 h is still amber.
+    expect(sourceHealth(src({ lastOkAt: ago(24 * HOUR_MS) }), NOW_MS)).toEqual({ tone: 'partial', note: 'před 24 h' });
+  });
+
+  it('stale (> 24 h) → failed "bez dat N h", whole hours, regardless of the latest status', () => {
+    expect(sourceHealth(src({ lastOkAt: ago(24 * HOUR_MS + 1) }), NOW_MS)).toEqual({ tone: 'failed', note: 'bez dat 24 h' });
+    expect(sourceHealth(src({ status: 'ok', lastOkAt: ago(30 * HOUR_MS + 30 * 60 * 1000) }), NOW_MS)).toEqual({ tone: 'failed', note: 'bez dat 30 h' });
+    expect(sourceHealth(src({ status: 'failed', lastOkAt: ago(72 * HOUR_MS) }), NOW_MS)).toEqual({ tone: 'failed', note: 'bez dat 72 h' });
+  });
+
+  it('skrz carries "vč. Slevomatu" only when no other note applies', () => {
+    expect(sourceHealth(src({ source: 'skrz' }), NOW_MS)).toEqual({ tone: 'ok', note: 'vč. Slevomatu' });
+    expect(sourceHealth(src({ source: 'skrz', lastOkAt: ago(5 * HOUR_MS) }), NOW_MS)).toEqual({ tone: 'ok', note: 'vč. Slevomatu' });
+    expect(sourceHealth(src({ source: 'skrz', status: 'failed' }), NOW_MS)).toEqual({ tone: 'partial', note: 'poslední pokus selhal' });
+    expect(sourceHealth(src({ source: 'skrz', lastOkAt: ago(7 * HOUR_MS) }), NOW_MS)).toEqual({ tone: 'partial', note: 'před 7 h' });
+    expect(sourceHealth(src({ source: 'skrz', lastOkAt: null }), NOW_MS)).toEqual({ tone: 'failed', note: 'bez dat' });
+    // Other sources never get it.
+    expect(sourceHealth(src({ source: 'invia' }), NOW_MS)).toEqual({ tone: 'ok', note: null });
   });
 });
 
-describe('sourceViaNote', () => {
-  it('backoff wins → "v pauze"', () => {
-    expect(sourceViaNote('skrz', true)).toBe('v pauze');
-    expect(sourceViaNote('invia', true)).toBe('v pauze');
+// --- sourceAttemptTitle --------------------------------------------------------
+
+describe('sourceAttemptTitle', () => {
+  it('names the latest attempt with its Prague time, status and error sample', () => {
+    // 08:51Z = 10:51 Prague in September (CEST).
+    const s = src({ status: 'failed', startedAt: '2026-09-03T08:51:00.000Z', errorSample: 'fetch exceeded 420000ms budget' });
+    expect(sourceAttemptTitle(s)).toBe('poslední pokus 10:51 · failed · fetch exceeded 420000ms budget');
   });
-  it('skrz aggregates Slevomat → "vč. Slevomatu"', () => {
-    expect(sourceViaNote('skrz', false)).toBe('vč. Slevomatu');
-  });
-  it('other healthy sources have no note', () => {
-    expect(sourceViaNote('invia', false)).toBeNull();
+
+  it('omits the error sample when there is none', () => {
+    const s = src({ status: 'ok', startedAt: '2026-09-03T08:40:00.000Z', errorSample: null });
+    expect(sourceAttemptTitle(s)).toBe('poslední pokus 10:40 · ok');
   });
 });
 

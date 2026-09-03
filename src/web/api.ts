@@ -266,12 +266,21 @@ async function buildOffers(
   return items;
 }
 
+/** A run that brought usable data: 'ok', or 'partial' that still found offers. */
+function broughtData(run: typeof sourceRuns.$inferSelect): boolean {
+  return run.status === 'ok' || (run.status === 'partial' && (run.offersFound ?? 0) > 0);
+}
+
 /**
- * Latest source_run per source + a backoff flag. The backoff flag uses the same
- * "first non-backoff row decides" algorithm as run.ts's blockedBackoffUntil (via the shared
- * backoff.ts#backoffUntilFrom): a more recent REAL (non-backoff) run — even an 'ok' one —
- * supersedes an older BLOCKED failure, so the flag never diverges from what the scanner
- * actually does on the next run.
+ * Latest source_run per source (the last ATTEMPT), a backoff flag, and the newest run
+ * that brought usable data (lastOkAt/lastOkOffers). The dashboard judges health by
+ * the AGE of that data, not by the latest attempt: the Mac fallback and the drifted
+ * cloud cron overlap (measured 2026-09-03: Mac wrote 'ok' for dovolenkovani at 10:40,
+ * the cloud run that started 29 min late wrote 'failed' at 10:51 — the card went red
+ * over 617 fresh offers). The backoff flag uses the same "first non-backoff row decides"
+ * algorithm as run.ts's blockedBackoffUntil (via the shared backoff.ts#backoffUntilFrom):
+ * a more recent REAL (non-backoff) run — even an 'ok' one — supersedes an older BLOCKED
+ * failure, so the flag never diverges from what the scanner actually does on the next run.
  */
 async function buildSources(db: Db, now: Date) {
   // source_runs grows unbounded (~one row per source per scan). We only need the
@@ -297,6 +306,16 @@ async function buildSources(db: Db, now: Date) {
   return [...bySource.entries()].map(([source, sourceRows]) => {
     const latest = sourceRows[0]!;
     const liftsAt = backoffUntilFrom(sourceRows.slice(0, RECENT_RUN_SCAN_LIMIT), nowMs);
+    // The data-bearing run with the LATEST startedAt — not the newest by id: with two
+    // writers the drifted cloud run can start earlier yet write later (2026-09-03: cloud
+    // started 10:29 and wrote at 10:51, the Mac started and wrote at 10:40), and "data as
+    // of" is the run's start. Scanned over the rows already loaded above — no extra query
+    // (Turso rows-read quota). A 'partial' with offers counts: a truncated harvest still
+    // refreshed last_seen for what it found. null = nothing usable in the window.
+    let lastOk: typeof sourceRuns.$inferSelect | undefined;
+    for (const run of sourceRows) {
+      if (broughtData(run) && (lastOk === undefined || run.startedAt > lastOk.startedAt)) lastOk = run;
+    }
     return {
       source,
       status: latest.status,
@@ -307,6 +326,8 @@ async function buildSources(db: Db, now: Date) {
       errorCount: latest.errorCount,
       errorSample: latest.errorSample,
       backoff: liftsAt != null,
+      lastOkAt: lastOk?.startedAt ?? null,
+      lastOkOffers: lastOk?.offersFound ?? null,
     };
   });
 }
@@ -390,9 +411,9 @@ async function buildHistory(db: Db, offerId: number, now: Date) {
 
 // ---------------------------------------------------------------------------
 // In-memory cache: a single Map keyed by the full request query string
-// (path + search). TTL 5 minutes. Process-local only — cleared on restart, not
+// (path + search). TTL CACHE_TTL_MS (1 h, see above). Process-local only — cleared on restart, not
 // shared across processes, and never invalidated on writes (the scanner writes
-// out-of-band; a stale window ≤5 min is acceptable per spec §14). The N+1
+// out-of-band; a stale window ≤1 h is acceptable — the scan writes every ~2 h). The N+1
 // market-bucket computation is what this cache is protecting.
 // ---------------------------------------------------------------------------
 interface CacheEntry {
@@ -469,7 +490,7 @@ export function createApi(opts: CreateApiOptions) {
       return c.json({ error: 'countries must be string[]' }, 400);
     }
     const stored = await setExcludedCountries(db, countries);
-    cache.clear(); // exclusions change the offers/stats sets → drop the 5-min cache
+    cache.clear(); // exclusions change the offers/stats sets → drop the 1 h cache
     return c.json({ countries: stored });
   });
 
