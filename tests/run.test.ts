@@ -6,6 +6,7 @@ import type { AppConfig, Profile } from '../src/core/config.js';
 import type { NormalizedOffer, SourceAdapter, SourceContext } from '../src/core/types.js';
 import { HttpClient, SourceBlockedError } from '../src/core/http.js';
 import { runScan, type ScanSummary } from '../src/core/run.js';
+import type { SleepWatch } from '../src/core/sleep-watch.js';
 import { ingestOffer } from '../src/core/ingest.js';
 import { computeHotelKey } from '../src/core/normalize.js';
 import { setExcludedCountries } from '../src/core/db/exclusions.js';
@@ -1594,5 +1595,144 @@ describe('runScan: re-key flood guard (2026-07-29)', () => {
     // 40 marked announced by the flood guard + 3 genuinely sent.
     const logged = await db.select().from(notificationsLog).where(eq(notificationsLog.type, 'new_offer'));
     expect(logged).toHaveLength(43);
+  });
+});
+
+describe('runScan: host-sleep void (2026-09-03)', () => {
+  let db: Db;
+
+  beforeEach(async () => {
+    db = openDb(':memory:');
+    await ensureSchema(db);
+  });
+
+  // A watch whose verdict is fixed up front: what the real one reports after a DarkWake freeze.
+  function fakeSleepWatch(frozenMs: number) {
+    const calls = { start: 0, stop: 0 };
+    const watch: SleepWatch = {
+      start() {
+        calls.start += 1;
+      },
+      stop() {
+        calls.stop += 1;
+        return frozenMs;
+      },
+    };
+    return { watch, calls };
+  }
+
+  /**
+   * Arms EVERY write/send path a run can take, so the void has something to suppress:
+   *   - a market bucket that makes the happy offer a hot_deal (notification + notifications_log)
+   *   - 08:15 Prague with active offers → the daily digest would go out
+   *   - two prior failures for 'broken' → this run's failure would be the 3rd → 🛠 health alert
+   *   - a BLOCKED failure 2 h ago for 'blocked' → a backoff bookkeeping row would be written
+   */
+  async function armEverySideEffect(now: Date): Promise<void> {
+    await seedMarketBucket(db, 8, 25000, new Date(now.getTime() - 60 * 60 * 1000).toISOString());
+    await seedSourceRun(db, 'broken', 'failed', new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString());
+    await seedSourceRun(db, 'broken', 'failed', new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString());
+    await db.insert(sourceRuns).values({
+      source: 'blocked',
+      startedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+      finishedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+      offersFound: 0,
+      snapshotsWritten: 0,
+      errorCount: 1,
+      status: 'failed',
+      errorSample: 'BLOCKED:Request blocked with status 403',
+    });
+  }
+
+  it('a run the host slept through (900 s frozen) writes nothing, sends nothing, and reports every source skipped', async () => {
+    const now = new Date('2026-07-04T06:15:00.000Z'); // 08:15 Europe/Prague → digest hour reached
+    await armEverySideEffect(now);
+    const tg = new TelegramMock();
+    const logLines: string[] = [];
+    const { watch, calls } = fakeSleepWatch(900000);
+
+    let fetchCalls = 0;
+    const happy: SourceAdapter = {
+      name: 'happy',
+      async fetchOffers() {
+        fetchCalls += 1;
+        return [makeOffer()];
+      },
+    };
+    const blockedSpy: SourceAdapter = {
+      name: 'blocked',
+      async fetchOffers() {
+        throw new Error('must not be called — in backoff');
+      },
+    };
+
+    const runsBefore = await db.select().from(sourceRuns);
+    const offersBefore = await db.select().from(offers);
+
+    const summary = await runScan({
+      db,
+      cfg: makeConfig(),
+      http: makeHttp(),
+      telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [happy, throwingAdapter(), blockedSpy],
+      now,
+      log: (s) => logLines.push(s),
+      sleepWatch: watch,
+    });
+
+    // The verdict comes AFTER the fetch phase (the watch measures that phase), so fetches ran.
+    expect(fetchCalls).toBe(1);
+    expect(calls).toEqual({ start: 1, stop: 1 });
+
+    // Nothing written: no source_runs rows of any kind (not 'failed', not the backoff
+    // bookkeeping row), no offers, no snapshots, no notifications_log rows.
+    expect(await db.select().from(sourceRuns)).toEqual(runsBefore);
+    expect(await db.select().from(offers)).toEqual(offersBefore);
+    expect(await db.select().from(offers).where(eq(offers.source, 'happy'))).toHaveLength(0);
+    expect(await db.select().from(notificationsLog)).toHaveLength(0);
+
+    // Nothing sent: no hot_deal, no digest, no 🛠 health alert.
+    expect(tg.messages).toEqual([]);
+    expect(summary.notificationsSent).toBe(0);
+    expect(summary.digestSent).toBe(false);
+
+    // Every adapter is reported 'skipped' with a reason that names the sleep.
+    expect(summary.perSource.map((s) => s.source)).toEqual(['happy', 'broken', 'blocked']);
+    for (const s of summary.perSource) {
+      expect(s.status).toBe('skipped');
+      expect(s.offersFound).toBe(0);
+      expect(s.error).toMatch(/slept|sleep/i);
+    }
+    expect(logLines.some((l) => /host slept ~900s/.test(l))).toBe(true);
+  });
+
+  it('a watch reporting 0 frozen ms leaves the run untouched (writes, sends, statuses as before)', async () => {
+    const now = new Date('2026-07-04T06:15:00.000Z');
+    await armEverySideEffect(now);
+    const tg = new TelegramMock();
+    const { watch, calls } = fakeSleepWatch(0);
+
+    const summary = await runScan({
+      db,
+      cfg: makeConfig(),
+      http: makeHttp(),
+      telegram: tg as unknown as import('../src/core/telegram.js').Telegram,
+      adapters: [happyAdapter([makeOffer()]), throwingAdapter()],
+      now,
+      sleepWatch: watch,
+    });
+
+    expect(calls).toEqual({ start: 1, stop: 1 });
+    expect(summary.perSource.find((s) => s.source === 'happy')?.status).toBe('ok');
+    expect(summary.perSource.find((s) => s.source === 'broken')?.status).toBe('failed');
+    expect(summary.notificationsSent).toBe(1);
+    expect(summary.digestSent).toBe(true);
+    expect(tg.messages.some((m) => m.includes('🔥'))).toBe(true);
+    expect(tg.messages.some((m) => m.includes('🛠'))).toBe(true);
+
+    const runs = await db.select().from(sourceRuns);
+    expect(runs.find((r) => r.source === 'happy')?.status).toBe('ok');
+    expect(runs.filter((r) => r.source === 'broken' && r.status === 'failed')).toHaveLength(3);
+    expect(await db.select().from(offers).where(eq(offers.source, 'happy'))).toHaveLength(1);
   });
 });

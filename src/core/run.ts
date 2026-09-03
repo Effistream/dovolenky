@@ -16,6 +16,7 @@ import { bucketPricesInMemory, loadBucketContext, ownSnapshotsFor, type BucketCo
 import { buildDigest } from './digest.js';
 import { getExcludedCountries } from './db/exclusions.js';
 import { BLOCKED_PREFIX, BACKOFF_MARKER, RECENT_RUN_SCAN_LIMIT, isBackoffRow, backoffUntilFrom } from './backoff.js';
+import { createSleepWatch, type SleepWatch } from './sleep-watch.js';
 
 /** The "no reference could be computed" discount, used for offers whose discount is skipped
  * because they match no watch profile (so it can never drive a notification). */
@@ -78,6 +79,30 @@ function isNewOfferEligible(ingest: { isNew: boolean; firstSeenAt: string }, now
  */
 const ADAPTER_FETCH_TIMEOUT_MS = 420000;
 
+/**
+ * If the host was frozen for at least this long during the FETCH phase, the whole run is void.
+ *
+ * The Mac fallback (launchd, :40) gets started inside macOS DarkWake windows — `pmset -g log` on
+ * 2026-09-03 showed the machine waking every ~15 min all night for 2–45 s — and the Mac sleeps
+ * seconds later: sockets die, and on thaw every slow source reports "fetch exceeded 420000ms
+ * budget" or Turso ECONNRESET. 4 of the 5 night runs that day were poisoned; ~57 % of Mac runs
+ * over 7 days. Each wrote `failed` source_runs rows and fed 🛠 health alerts for sources that
+ * were healthy — the dashboard went red on stale failures while the data was fresh.
+ *
+ * WHY THE WHOLE RUN, not just the sources that failed: a source that returned during the sleep
+ * came back truncated (etravel 320/916, dovolena 200/419 in the log). Ingesting that would let
+ * markMissedOffers count a miss against two thirds of its inventory — the data of a slept-through
+ * run is untrustworthy even where it "succeeded". 60 s is far above any event-loop stall in the
+ * fetch phase (network wait; a cheerio parse is tens of ms) and far below the 15-min DarkWake
+ * cadence, so it separates the two cleanly.
+ *
+ * Not measured: a freeze BEFORE the watch starts (DB open, getExcludedCountries). That surfaces as
+ * a Turso error thrown out of runScan — "Scan crashed", exit 1, nothing written — the same safe
+ * outcome by a different route. Sleep during the processing phase is likewise not detected (see the
+ * plan in docs/superpowers/plans/2026-09-03-source-health.md).
+ */
+const HOST_SLEEP_VOID_MS = 60000;
+
 /** Reject with an Error after `ms` if `p` hasn't settled. Does not cancel `p` (its in-flight
  * requests still settle via their own per-request timeout); the caller just stops waiting. */
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
@@ -112,11 +137,23 @@ export interface RunScanDeps {
   /** Per-adapter fetch timeout override (ms). Defaults to ADAPTER_FETCH_TIMEOUT_MS. Injectable so
    * tests can use a small value without waiting out the real budget. */
   adapterTimeoutMs?: number;
+  /**
+   * Host-sleep detector wrapped around the fetch phase (see HOST_SLEEP_VOID_MS). Defaults to the
+   * real tick-based watch (sleep-watch.ts); injectable so tests can dictate the verdict without
+   * freezing the process. A test that jumps the system clock (vi.setSystemTime) by ≥ 60 s without
+   * advancing timers MUST inject a watch — the default one would read the jump as a sleep.
+   */
+  sleepWatch?: SleepWatch;
 }
 
 export interface SourceSummary {
   source: string;
-  status: 'ok' | 'partial' | 'failed';
+  /**
+   * 'skipped' = the whole run was discarded because the host slept through the fetch phase
+   * (HOST_SLEEP_VOID_MS). Nothing was written or sent for the source; it is NOT a failure —
+   * the CLI's exit rule only counts 'failed'.
+   */
+  status: 'ok' | 'partial' | 'failed' | 'skipped';
   offersFound: number;
   error?: string;
 }
@@ -534,13 +571,52 @@ export async function runScan(deps: RunScanDeps): Promise<ScanSummary> {
     }
   }
 
+  // Host-sleep guard (2026-09-03): the watch brackets ONLY the fetch phase. That phase is network
+  // wait, where a live process ticks freely; phase 2 below is CPU-heavy (batched ingest, in-memory
+  // bucket math) and could hold the event loop long enough to look like a freeze while awake.
+  const sleepWatch = deps.sleepWatch ?? createSleepWatch();
   let outcomes: FetchOutcome[];
-  if (concurrency === 'concurrent') {
-    // Promise.all preserves input order in its result array → outcomes order === adapters order.
-    outcomes = await Promise.all(adapters.map(fetchOne));
-  } else {
-    outcomes = [];
-    for (const adapter of adapters) outcomes.push(await fetchOne(adapter));
+  sleepWatch.start();
+  try {
+    if (concurrency === 'concurrent') {
+      // Promise.all preserves input order in its result array → outcomes order === adapters order.
+      outcomes = await Promise.all(adapters.map(fetchOne));
+    } else {
+      outcomes = [];
+      for (const adapter of adapters) outcomes.push(await fetchOne(adapter));
+    }
+  } catch (err) {
+    // A fetch-phase exception (blockedBackoffUntil sits outside fetchOne's try, so a Turso
+    // ECONNRESET after a thaw lands here) skips the verdict below. The sleep is then the likeliest
+    // cause, so name it in the log before the CLI prints "Scan crashed". Nothing was written.
+    const frozen = sleepWatch.stop();
+    if (frozen >= HOST_SLEEP_VOID_MS) {
+      log(`host slept ~${Math.round(frozen / 1000)}s during the fetch phase and the fetch phase threw — nothing written`);
+    }
+    throw err;
+  }
+  const frozenMs = sleepWatch.stop();
+
+  // The verdict lands BEFORE any phase-2 write: a slept-through run leaves no source_runs row (not
+  // even the backoff bookkeeping row), ingests nothing, and sends nothing — no notification, no
+  // digest, no health alert. See HOST_SLEEP_VOID_MS for why the whole run and not just the
+  // sources that failed.
+  if (frozenMs >= HOST_SLEEP_VOID_MS) {
+    const slept = Math.round(frozenMs / 1000);
+    log(
+      `host slept ~${slept}s during the fetch phase — discarding this run: nothing ingested, ` +
+        `written or sent for ${adapters.map((a) => a.name).join(', ')}`,
+    );
+    return {
+      perSource: adapters.map((a) => ({
+        source: a.name,
+        status: 'skipped' as const,
+        offersFound: 0,
+        error: `host slept ~${slept}s during the fetch phase — run discarded`,
+      })),
+      notificationsSent: 0,
+      digestSent: false,
+    };
   }
 
   for (const outcome of outcomes) {

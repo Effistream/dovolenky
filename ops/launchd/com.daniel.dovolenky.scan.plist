@@ -6,12 +6,27 @@
   sites. This LaunchAgent runs the scan from the Mac's residential IP for exactly
   those hard sources (SCAN_SOURCES below), so when the Mac is on they get covered.
 
-  Safe alongside the cloud scan: markMissedOffers is strictly per-source, so this
-  subset never deactivates cloud-scanned sources. Scheduled at :40 (cloud is :00,
-  ≤30-min runs) so run windows don't overlap — avoiding the same-source insert
-  collision / duplicate-notification the single-process design assumes away.
-  StartCalendarInterval coalesces slots missed while asleep into ONE catch-up run
-  on wake (Mac need not be on 24/7). DB + Telegram creds come from .env.
+  Overlap with the cloud run DOES happen. The :40 slot was chosen assuming the
+  cloud run starts at :00 and ends inside 30 min, but GitHub's cron drifts by
+  1.8-4.5 h (measured 2026-09-03: a cloud run started 10:29, ran 26 min and
+  finished at 10:51 — 11 min AFTER this job's 10:40 run). What keeps the overlap
+  survivable is per-source scoping, not timing: markMissedOffers is strictly
+  per-source (this subset never deactivates cloud-scanned sources) and
+  notifications_log dedups sends. A same-source race between the two processes
+  remains possible for the sources both still scan; treat :40 as a best-effort
+  offset, not a guarantee.
+
+  Sleep is NOT handled by launchd coalescing alone. StartCalendarInterval merges
+  slots missed during a FULL sleep into one catch-up run on wake, but macOS also
+  wakes every ~15 min for 2-45 s (DarkWake, `pmset -g log`, 2026-09-03) and
+  launchd happily fires this job inside such a window: the Mac sleeps seconds
+  later, the process freezes mid-fetch, its sockets die, and on thaw every slow
+  source reports "fetch exceeded 420000ms budget" — 4 of 5 night runs that day,
+  ~57 % of Mac runs over 7 days. The scan now detects a frozen fetch phase
+  (src/core/sleep-watch.ts, 60 s threshold) and DISCARDS the run: status
+  'skipped' for every source, nothing written to source_runs, nothing ingested,
+  nothing sent, exit 0. A slept-through slot therefore costs one skipped run,
+  not a false `failed` row. DB + Telegram creds come from .env.
 -->
 <plist version="1.0">
 <dict>
