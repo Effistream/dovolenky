@@ -754,4 +754,21 @@ describe('ingestSourceOffers (batched == per-offer)', () => {
     expect(keep?.misses).toBe(0);
     expect(keep?.active).toBe(true);
   });
+  it('markMissedOffers leaves already-inactive offers untouched (no endless misses++ / row writes)', async () => {
+    const db = openDb(':memory:');
+    await ensureSchema(db);
+
+    await ingestSourceOffers(db, [
+      makeOffer({ sourceOfferKey: 'keep' }),
+      makeOffer({ sourceOfferKey: 'vanish' }),
+    ], now);
+
+    await markMissedOffers(db, 'invia', ['keep'], now);
+    await markMissedOffers(db, 'invia', ['keep'], now); // vanish is now inactive with misses = 2
+    for (let i = 0; i < 5; i += 1) await markMissedOffers(db, 'invia', ['keep'], now);
+
+    const [vanish] = await db.select().from(offers).where(sql`${offers.sourceOfferKey} = 'vanish'`);
+    expect(vanish?.active).toBe(false);
+    expect(vanish?.misses).toBe(2);
+  });
 });

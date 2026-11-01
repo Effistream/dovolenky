@@ -571,9 +571,13 @@ export async function markMissedOffers(
   // (e.g. a last-checked timestamp); the current schema has no column for it.
   _now: Date = new Date(),
 ): Promise<void> {
+  // Only ACTIVE offers can still be missed. Without the active filter every already-deactivated row
+  // (323k of 332k in prod) was selected and rewritten with misses+1 on every run — ~3.9M row writes
+  // a day on Turso (2026-11-01 bill). `misses` of an inactive row is frozen at the value that
+  // deactivated it; re-ingesting the offer resets it.
   const missedWhere = seenKeys.length > 0
-    ? and(eq(offers.source, source), notInArray(offers.sourceOfferKey, seenKeys))
-    : eq(offers.source, source);
+    ? and(eq(offers.source, source), eq(offers.active, true), notInArray(offers.sourceOfferKey, seenKeys))
+    : and(eq(offers.source, source), eq(offers.active, true));
 
   const missed = await db.select().from(offers).where(missedWhere);
 
